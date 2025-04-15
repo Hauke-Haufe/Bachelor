@@ -1,0 +1,21 @@
+
+bugs:
+-odometry integration with rgb8
+
+Akut:
+
+registration results mitnutzen
+transform checken
+capture motion data mit intelrealsense with the pipeline: 
+    -checken ob der Kalmanfilterzwischen frames funktioniert
+
+
+Später:
+-scene Aufteilen und fragment mit ransac(siehe old pipeline)
+-bounding Boxes für enfernen von Objekten (generiert duch AI)
+
+
+nice_to_know:
+-nutzt left hand down Koordinatensystem (y_down)
+
+
