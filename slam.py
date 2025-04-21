@@ -13,7 +13,7 @@ def main():
     intrinsics = o3d.io.read_pinhole_camera_intrinsic("data/intrinsics.json")  
     intrinsics = o3d.core.Tensor(intrinsics.intrinsic_matrix)
 
-    device = o3d.core.Device("CUDA:2")
+    device = o3d.core.Device("CPU:0")
 
     T_frame_model = o3d.core.Tensor(np.identity(4))
     model = o3d.t.pipelines.slam.Model(config["voxel_size"], 16,  10000, T_frame_model, device)
