@@ -3,9 +3,9 @@
     "color": true,
     "ransac": false,
     "max_iteration": 50,
-    "fps": 15,
+    "fps": 30,
     "key_frame_freq": 2,
-    "max_images": 100,
+    "max_images": 2000,
     "frames_per_frag": 10,
     "depth_scale": false,
     "depth_max": 3
