@@ -4,7 +4,7 @@ import numpy as np
 import json
 import os
 import cv2
-from Kalmanfilter import IMUCalmanFilter
+from pipline.Kalmanfilter import IMUCalmanFilter
 import time
 
 def unpack_bag(path, config):
@@ -13,6 +13,7 @@ def unpack_bag(path, config):
     reader.open(path)
     stream_lenght = reader.metadata.stream_length_usec /1000000
     fps = reader.metadata.fps
+    o3d.io.write_pinhole_camera_intrinsic("data/intrinsics.json", reader.metadata.intrinsics)
     reader.close()
 
     pipeline = rs.pipeline()
@@ -52,15 +53,6 @@ def unpack_bag(path, config):
                 depth = np.asanyarray(depth_frame.get_data())
                 cv2.imwrite(f"data/images/depth/image{int(i/freq)}.png", depth.astype(np.uint16))
                 cv2.imwrite(f"data/images/color/image{int(i/freq)}.png", np.asanyarray(color_frame.get_data()))
-                
-                '''depth_image = np.asanyarray(depth_frame.get_data())
-                color_image = np.asanyarray(color_frame.get_data())
-
-                depth_image = o3d.t.geometry.Image(depth_image)
-                color_image = o3d.t.geometry.Image(color_image)
-
-                o3d.t.io.write_image(f"data/images/color/image{int(i/freq)}.png", color_image)
-                o3d.t.io.write_image(f"data/images/depth/image{int(i/freq)}.png", depth_image)'''
 
                 if i == 0:
                     prev_timestamp = timestamp
@@ -74,7 +66,7 @@ def unpack_bag(path, config):
         pass
 
     pipeline.stop()
-    np.save("data/images/timestamps.npy", np.asanyarray(timestamps))
+    #np.save("data/images/timestamps.npy", np.asanyarray(timestamps))
 
 def estimate_transform(gyro_data, acc_data, timestamp, index):
 
@@ -159,8 +151,8 @@ def load_point_clouds_from_image(intrinsics, config, sid, eid):
     return pcds
 
 def clear_dirs():
-    path_1 = "/home/nb-messen-07/Desktop/SpatialMapping/data/images/color"
-    path_2 = "/home/nb-messen-07/Desktop/SpatialMapping/data/images/depth"
+    path_1 = "data/images/color"
+    path_2 = "data/images/depth"
 
     for file in os.listdir(path_1):
         file_path = os.path.join(path_1,file)
@@ -177,7 +169,7 @@ def main():
             config = json.load(file)
 
     clear_dirs()
-    unpack_bag("/home/nb-messen-07/Desktop/SpatialMapping/capturing/data/RS/HD/20250414_122808/recording.bag", config)
+    unpack_bag("data/raw_data/RS/VGA/20250414_120850/recording.bag", config)
 
 if __name__ == "__main__":
     main()

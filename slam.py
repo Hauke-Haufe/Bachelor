@@ -8,19 +8,21 @@ def main():
     with open("config.json", "rb") as file:
         config = json.load(file)
 
+    print(o3d.core.cuda.device_count())
+
     intrinsics = o3d.io.read_pinhole_camera_intrinsic("data/intrinsics.json")  
     intrinsics = o3d.core.Tensor(intrinsics.intrinsic_matrix)
 
-    device = o3d.core.Device("CUDA:0")
+    device = o3d.core.Device("CUDA:2")
 
     T_frame_model = o3d.core.Tensor(np.identity(4))
-    model = o3d.t.pipelines.slam.Model(config["voxel_size"], 16,  50000)
+    model = o3d.t.pipelines.slam.Model(config["voxel_size"], 16,  10000, T_frame_model, device)
     depth_ref =  depth_image = o3d.t.io.read_image(f"data/images/depth/image{0}.png")
     input_frame = o3d.t.pipelines.slam.Frame(depth_ref.rows, depth_ref.columns, intrinsics, device)
     raycast_frame = o3d.t.pipelines.slam.Frame(depth_ref.rows,depth_ref.columns, intrinsics, device)
     poses = []
 
-    for i in range(config["max_images"]):
+    for i in range(0, config["max_images"]):
 
         color_image = o3d.t.io.read_image(f"data/images/color/image{i}.png")
         depth_image = o3d.t.io.read_image(f"data/images/depth/image{i}.png")
