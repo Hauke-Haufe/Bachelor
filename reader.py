@@ -177,7 +177,7 @@ def main():
             config = json.load(file)
 
     clear_dirs()
-    unpack_bag("/home/nb-messen-07/Desktop/SpatialMapping/capturing/data/RS/HD/20250414_122808/recording.bag", config)
+    unpack_bag("/home/nb-messen-07/Desktop/SpatialMapping/capturing/data/RS/VGA/20250414_115648/recording.bag", config)
 
 if __name__ == "__main__":
     main()

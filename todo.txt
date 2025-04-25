@@ -4,7 +4,8 @@ bugs:
 
 Akut:
 
-registration results mitnutzen
+cpp zum laufen bringen 
+muitlway mit slam und global icp
 transform checken
 capture motion data mit intelrealsense with the pipeline: 
     -checken ob der Kalmanfilterzwischen frames funktioniert
