@@ -1,6 +1,6 @@
 import open3d as o3d
 import open3d.t.pipelines.registration as o3r
-from pipeline.reader import load_point_clouds_from_image, get_transforms
+from reader import load_point_clouds_from_image, get_transforms
 import numpy as np
 import json
 import time

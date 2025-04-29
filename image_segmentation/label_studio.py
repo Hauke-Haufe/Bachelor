@@ -3,12 +3,13 @@ import cv2
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import json
 import os
-from pycocotools import mask as mask_utils
 from collections import defaultdict
-import matplotlib.pyplot as plt
 from pathlib import Path
-from label_studio_converter.brush import encode_rle, image2annotation
-import uuid
+import os
+import numpy as np
+from tqdm import tqdm
+from label_studio_sdk import Client
+import label_studio_converter.brush as brush
 
 
 #starte label studio mit LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT= <ROOT> LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true label-studio
@@ -127,8 +128,10 @@ def create_plygon_tasks(path):
         with open(os.path.join(path, run, "polygon_task.json"), "w") as f:
             json.dump(label_studio_annotations, f, indent=4)
 
+def create_masks(path):
 
-def coco_from_polygons_to_masks(coco_data, path):
+    with open(path, "r")as file:
+        coco_data = json.load(file)
 
     def group_annotations_by_image_and_class(annotations):
         """
@@ -143,6 +146,7 @@ def coco_from_polygons_to_masks(coco_data, path):
 
         return grouped
 
+
     def rasterize_polygon_segments(polygons, image_shape):
 
         mask = np.zeros(image_shape, dtype=np.uint8)
@@ -152,101 +156,78 @@ def coco_from_polygons_to_masks(coco_data, path):
 
         return mask
     
-    def binary_mask_to_labelstudio_rle_safe(mask):
-        mask = mask.transpose()
-        mask = np.array((np.array(mask) > 128) * 255, dtype=np.uint8)
-        array = mask.ravel()
-        array = np.repeat(array, 4)
-        rle = encode_rle(array)
-        return rle
-
-    def build_mask_task(image_path, annotation):
-
-        return {
-            "data": {
-                "image": f"/data/local-files/?d={image_path}"
-            },
-            "predictions": annotation
-        }
-    
-    def build_annotation(label_name, mask, shape):
-        
-        rle_counts =   binary_mask_to_labelstudio_rle_safe(mask)
-        return{
-            "result": [
-                        {
-                            "id": str(uuid.uuid4())[0:8],
-                            "type": "brushlabels",
-                            "value": {"rle": rle_counts, "format": "rle", "brushlabels": [label_name]},
-                            "origin": "manual",
-                            "to_name": "tag",
-                            "from_name": "image",
-                            "image_rotation": 0,
-                            "original_width": shape[1],
-                            "original_height": shape[0],
-                        }
-                    ],
-        }
-    
-    def test(mask):
-
-        cv2.imwrite("temp.png", mask)
-
-        annotation = image2annotation(
-        "temp.png",
-        label_name='Airplane',
-        from_name='tag',
-        to_name='image',
-        model_version='v1',
-        score=0.5,
-    )
-
-        # prepare Label Studio Task
-        task = {
-            'data': {'image': 'https://labelstud.io/images/test.jpg'},
-            'predictions': [annotation],
-        }
-
-        """ You can import this `task.json` to the Label Studio project with this labeling config:
-
-        <View>
-        <Image name="image" value="$image" zoom="true"/>
-        <BrushLabels name="tag" toName="image">
-            <Label value="Airplane" background="rgba(255, 0, 0, 0.7)"/>
-            <Label value="Car" background="rgba(0, 0, 255, 0.7)"/>
-        </BrushLabels>
-        </View>
-
-        """
-        json.dump(task, open('task.json', 'w'))
-
     grouped = group_annotations_by_image_and_class(coco_data["annotations"])
 
     img_shapes = {img["id"]: (img["height"], img["width"]) for img in coco_data["images"]}
     catid_to_name = {cat["id"]: cat["name"] for cat in coco_data["categories"]}
     imgid_to_path = {img["id"]: Path(*Path(img["file_name"]).parts[-3:]) for img in coco_data["images"]}
 
-    segmentations = {img['id']: [] for img in coco_data['images']}
+    cows = []
+    heu = []
     for (image_id, category_id), polygons in grouped.items():
         shape = img_shapes[image_id]
         mask = rasterize_polygon_segments(polygons, shape)
-        #segmentations[image_id].append(build_annotation(catid_to_name[category_id], mask, shape))
-        test(mask)
+        path =  imgid_to_path[image_id]
+        if catid_to_name[category_id] == "heu":
+            full_path = os.path.join("data", "data_set", "run1", os.path.splitext(path.parts[-1])[0] +"heu.npy")
+            np.save(full_path, mask)
+        elif catid_to_name[category_id] == "cow":
+            full_path = os.path.join("data", "data_set", "run1", os.path.splitext(path.parts[-1])[0] +"cow.npy")
+            np.save(full_path, mask)
+    
 
-    tasks = []
-    for (image_id), segmentation in segmentations.items():
+def import_masks_task():
+    
+    classes = ["cow", "heu"]
+
+    #am besten api key nicht auf github
+    ls = Client(url="http://localhost:8080", api_key="179e598bf40ebfc8904c1987e2507c0fe11936f0")
+    project = ls.get_project(3)  # e.g., 12
+
+    def mask2labelstudioresult(task_id, rle, label):
+        return {
+                "from_name": "tag",   # BrushLabels name
+                "to_name": "image",   # Image field name
+                "type": "brushlabels",
+                "value": {
+                    "format": "rle",
+                    "rle": rle,
+                    "brushlabels": [label]
+                }
+            }
+    
+
+    # Load tasks
+    project_tasks = project.get_tasks()
+
+    # Mask folder
+    mask_path = os.path.join("data","data_set","run1")
+
+
+    for task in tqdm(project_tasks):
+
+        results = []
+        for c in classes:
+            mask_filename = os.path.splitext(task['data']['image'])[0] + f"{c}.npy"
+            mask_filename =Path(mask_filename).parts[-1]
+            
+            if os.path.exists(os.path.join(mask_path, mask_filename)):
+                mask = np.load(os.path.join(mask_path, mask_filename))
+
+                # Binarize mask
+                mask = (mask > 0).astype(np.uint8) * 255
+
+                # Convert to Label Studio RLE
+                rle = brush.mask2rle(mask)
+
+                # Upload the prediction
+                results.append(mask2labelstudioresult(task['id'], rle, c))
         
-        task = build_mask_task(imgid_to_path[image_id], segmentation)
-        tasks.append(task)
+        project.create_prediction(
+            task_id=task['id'],
+            model_version=None,
+            result= results
+        )
 
-    with open(os.path.join(path, "mask_task.json"), "w") as f:
-        json.dump(tasks, f, indent=2)
-
-
-#segment_images("data\data_set")
-
-with open("data/result.json", ) as f:
-    coco_data = json.load(f)
-
-coco_from_polygons_to_masks(coco_data, "data/data_set/run1")
-
+create_masks("data/data_set/run1/result.json")
+import_masks_task()

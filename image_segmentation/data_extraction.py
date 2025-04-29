@@ -63,15 +63,14 @@ def extract_images(path, out_path, freq):
     pipeline.stop()
     #np.save("data/extracted/timestamps.npy", np.asanyarray(timestamps))
 
-def extract_rs(path):
+def extract_rs(path, out_path):
 
     freq = 15
 
-    out_path = "C:/Users/Haufe/Desktop/beachlor/code/data/extracted"
     sub_dirs = [d for d in os.listdir(path)]
 
     for directory in sub_dirs:
         extract_images(path + "/" +directory, out_path,  freq)
 
-
-extract_rs("C:/Users/Haufe/Desktop/beachlor/code/data/raw_data/RS/VGA")
+if __name__ == "__main__":  
+    extract_rs("C:/Users/Haufe/Desktop/beachlor/code/data/raw_data/RS/VGA", "C:/Users/Haufe/Desktop/beachlor/code/data/extracted")

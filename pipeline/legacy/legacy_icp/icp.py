@@ -1,11 +1,11 @@
 import open3d as o3d
 import open3d.t.pipelines.registration as o3r
-from pipeline.reader import load_point_clouds_from_image
+from reader import load_point_clouds_from_image
 import numpy as np
 import json
 import time
 import os
-from config import *
+from pipeline.config import *
 
 
 def legacy():
