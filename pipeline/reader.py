@@ -5,9 +5,11 @@ import json
 import os
 import cv2
 from pipeline.legacy.Kalmanfilter import IMUCalmanFilter
-import time
+
 
 def unpack_bag(path, config):
+
+    print(os.path.exists(path))
 
     reader = o3d.t.io.RSBagReader()
     reader.open(path)
@@ -68,7 +70,7 @@ def unpack_bag(path, config):
     pipeline.stop()
     #np.save("data/images/timestamps.npy", np.asanyarray(timestamps))
 
-def estimate_transform(gyro_data, acc_data, timestamp, index):
+""""def estimate_transform(gyro_data, acc_data, timestamp, index):
 
     prev_timestamp = gyro_data[index][0]
     Filter = IMUCalmanFilter(dt = 0.01)
@@ -149,6 +151,7 @@ def load_point_clouds_from_image(intrinsics, config, sid, eid):
 
     print("Pointclouds loaded")
     return pcds
+"""
 
 def clear_dirs():
     path_1 = "data/images/color"
@@ -164,12 +167,12 @@ def clear_dirs():
         if os.path.isfile(file_path):
              os.remove(file_path)
 
-def main():
+def main(path):
     with open("config.json", "rb") as file:
             config = json.load(file)
 
     clear_dirs()
-    unpack_bag("data/RS/VGA/20250414_115648/recording.bag", config)
+    unpack_bag(path, config)
 
 if __name__ == "__main__":
-    main()
+    main("data/raw_data/RS/VGA/20250414_121757/recording.bag")

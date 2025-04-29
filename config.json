@@ -5,8 +5,8 @@
     "max_iteration": 50,
     "fps": 30,
     "key_frame_freq": 2,
-    "max_images": 200,
-    "frames_per_frag": 50,
+    "max_images": 1000,
+    "frames_per_frag": 200,
     "depth_scale": false,
     "depth_max": 3,
     "frag_overlap": 20

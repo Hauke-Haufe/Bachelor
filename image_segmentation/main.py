@@ -1,21 +1,21 @@
 import torch
 import os
 from tqdm import tqdm
-import Deeplab.network
-import Deeplab.utils as utils
+import lib.Deeplab.network
+import lib.Deeplab.utils as utils
 import os
 import random
 import argparse
 import numpy as np
 
 from torch.utils import data
-from Deeplab.utils import ext_transforms as et
-from Deeplab.metrics import StreamSegMetrics
-from Deeplab.network.modeling import  deeplabv3_mobilenet
+from lib.Deeplab.utils import ext_transforms as et
+from lib.Deeplab.metrics import StreamSegMetrics
+from lib.Deeplab.network.modeling import  deeplabv3_mobilenet
 
 import torch
 import torch.nn as nn
-from Deeplab.utils.visualizer import Visualizer
+from lib.Deeplab.utils.visualizer import Visualizer
 
 class Options():
 

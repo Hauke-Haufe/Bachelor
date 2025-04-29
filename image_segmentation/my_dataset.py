@@ -30,7 +30,7 @@ def voc_cmap(N=256, normalized=False):
     cmap = cmap/255 if normalized else cmap
     return cmap
 
-class VOCSegmentation(data.Dataset):
+class Segmentation(data.Dataset):
     """`Pascal VOC <http://host.robots.ox.ac.uk/pascal/VOC/>`_ Segmentation Dataset.
     Args:
         root (string): Root directory of the VOC Dataset.
@@ -46,59 +46,30 @@ class VOCSegmentation(data.Dataset):
 
     def __init__(self,
                  root,
-                 year='2012',
                  image_set='train',
-                 download=False,
                  transform=None):
 
-
-        self.root = os.path.expanduser(root)
-
-        self.transform = transform
-        self.image_set = image_set
-
-        voc_root = os.path.join(self.root, base_dir)
-        image_dir = os.path.join(voc_root, 'JPEGImages')
-
-        if not os.path.isdir(voc_root):
-            raise RuntimeError('Dataset not found or corrupted.' +
-                               ' You can use download=True to download it')
-        
-        if is_aug and image_set=='train':
-            mask_dir = os.path.join(voc_root, 'SegmentationClassAug')
-            assert os.path.exists(mask_dir), "SegmentationClassAug not found, please refer to README.md and prepare it manually"
-            split_f = os.path.join( self.root, 'train_aug.txt')#'./datasets/data/train_aug.txt'
-        else:
-            mask_dir = os.path.join(voc_root, 'SegmentationClass')
-            splits_dir = os.path.join(voc_root, 'ImageSets/Segmentation')
-            split_f = os.path.join(splits_dir, image_set.rstrip('\n') + '.txt')
-
-        if not os.path.exists(split_f):
-            raise ValueError(
-                'Wrong image_set entered! Please use image_set="train" '
-                'or image_set="trainval" or image_set="val"')
-
-        with open(os.path.join(split_f), "r") as f:
-            file_names = [x.strip() for x in f.readlines()]
-        
-        self.images = [os.path.join(image_dir, x + ".jpg") for x in file_names]
-        self.masks = [os.path.join(mask_dir, x + ".png") for x in file_names]
+    
+        image_names = os.listdir(os.path.join(root, "images"))
+        mask_names = os.listdir(os.path.join(root, "masks"))
+        self.images = [os.path.join("images", x) for x in image_names if x.endswith(".jpg")]
+        self.masks = [os.path.join("masks", x) for x in mask_names if x.endswith(".png") ]
         assert (len(self.images) == len(self.masks))
 
     def __getitem__(self, index):
-        """
-        Args:
-            index (int): Index
-        Returns:
-            tuple: (image, target) where target is the image segmentation.
-        """
+
         img = Image.open(self.images[index]).convert('RGB')
         target = Image.open(self.masks[index])
+
         if self.transform is not None:
             img, target = self.transform(img, target)
 
         return img, target
 
+    #hier noch was machen
+    def transform(self, img, target):
+
+        return img, target
 
     def __len__(self):
         return len(self.images)

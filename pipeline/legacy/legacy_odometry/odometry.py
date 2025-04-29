@@ -4,7 +4,7 @@ from pipline.Kalmanfilter import IMUCalmanFilter
 from pipline.opencv_pose_estimation import pose_estimation
 import numpy as np
 import json
-from pipeline.reader import load_images_legacy
+from reader import load_images_legacy
 
 def load_bag(path, freq):
 
