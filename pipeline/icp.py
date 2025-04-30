@@ -29,6 +29,8 @@ class icp:
                                     max_correspondence_distances, 
                                     init_transform, 
                                     estimation)
+        
+        o3d.visualization.draw([source.transform(result.transformation), target])
 
         return result.transformation
 
@@ -36,8 +38,8 @@ class icp:
     def _global_registration(source, target, source_fpfh, target_fpfh, config):
 
         distance_threshold = config["voxel_size"] * 1.5
-        source = source.voxel_down_sample(voxel_size = 0.01)
-        target = target.voxel_down_sample(voxel_size = 0.01)
+        source = source.voxel_down_sample(voxel_size = 0.02)
+        target = target.voxel_down_sample(voxel_size = 0.02)
 
         result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
             source, target, source_fpfh, target_fpfh, True, distance_threshold,
@@ -47,10 +49,9 @@ class icp:
                     0.9),
                 o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(
                     distance_threshold)
-            ], o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999)
+            ], o3d.pipelines.registration.RANSACConvergenceCriteria(500000, 0.9999)
         )
 
-        o3d.visualization.draw([source, target])
         o3d.visualization.draw([source, target.transform(result.transformation)])
 
         return result.transformation
