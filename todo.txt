@@ -4,7 +4,8 @@ ideas:
 
 Akut:
 ----data structure andern
--klau config von model tracking fuer integration und odometry
+-locking in lopclosure integration !!!!!!!!!!!!!!
+
 -fragment stiching funktioniert noch nicht (Ransac part)
 -label daten
 -muitlway mit slam und global icp
@@ -19,5 +20,6 @@ Aufwand: (hoch)
 nice_to_know:
 -nutzt left hand down Koordinatensystem (y_down)
 -integration nutzt viel gpu speicher
+-fragment registration hat große probleme mit kühen
 
 

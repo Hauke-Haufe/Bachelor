@@ -4,7 +4,7 @@ import numpy as np
 import json
 import os
 import cv2
-from pipeline.legacy.Kalmanfilter import IMUCalmanFilter
+#from Kalmanfilter import IMUCalmanFilter
 
 
 def unpack_bag(path, config):
@@ -175,4 +175,4 @@ def main(path):
     unpack_bag(path, config)
 
 if __name__ == "__main__":
-    main("data/raw_data/RS/VGA/20250414_121757/recording.bag")
+    main("data/raw_data/RS/VGA/20250414_120850/recording.bag")
