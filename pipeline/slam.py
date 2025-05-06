@@ -50,16 +50,33 @@ class model_tracking:
 
 class loop_closure:
 
+    def __init__(self, lock):
+        self._lock = lock
+
     @staticmethod
     def _odometry(source, target, instrinsics):
 
         try:
             start = time.time()
+<<<<<<< HEAD
+=======
+            critiria = [o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=6, 
+                                                                             relative_rmse=1.000000e-06, 
+                                                                             relative_fitness=1.000000e-06), 
+                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=3, 
+                                                                             relative_rmse=1.000000e-06, 
+                                                                             relative_fitness=1.000000e-06), 
+                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=1, 
+                                                                             relative_rmse=1.000000e-06, 
+                                                                             relative_fitness=1.000000e-06)]
+            
+>>>>>>> 5ac393a84c554e9fabf3285c9f0ecf0809da8203
             
             result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(source.cuda(),
-                                                          target.cuda(),
-                                                          instrinsics)
-            print(f"odo_time{time.time()-start}")
+                                                                        target.cuda(),
+                                                                        instrinsics, 
+                                                                        criteria_list = critiria)
+            print(f"odo_time:{time.time()-start}")
             success = True
             
 
@@ -100,41 +117,8 @@ class loop_closure:
         
         return pose_graph
 
-    @staticmethod
-    def _integrate(path,sid, eid, pose_graph, intrinsics):
 
-        vgb = o3d.t.geometry.VoxelBlockGrid(
-            attr_names = ('tsdf', 'weight', 'color'),
-            attr_dtypes = (o3d.core.Dtype.Float32, o3d.core.Dtype.Float32,o3d.core.Dtype.Float32),
-            attr_channels = ((1), (1), (3)),
-            voxel_size = 3.0/512,
-            block_resolution = 16,
-            block_count = 50000,
-            device = o3d.core.Device("CUDA:0")
-        )
-
-        for i in range(len(pose_graph.nodes)):
-
-            depth_image = o3d.t.io.read_image(f"{path}/depth/image{sid + i}.png").cuda()
-            color_image = o3d.t.io.read_image(f"{path}/color/image{sid + i}.png").cuda()
-            pose = pose_graph.nodes[i].pose
-
-            frustum_block_coords = vgb.compute_unique_block_coordinates(
-                depth_image,  intrinsics, 
-                np.linalg.inv(pose)
-            )
-            
-
-            vgb.integrate(frustum_block_coords, depth_image, color_image,
-                intrinsics, 
-                np.linalg.inv(pose)
-            )
-
-
-        return vgb
-
-    def run_system(self,fragment_id, sid, eid,  config, instrinsics, path):
-
+    def _create_posegraph(self, sid, eid,  config, instrinsics, path):
         pose_graph = o3d.pipelines.registration.PoseGraph()
         odometry = np.identity(4)
         pose_graph.nodes.append(o3d.pipelines.registration.PoseGraphNode(odometry))
@@ -151,7 +135,7 @@ class loop_closure:
         for source_id in range(sid, eid):
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
-                if target_id-source_id <3:
+                if target_id-source_id <7:
 
                     if target_id == source_id +1:
                         uncertain = False
@@ -176,28 +160,68 @@ class loop_closure:
                                 )
                         )
 
+    @staticmethod
+    def _integrate(path, sid,  pose_graph, intrinsics):
+
+        vgb = o3d.t.geometry.VoxelBlockGrid(
+            attr_names = ('tsdf', 'weight', 'color'),
+            attr_dtypes = (o3d.core.Dtype.Float32, o3d.core.Dtype.Float32,o3d.core.Dtype.Float32),
+            attr_channels = ((1), (1), (3)),
+            voxel_size = 0.01,
+            block_resolution = 16,
+            block_count = 9000,
+            device = o3d.core.Device("CUDA:0")
+        )
+
+        for i in range(len(pose_graph.nodes)):
+
+            depth_image = o3d.t.io.read_image(f"{path}/depth/image{sid + i}.png").cuda()
+            color_image = o3d.t.io.read_image(f"{path}/color/image{sid + i}.png").cuda()
+            pose = pose_graph.nodes[i].pose
+
+            frustum_block_coords = vgb.compute_unique_block_coordinates(
+                depth_image,  intrinsics, 
+                np.linalg.inv(pose)
+            )
+            
+
+            vgb.integrate(frustum_block_coords, depth_image, color_image,
+                intrinsics, 
+                np.linalg.inv(pose)
+            )
+
+        return vgb
+
+
+    def run_system(self,fragment_id, sid, eid,  config, intrinsics, path):
+
+        pose_graph = self._create_posegraph(sid, eid,  config, intrinsics, path)
         pose_graph = self._optimize_posegraph(pose_graph)
-        vgb = self._integrate(path, sid, eid, pose_graph, instrinsics)
-        pointcloud = vgb.extract_point_cloud()
 
-        o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
-        
+        with self._lock:
+            vgb = self._integrate(path, sid, pose_graph, intrinsics)
+            pointcloud = vgb.extract_point_cloud()
+            o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
+      
+
+    
 class Scene_fragmenter:
-
     def __init__(self, backend):
         
         if backend == "model_tracking": 
             self.backend = model_tracking()
 
         elif backend == "loop_closure":
-            self.backend = loop_closure()
+            self.lock = multiprocessing.Manager().Lock()
+            self.backend = loop_closure(self.lock)
     
         else:
             raise Exception("None Valid backend")
 
-    #Danger race condition at file loading
-    def make_fragments(self, path ,parallel = False):
 
+    
+    @staticmethod
+    def _prepare_task(path):
         for file in os.listdir(FRAGMENT_PATH):
             file_path = os.path.join(FRAGMENT_PATH,file)
             if os.path.isfile(file_path):
@@ -215,14 +239,20 @@ class Scene_fragmenter:
         sid, eid, i = 0, config["frames_per_frag"], 0
         ids.append([sid, eid])
 
-        while i < num_images:
-            i+= config["frames_per_frag"]
+        while eid- config["frag_overlap"] +config["frames_per_frag"]   < num_images:
             sid = eid - config["frag_overlap"]
             eid = sid + config["frames_per_frag"]
             ids.append([sid, eid])
             
         n_fragments = len(ids)
-        
+
+        return ids, n_fragments, intrinsics, config
+    
+    #Danger race condition at file loading
+    def make_fragments(self, path ,parallel = False):
+
+        ids, n_fragments, intrinsics, config = self._prepare_task(path)
+
         #achtung hier kann gern mal gpu Ueberfordert werden
         max_workers = min(max(1, multiprocessing.cpu_count()-1), n_fragments)
         os.environ["OMP_NUM_THREADS"] = '1'
@@ -235,22 +265,29 @@ class Scene_fragmenter:
                         ids[fragment_id][0], 
                         ids[fragment_id][1], config, 
                         o3d.core.Tensor(intrinsics.intrinsic_matrix),
-                        path) for fragment_id in range(n_fragments-1)]
+                        path) for fragment_id in range(n_fragments)]
                 pool.starmap(self.backend.run_system, args)
+
+
         else:
 
-            for fragment_id in range(n_fragments-1):
+            for fragment_id in range(n_fragments):
                 self.backend.run_system(fragment_id, 
                                         ids[fragment_id][0], 
                                         ids[fragment_id][1], 
                                         config, 
                                         o3d.core.Tensor(intrinsics.intrinsic_matrix), 
                                         path)
-          
+
+        
 if __name__ == "__main__":
 
     start = time.time()
+<<<<<<< HEAD
     odo =  Scene_fragmenter("loop_closure")
+=======
+    odo =  Scene_fragmenter("model_tracking")
+>>>>>>> 5ac393a84c554e9fabf3285c9f0ecf0809da8203
     odo.make_fragments("data/images", False)
     print(time.time()-start)
 
