@@ -55,6 +55,7 @@ class loop_closure:
 
         try:
             start = time.time()
+            
             result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(source.cuda(),
                                                           target.cuda(),
                                                           instrinsics)
@@ -249,12 +250,12 @@ class Scene_fragmenter:
 if __name__ == "__main__":
 
     start = time.time()
-    odo =  Scene_fragmenter("model_tracking")
-    odo.make_fragments("data/images", True)
+    odo =  Scene_fragmenter("loop_closure")
+    odo.make_fragments("data/images", False)
     print(time.time()-start)
 
     pcd = []
     for file in os.listdir("data/fragments"):
         pcd.append(o3d.io.read_point_cloud(os.path.join("data/fragments", file)))
        
-    o3d.visualization.draw(pcd[1])
+    o3d.visualization.draw(pcd[0])
