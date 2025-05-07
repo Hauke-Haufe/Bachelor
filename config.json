@@ -5,14 +5,10 @@
     "max_iteration": 50,
     "fps": 30,
     "key_frame_freq": 2,
-<<<<<<< HEAD
-    "max_images": 1000,
-    "frames_per_frag": 1000,
-=======
-    "max_images": 2000,
-    "frames_per_frag": 1100,
->>>>>>> 5ac393a84c554e9fabf3285c9f0ecf0809da8203
+    "max_images": 3000,
+    "frames_per_frag": 1500,
     "depth_scale": false,
     "depth_max": 3,
-    "frag_overlap": 30
+    "frag_overlap": 100,
+    "loop_closure_max": 7
 }
