@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 
 project(SpatilalMapping)
 
-set(CMAKE_PREFIX_PATH "/home/nb-messen-07/open3d_install/lib/cmake/Open3D")
+#set(CMAKE_PREFIX_PATH "/home/nb-messen-07/open3d_install/lib/cmake/Open3D")
+set(CMAKE_PREFIX_PATH "C:\src\Open3d")
 find_package(Open3D REQUIRED)
 
 add_executable(main main.cpp)
