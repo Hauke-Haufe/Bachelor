@@ -40,6 +40,16 @@ class icp:
         distance_threshold = config["voxel_size"] * 1.5
         source = source.voxel_down_sample(voxel_size = 0.02)
         target = target.voxel_down_sample(voxel_size = 0.02)
+        radius_feature = config["voxel_size"] * 6
+
+        """source_fpfh = o3d.pipelines.registration.compute_fpfh_feature(
+                source.voxel_down_sample(0.02), o3d.geometry.KDTreeSearchParamHybrid(radius= radius_feature, 
+                max_nn = 100)
+                )
+        target_fpfh = o3d.pipelines.registration.compute_fpfh_feature(
+                target.voxel_down_sample(0.02) , 
+                o3d.geometry.KDTreeSearchParamHybrid(radius= radius_feature, 
+                max_nn = 100))"""
 
         result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
             source, target, source_fpfh, target_fpfh, True, distance_threshold,
@@ -52,7 +62,7 @@ class icp:
             ], o3d.pipelines.registration.RANSACConvergenceCriteria(500000, 0.9999)
         )
 
-        o3d.visualization.draw([source, target.transform(result.transformation)])
+        o3d.visualization.draw([source.transform(result.transformation), target])
 
         return result.transformation
 
@@ -109,6 +119,12 @@ if __name__ == "__main__":
     system = icp()
     system.run_system()
 
+    '''pcd = o3d.t.io.read_point_cloud(os.path.join(FRAGMENT_PATH, "0.pcd"))
+    _, plane = pcd.segment_plane(distance_threshold = 0.2, probability = 0.5)
+    #print(plane)
+    inlier_cloud = pcd.select_by_index(plane)
+    o3d.visualization.draw([inlier_cloud])
 
+'''
 
 

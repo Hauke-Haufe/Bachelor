@@ -6,6 +6,7 @@ import os
 import multiprocessing
 from config import *
 import matplotlib.pyplot as plt
+from collections import deque
 
 class model_tracking:
 
@@ -41,7 +42,7 @@ class model_tracking:
             model.update_frame_pose(i -sid, T_frame_model)
             model.integrate(input_frame)
             model.synthesize_model_frame(raycast_frame)
-            print(time.time()-start)
+            #print(time.time()-start)
 
         
         mesh = model.extract_pointcloud()
@@ -58,25 +59,16 @@ class loop_closure:
 
         try:
             start = time.time()
-<<<<<<< HEAD
-=======
-            critiria = [o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=6, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06), 
-                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=3, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06), 
-                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=1, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06)]
-            
->>>>>>> 5ac393a84c554e9fabf3285c9f0ecf0809da8203
-            
-            result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(source.cuda(),
-                                                                        target.cuda(),
-                                                                        instrinsics, 
+            critiria = [o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=6, relative_rmse=1.000000e-06, relative_fitness=1.000000e-06),
+                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=3, relative_rmse=1.000000e-06, relative_fitness=1.000000e-06), 
+                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=1, relative_rmse=1.000000e-06, relative_fitness=1.000000e-06)]
+
+
+            result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(source,
+                                                                        target,
+                                                                        instrinsics.cuda(), 
                                                                         criteria_list = critiria)
-            print(f"odo_time:{time.time()-start}")
+            #print(f"odo_time:{time.time()-start}")
             success = True
             
 
@@ -92,6 +84,7 @@ class loop_closure:
             success = False
 
             print("Loop closure failed")
+            print(e)
 
             return success, None, None
 
@@ -123,6 +116,7 @@ class loop_closure:
         odometry = np.identity(4)
         pose_graph.nodes.append(o3d.pipelines.registration.PoseGraphNode(odometry))
 
+        """
         images = []
         start = time.time()
         for i in range(sid, eid):
@@ -130,12 +124,21 @@ class loop_closure:
             depth_image = o3d.t.io.read_image(f"{path}/depth/image{i}.png")
             image = o3d.t.geometry.RGBDImage(color_image, depth_image)
             images.append(image)
-        print(time.time()-start)
+        print(time.time()-start)"""
+
+        loop_closure_max = config["loop_closure_max"]
+        image_queue = deque()
+        for i in range(sid, sid +  loop_closure_max+5):
+            color_image = o3d.t.io.read_image(f"{path}/color/image{i}.png")
+            depth_image = o3d.t.io.read_image(f"{path}/depth/image{i}.png")
+            image_queue.append(o3d.t.geometry.RGBDImage(color_image.cuda(), depth_image.cuda()))
+
 
         for source_id in range(sid, eid):
+            source_image = image_queue.popleft()
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
-                if target_id-source_id <7:
+                if target_id-source_id < loop_closure_max:
 
                     if target_id == source_id +1:
                         uncertain = False
@@ -144,14 +147,16 @@ class loop_closure:
 
 
                     success, icp, info= self._odometry(
-                            images[source_id-sid], images[target_id- sid], instrinsics)
+                        source_image, image_queue[target_id- source_id -1], instrinsics)
 
                     if success: 
                         trans = icp.transformation
                         odometry = np.dot(trans.numpy(),odometry)
-                        pose_graph.nodes.append(
-                            o3d.pipelines.registration.PoseGraphNode(np.linalg.inv(odometry))
-                        )
+                        if not uncertain:
+ 
+                            pose_graph.nodes.append(
+                                o3d.pipelines.registration.PoseGraphNode(np.linalg.inv(odometry))
+                            )
 
                         pose_graph.edges.append(
                             o3d.pipelines.registration.PoseGraphEdge(
@@ -159,17 +164,23 @@ class loop_closure:
                                 trans.numpy(), info, uncertain
                                 )
                         )
+            color_image = o3d.t.io.read_image(f"{path}/color/image{source_id +  loop_closure_max}.png")
+            depth_image = o3d.t.io.read_image(f"{path}/depth/image{source_id +  loop_closure_max}.png")
+            image_queue.append(o3d.t.geometry.RGBDImage(color_image, depth_image).cuda())
+
+                    
+        return pose_graph
 
     @staticmethod
     def _integrate(path, sid,  pose_graph, intrinsics):
 
         vgb = o3d.t.geometry.VoxelBlockGrid(
             attr_names = ('tsdf', 'weight', 'color'),
-            attr_dtypes = (o3d.core.Dtype.Float32, o3d.core.Dtype.Float32,o3d.core.Dtype.Float32),
+            attr_dtypes = (o3d.core.Dtype.Float32, o3d.core.Dtype.UInt16,o3d.core.Dtype.UInt16),
             attr_channels = ((1), (1), (3)),
             voxel_size = 0.01,
             block_resolution = 16,
-            block_count = 9000,
+            block_count = 10000,
             device = o3d.core.Device("CUDA:0")
         )
 
@@ -179,12 +190,13 @@ class loop_closure:
             color_image = o3d.t.io.read_image(f"{path}/color/image{sid + i}.png").cuda()
             pose = pose_graph.nodes[i].pose
 
+            #print(pose)
+
             frustum_block_coords = vgb.compute_unique_block_coordinates(
                 depth_image,  intrinsics, 
                 np.linalg.inv(pose)
             )
             
-
             vgb.integrate(frustum_block_coords, depth_image, color_image,
                 intrinsics, 
                 np.linalg.inv(pose)
@@ -199,11 +211,11 @@ class loop_closure:
         pose_graph = self._optimize_posegraph(pose_graph)
 
         with self._lock:
+            print("hi")
+            time.sleep(2)
             vgb = self._integrate(path, sid, pose_graph, intrinsics)
             pointcloud = vgb.extract_point_cloud()
             o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
-      
-
     
 class Scene_fragmenter:
     def __init__(self, backend):
@@ -246,7 +258,7 @@ class Scene_fragmenter:
             
         n_fragments = len(ids)
 
-        return ids, n_fragments, intrinsics, config
+        return ids, n_fragments, intrinsics, configx
     
     #Danger race condition at file loading
     def make_fragments(self, path ,parallel = False):
@@ -254,7 +266,7 @@ class Scene_fragmenter:
         ids, n_fragments, intrinsics, config = self._prepare_task(path)
 
         #achtung hier kann gern mal gpu Ueberfordert werden
-        max_workers = min(max(1, multiprocessing.cpu_count()-1), n_fragments)
+        max_workers = 3#min(max(1, multiprocessing.cpu_count()-1), n_fragments)
         os.environ["OMP_NUM_THREADS"] = '1'
         mp_context = multiprocessing.get_context('spawn')
 
@@ -274,21 +286,14 @@ class Scene_fragmenter:
             for fragment_id in range(n_fragments):
                 self.backend.run_system(fragment_id, 
                                         ids[fragment_id][0], 
-                                        ids[fragment_id][1], 
-                                        config, 
-                                        o3d.core.Tensor(intrinsics.intrinsic_matrix), 
                                         path)
 
         
 if __name__ == "__main__":
 
     start = time.time()
-<<<<<<< HEAD
-    odo =  Scene_fragmenter("loop_closure")
-=======
     odo =  Scene_fragmenter("model_tracking")
->>>>>>> 5ac393a84c554e9fabf3285c9f0ecf0809da8203
-    odo.make_fragments("data/images", False)
+    odo.make_fragments("data/images", True)
     print(time.time()-start)
 
     pcd = []
