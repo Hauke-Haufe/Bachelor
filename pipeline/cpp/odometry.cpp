@@ -4,44 +4,8 @@ using namespace open3d;
 
 std::string Path = "/home/nb-messen-07/Desktop/SpatialMapping/data/images";
 
-template <typename Derived>
-core::Tensor EigentoTensorF64i(Eigen::MatrixBase<Derived> matrix){
 
-    constexpr int rows = Derived::RowsAtCompileTime;
-    constexpr int  cols = Derived::ColsAtCompileTime;
-    core::SizeVector size({rows, cols});
 
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> mat_row = matrix;
-
-    std::cout<<mat_row<<std::endl;
-    std::cin;
-
-    return core::Tensor(
-        static_cast<double*>(mat_row.data()), 
-        core::Dtype::Float64, size
-    );
-    
-}
-
-template <typename Derived>
-core::Tensor EigentoTensorF64(Eigen::MatrixBase<Derived>& matrix){
-    
-    constexpr int rows = Derived::RowsAtCompileTime;
-    constexpr int  cols = Derived::ColsAtCompileTime;
-    core::SizeVector size({rows, cols});
-
-    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> mat_row = matrix;
-    core::Tensor tensor(size, core::Dtype::Float64);
-
-    for (int i = 0; i< rows; ++i){
-        for (int j = 0 ; j< cols; ++j){
-            tensor[i][j] = mat_row(i,j);
-        }
-    }
-    return tensor;
-
-    
-}
 
 
 
