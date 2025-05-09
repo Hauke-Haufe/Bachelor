@@ -2,7 +2,7 @@ import open3d as o3d
 import open3d.t.pipelines.registration as o3r
 import json
 import os
-from config import *
+from config import FRAGMENT_PATH, SCENE_PATH 
 import time
 
 

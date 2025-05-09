@@ -174,5 +174,14 @@ def main(path):
     clear_dirs()
     unpack_bag(path, config)
 
+def get_intrinics_rs(path):
+    reader = o3d.t.io.RSBagReader()
+    reader.open(path)
+    stream_lenght = reader.metadata.stream_length_usec /1000000
+    fps = reader.metadata.fps
+    o3d.io.write_pinhole_camera_intrinsic("data/intrinsics/intrinsics.json", reader.metadata.intrinsics)
+    reader.close()
+
 if __name__ == "__main__":
-    main("data/raw_data/RS/VGA/20250414_120850/recording.bag")
+    #main("data/raw_data/RS/VGA/20250414_120850/recording.bag")
+    get_intrinics_rs

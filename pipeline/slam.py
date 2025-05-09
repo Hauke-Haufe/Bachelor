@@ -4,8 +4,8 @@ import json
 import time
 import os 
 import multiprocessing
-from config import *
-import matplotlib.pyplot as plt
+from config import FRAGMENT_PATH, INTRINSICS_PATH 
+#import matplotlib.pyplot as plt
 
 class model_tracking:
 
@@ -14,6 +14,7 @@ class model_tracking:
         device = o3d.core.Device("CUDA:0")
         T_frame_model = o3d.core.Tensor(np.identity(4))
         model = o3d.t.pipelines.slam.Model(config["voxel_size"], 16,  10000, T_frame_model, device)
+
         depth_ref =  depth_image = o3d.t.io.read_image(f"{path}/depth/image{sid}.png")
         input_frame = o3d.t.pipelines.slam.Frame(depth_ref.rows, depth_ref.columns, intrinsics, device)
         raycast_frame = o3d.t.pipelines.slam.Frame(depth_ref.rows,depth_ref.columns, intrinsics, device)
@@ -34,7 +35,7 @@ class model_tracking:
                     result = model.track_frame_to_model(input_frame, raycast_frame)
                     T_frame_model = T_frame_model @ result.transformation
 
-                except Exception as e:
+                except Exception:
                     print("tracking failed")
 
             poses.append(T_frame_model.cpu().numpy())
@@ -85,7 +86,7 @@ class loop_closure:
 
             return success, result, info.cpu().numpy()
 
-        except Exception as e:
+        except Exception:
             success = False
 
             print("Loop closure failed")
@@ -233,7 +234,7 @@ class Scene_fragmenter:
         num_images = min(num_images_c, num_images_d, config["max_images"])    
 
         ids = []
-        sid, eid, i = 0, config["frames_per_frag"], 0
+        sid, eid = 0, config["frames_per_frag"]
         ids.append([sid, eid])
 
         while eid- config["frag_overlap"] +config["frames_per_frag"]   < num_images:
@@ -242,6 +243,7 @@ class Scene_fragmenter:
             ids.append([sid, eid])
             
         n_fragments = len(ids)
+        print(intrinsics)
 
         return ids, n_fragments, intrinsics, config
     
@@ -289,3 +291,4 @@ if __name__ == "__main__":
         pcd.append(o3d.io.read_point_cloud(os.path.join("data/fragments", file)))
        
     o3d.visualization.draw(pcd[0])
+    
