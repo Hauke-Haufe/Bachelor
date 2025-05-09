@@ -282,7 +282,7 @@ class Scene_fragmenter:
 if __name__ == "__main__":
 
     start = time.time()
-    odo =  Scene_fragmenter("model_tracking")
+    odo =  Scene_fragmenter("loop_closure")
     odo.make_fragments("data/images", False)
     print(time.time()-start)
 
