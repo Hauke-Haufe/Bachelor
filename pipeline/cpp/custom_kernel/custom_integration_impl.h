@@ -1,3 +1,5 @@
+#pragma once
+#include <open3d/Open3d>
 
 template <typename input_depth_t,
           typename input_color_t,

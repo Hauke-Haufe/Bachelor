@@ -1,6 +1,7 @@
 #include <open3d/Open3D.h>
-#include <chrono>
-#include "odometry.cpp"
+//#include <chrono>
+//#include "odometry.cpp"
+#include "SemanticVGB.h"
 
 using namespace open3d;
 
@@ -40,7 +41,7 @@ int main(){
     
     //utility::VerbosityContextManager contex(utility::VerbosityLevel::Debug);
     //contex.Enter();
-    auto color_image = std::make_shared<t::geometry::Image>();
+    /*auto color_image = std::make_shared<t::geometry::Image>();
     auto depth_image = std::make_shared<t::geometry::Image>();
 
     camera::PinholeCameraIntrinsic intrinsics;
@@ -53,6 +54,8 @@ int main(){
     auto posegraph = Multiway_registration(images, intrinsics_matrix); 
     auto posegraph_opt = optimize_posegraph(posegraph);
     auto vgb = integrate(posegraph_opt, intrinsics_matrix, "/home/nb-messen-07/Desktop/SpatialMapping/data/images" );
+    */
+
 
     
     return 0;
