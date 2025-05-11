@@ -164,6 +164,17 @@ public:
                    float depth_scale = 1000.0f,
                    float depth_max = 3.0f,
                    float trunc_voxel_multiplier = 8.0f);
+    
+    //// RGBD plus semantic information integration
+    void SemanticIntegrate(const core::Tensor &block_coords,
+             const t::geometry::Image &depth,
+             const t::geometry::Image &color,
+             const core::Tensor &label,
+             const core::Tensor &instrinsic,
+             const core::Tensor &extrinsic,
+             float depth_scale = 1000.0f,
+             float depth_max = 3.0f,
+             float trunc_voxel_multiplier = 8.0f);
 
     /// Specific operation for TSDF volumes.
     /// Perform volumetric ray casting in the selected block coordinates.
