@@ -10,10 +10,7 @@ find_package(Open3D REQUIRED)
 
 #include_directories(custom_kernel)
 
-add_executable(main main.cpp 
-    custom_kernel/custom_integration.cpp
-    custom_kernel/custom_integrationCPU.cpp
-    custom_kernel/custom_integrationCUDA.cu
+add_executable(main main.cpp
     SemanticVBG.cpp)
 
 target_link_libraries(main PRIVATE Open3D::Open3D)

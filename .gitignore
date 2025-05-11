@@ -5,6 +5,7 @@ doc/build/
 # data
 data
 dataset
+install/
 
 
 # Byte-compiled / optimized / DLL files
