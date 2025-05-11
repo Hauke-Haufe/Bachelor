@@ -1,5 +1,4 @@
 #pragma once
-#include "custom_kernel/custom_integration.h"
 #include <open3d/Open3D.h>
 
 class SemanticVBG{

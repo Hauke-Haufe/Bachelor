@@ -1,21 +1,9 @@
 #include "SemanticVBG.h"
-#include "custom_kernel/custom_integrationImpl.h"
 #include <open3d/Open3D.h>
+#include <open3d/t/geometry/kernel/VoxelBlockGrid.h>
 
 
 using namespace open3d;
-/*
-SemanticVBG::SemanticVBG(){
-    
-    
-
-    core::Device device("CUDA:0");
-
-    float voxel_size = 0.005;
-    int block_resolution = 16;
-
-
-    );*/
 
 t::geometry::TensorMap SemanticVBG::ConstructTensorMap(
     const core::HashMap &block_hashmap,
