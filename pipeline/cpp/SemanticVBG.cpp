@@ -1,5 +1,5 @@
 #include "SemanticVBG.h"
-#include "custom_kernel/custom_integration.h"
+#include "custom_kernel/custom_integrationImpl.h"
 #include <open3d/Open3D.h>
 
 
@@ -30,9 +30,9 @@ t::geometry::TensorMap SemanticVBG::ConstructTensorMap(
 }
 
 SemanticVBG::SemanticVBG(
-        float voxel_size,
-        int64_t block_resolution,
-        int64_t block_count): voxel_size_(voxel_size), block_resolution_(block_resolution) {
+    float voxel_size,
+    int64_t block_resolution,
+    int64_t block_count, open3d::core::Device &device): voxel_size_(voxel_size), block_resolution_(block_resolution) {
  
     
     std::vector<std::string> attr_names = {"tsdf", "weight", "color", "label"};
@@ -100,7 +100,7 @@ void SemanticVBG::Integrate(const core::Tensor &block_coords,
     core::Tensor block_keys = block_hashmap.GetKeyTensor();
     t::geometry::TensorMap block_value_map = ConstructTensorMap(block_hashmap, name_attr_map_);
 
-    custom_Integrate(
+    t::geometry::kernel::voxel_grid::custom_Integrate(
             depth.AsTensor(), color.AsTensor(), label, buf_indices, block_keys,
             block_value_map, instrinsic, instrinsic, extrinsic,
             block_resolution_, voxel_size_,

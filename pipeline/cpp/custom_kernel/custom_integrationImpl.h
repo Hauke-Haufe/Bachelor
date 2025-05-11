@@ -1,4 +1,5 @@
-
+#include <open3d/core/CUDAUtils.h>
+#include <open3d/core/ParallelFor.h>
 #include <open3d/core/Dispatch.h>
 #include <open3d/core/Dtype.h>
 #include <open3d/core/MemoryManager.h>
@@ -11,24 +12,26 @@
 #include <open3d/t/geometry/kernel/VoxelBlockGrid.h>
 #include <open3d/utility/Logging.h>
 #include <open3d/utility/Timer.h>
+#include "custom_integration.h"
 
-template <typename input_depth_t,
-          typename input_color_t,
-          typename input_label_t,
-          typename tsdf_t,
-          typename weight_t,
-          typename color_t, 
-          typename label_t>
+using index_t = int;
+using ArrayIndexer = open3d::t::geometry::kernel::TArrayIndexer<index_t>; 
+
+template <typename input_depth_t,typename input_color_t,typename input_label_t,typename tsdf_t,typename weight_t,typename color_t, typename label_t>
+#if defined(__CUDACC__)
 void CustomIntegrateCUDA
-        (const core::Tensor& depth,
-         const core::Tensor& color,
-         const core::Tensor& label,
-         const core::Tensor& indices,
-         const core::Tensor& block_keys,
-         TensorMap& block_value_map,
-         const core::Tensor& depth_intrinsic,
-         const core::Tensor& color_intrinsic,
-         const core::Tensor& extrinsics,
+#else
+void CustomIntegrateCPU
+#endif
+        (const open3d::core::Tensor& depth,
+         const open3d::core::Tensor& color,
+         const open3d::core::Tensor& label,
+         const open3d::core::Tensor& indices,
+         const open3d::core::Tensor& block_keys,
+         open3d::t::geometry::TensorMap& block_value_map,
+         const open3d::core::Tensor& depth_intrinsic,
+         const open3d::core::Tensor& color_intrinsic,
+         const open3d::core::Tensor& extrinsics,
          index_t resolution,
          float voxel_size,
          float sdf_trunc,
@@ -38,22 +41,26 @@ void CustomIntegrateCUDA
     index_t resolution2 = resolution * resolution;
     index_t resolution3 = resolution2 * resolution;
 
-    TransformIndexer transform_indexer(depth_intrinsic, extrinsics, voxel_size);
-    TransformIndexer colormap_indexer(
+    open3d::t::geometry::kernel::TransformIndexer transform_indexer(depth_intrinsic, extrinsics, voxel_size);
+    open3d::t::geometry::kernel::TransformIndexer colormap_indexer(
             color_intrinsic,
-            core::Tensor::Eye(4, core::Dtype::Float64, core::Device("CPU:0")));
+            open3d::core::Tensor::Eye(4, open3d::core::Dtype::Float64, open3d::core::Device("CPU:0")));
+    open3d::t::geometry::kernel::TransformIndexer labelmap_indexer(
+            color_intrinsic,
+            open3d::core::Tensor::Eye(4, open3d::core::Dtype::Float64, open3d::core::Device("CPU:0")));
+    
 
     ArrayIndexer voxel_indexer({resolution, resolution, resolution});
 
     ArrayIndexer block_keys_indexer(block_keys, 1);
     ArrayIndexer depth_indexer(depth, 2);
-    core::Device device = block_keys.GetDevice();
+    open3d::core::Device device = block_keys.GetDevice();
 
     const index_t* indices_ptr = indices.GetDataPtr<index_t>();
 
     if (!block_value_map.Contains("tsdf") ||
         !block_value_map.Contains("weight")) {
-        utility::LogError(
+        open3d::utility::LogError(
                 "TSDF and/or weight not allocated in blocks, please implement "
                 "customized integration.");
     }
@@ -72,23 +79,23 @@ void CustomIntegrateCUDA
         color_indexer = ArrayIndexer(color, 2);
 
         // Float32: [0, 1] -> [0, 255]
-        if (color.GetDtype() == core::Float32) {
+        if (color.GetDtype() == open3d::core::Float32) {
             color_multiplier = 255.0;
         }
     }
 
-    bool integrate_label = block_value_map.Contains("label").GetDataPtr<label_t>();
+    bool integrate_label = block_value_map.Contains("label");
     label_t* label_base_ptr = nullptr;
     ArrayIndexer label_indexer;
 
     if (integrate_label){
-        label_base_ptr + block_value_map.at("label").GetDataPtr<label_t>();
+        label_base_ptr = block_value_map.at("label").GetDataPtr<label_t>();
         label_indexer = ArrayIndexer(label, 2);
     }
     
 
     index_t n = indices.GetLength() * resolution3;
-    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(index_t workload_idx) {
+    open3d::core::ParallelFor(device, n, [=] OPEN3D_DEVICE(index_t workload_idx) {
         // Natural index (0, N) -> (block_idx, voxel_idx)
         index_t block_idx = indices_ptr[workload_idx / resolution3];
         index_t voxel_idx = workload_idx % resolution3;
@@ -178,17 +185,17 @@ void CustomIntegrateCUDA
             transform_indexer.Unproject(ui, vi, 1.0, &x, &y, &z);
 
             float uf, vf;
-            label_indexer.Project(x,y,z, &uf, &vf);
+            labelmap_indexer.Project(x,y,z, &uf, &vf);
             if (label_indexer.InBoundary(uf, vf)){
                 ui = round(uf);
                 vi = round(vf);
 
-                input_color_t* input_color_ptr = label_indexer.GetDataPtr<input_label_t>(ui, vi);
-                label_ptr = input_color_ptr;
+                input_label_t* input_label_ptr = label_indexer.GetDataPtr<input_label_t>(ui, vi);
+                label_ptr = input_label_ptr;
             }
 
         }
 
         *weight_ptr = weight + 1;
     });
-}
+};
