@@ -325,6 +325,42 @@ void VoxelBlockGrid::Integrate(const core::Tensor &block_coords,
             voxel_size_ * trunc_voxel_multiplier, depth_scale, depth_max);
 }
 
+void VoxelBlockGrid::SemanticIntegrate(const core::Tensor &block_coords,
+    const t::geometry::Image &depth,
+    const t::geometry::Image &color,
+    const core::Tensor &label,
+    const core::Tensor &intrinsic,
+    const core::Tensor &extrinsic,
+    float depth_scale ,
+    float depth_max ,
+    float trunc_voxel_multiplier) {
+    
+    AssertInitialized();
+    bool integrate_color = color.AsTensor().NumElements() > 0;
+
+    CheckBlockCoordinates(block_coords);
+    CheckDepthTensor(depth.AsTensor());
+    if (integrate_color) {
+        CheckColorTensor(color.AsTensor());
+    }
+    CheckIntrinsicTensor(intrinsic);
+    CheckExtrinsicTensor(extrinsic);
+
+    core::Tensor buf_indices, masks;
+    block_hashmap_->Activate(block_coords, buf_indices, masks);
+    block_hashmap_->Find(block_coords, buf_indices, masks);
+
+    core::Tensor block_keys = block_hashmap_->GetKeyTensor();
+    TensorMap block_value_map =
+            ConstructTensorMap(*block_hashmap_, name_attr_map_);
+
+    t::geometry::kernel::voxel_grid::custom_Integrate(
+        depth.AsTensor(), color.AsTensor(), label, buf_indices, block_keys,
+        block_value_map, intrinsic, intrinsic, extrinsic,
+        block_resolution_, voxel_size_,
+        voxel_size_ * trunc_voxel_multiplier, depth_scale, depth_max);
+}
+
 TensorMap VoxelBlockGrid::RayCast(const core::Tensor &block_coords,
                                   const core::Tensor &intrinsic,
                                   const core::Tensor &extrinsic,

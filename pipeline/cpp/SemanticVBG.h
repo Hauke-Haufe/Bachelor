@@ -1,14 +1,13 @@
 #pragma once
 #include <open3d/Open3D.h>
 
+
+// wrapper class for a VoxelBlockGrid with a Integration that integrates semantic information
 class SemanticVBG{
 
     private:
 
-        open3d::t::geometry::VoxelBlockGrid vgb_;
-        int block_resolution_;
-        float voxel_size_;
-        std::unordered_map<std::string, int> name_attr_map_;
+        open3d::t::geometry::VoxelBlockGrid vbg_;
 
     public:
 
@@ -33,8 +32,5 @@ class SemanticVBG{
                     float depth_scale = 1000.0f,
                     float depth_max = 3.0f,
                     float trunc_voxel_multiplier = 8.0f);
-
-        static open3d::t::geometry::TensorMap ConstructTensorMap(const open3d::core::HashMap &block_hashmap,
-            std::unordered_map<std::string, int> name_attr_map);
 
 };
