@@ -119,6 +119,21 @@ void ExtractPointCloud(const core::Tensor& block_indices,
                        float weight_threshold,
                        index_t& valid_size);
 
+
+void ExtractSemanticPointCloud(const core::Tensor& block_indices,
+                       const core::Tensor& nb_block_indices,
+                       const core::Tensor& nb_block_masks,
+                       const core::Tensor& block_keys,
+                       const TensorMap& block_value_map,
+                       core::Tensor& points,
+                       core::Tensor& normals,
+                       core::Tensor& colors,
+                       core::Tensor& lables,
+                       index_t block_resolution,
+                       float voxel_size,
+                       float weight_threshold,
+                       index_t& valid_size);
+
 void ExtractTriangleMesh(const core::Tensor& block_indices,
                          const core::Tensor& inv_block_indices,
                          const core::Tensor& nb_block_indices,
@@ -248,6 +263,21 @@ void ExtractPointCloudCPU(const core::Tensor& block_indices,
                           float weight_threshold,
                           index_t& valid_size);
 
+template <typename tsdf_t, typename weight_t, typename color_t, typename label_t>
+void ExtractSemanticPointCloudCPU(const core::Tensor& indices,
+         const core::Tensor& nb_indices,
+         const core::Tensor& nb_masks,
+         const core::Tensor& block_keys,
+         const TensorMap& block_value_map,
+         core::Tensor& points,
+         core::Tensor& normals,
+         core::Tensor& colors,
+         core::Tensor& lables,
+         index_t resolution,
+         float voxel_size,
+         float weight_threshold,
+         int& valid_size);
+
 template <typename tsdf_t, typename weight_t, typename color_t>
 void ExtractTriangleMeshCPU(const core::Tensor& block_indices,
                             const core::Tensor& inv_block_indices,
@@ -376,6 +406,21 @@ void ExtractPointCloudCUDA(const core::Tensor& block_indices,
                            float voxel_size,
                            float weight_threshold,
                            index_t& valid_size);
+
+template <typename tsdf_t, typename weight_t, typename color_t, typename label_t>
+void ExtractSemanticPointCloudCUDA(const core::Tensor& indices,
+         const core::Tensor& nb_indices,
+         const core::Tensor& nb_masks,
+         const core::Tensor& block_keys,
+         const TensorMap& block_value_map,
+         core::Tensor& points,
+         core::Tensor& normals,
+         core::Tensor& colors,
+         core::Tensor& lables,
+         index_t resolution,
+         float voxel_size,
+         float weight_threshold,
+         int& valid_size);
 
 template <typename tsdf_t, typename weight_t, typename color_t>
 void ExtractTriangleMeshCUDA(const core::Tensor& block_indices,

@@ -33,4 +33,8 @@ class SemanticVBG{
                     float depth_max = 3.0f,
                     float trunc_voxel_multiplier = 8.0f);
 
+        std::tuple<open3d::t::geometry::PointCloud, open3d::core::Tensor>  ExtractSemanticPointCloud(
+                float weight_threshold = 3.0f,
+                int estimated_point_number = -1);
+
 };
