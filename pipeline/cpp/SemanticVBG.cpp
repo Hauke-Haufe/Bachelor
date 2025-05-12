@@ -49,4 +49,7 @@ void SemanticVBG::Integrate(const core::Tensor &block_coords,
     vbg_.SemanticIntegrate(block_coords, depth, color, label, instrinsic, extrinsic, depth_scale, depth_max, trunc_voxel_multiplier);
 };
         
-
+std::tuple<t::geometry::PointCloud, core::Tensor>  SemanticVBG::ExtractSemanticPointCloud(float weight_threshold,
+                int estimated_point_number){
+    return vbg_.ExtractSemanticPointCloud(weight_threshold, estimated_point_number);   
+};

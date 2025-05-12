@@ -210,6 +210,9 @@ public:
     /// available.
     PointCloud ExtractPointCloud(float weight_threshold = 3.0f,
                                  int estimated_point_number = -1);
+    
+    std::tuple<PointCloud, core::Tensor> ExtractSemanticPointCloud(float weight_threshold = 3.0f,
+                                 int estimated_point_number = -1);
 
     /// Specific operation for TSDF volumes.
     /// Extract mesh near iso-surfaces with Marching Cubes.

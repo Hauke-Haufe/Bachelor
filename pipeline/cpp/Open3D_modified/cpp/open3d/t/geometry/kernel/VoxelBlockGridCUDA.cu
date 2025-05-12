@@ -292,6 +292,19 @@ template void ExtractPointCloudCUDA<float, float, float>(FN_ARGUMENTS);
 
 #undef FN_ARGUMENTS
 
+#define FN_ARGUMENTS                                                           \
+    const core::Tensor &block_indices, const core::Tensor &nb_block_indices,   \
+            const core::Tensor &nb_block_masks,                                \
+            const core::Tensor &block_keys, const TensorMap &block_value_map,  \
+            core::Tensor &points, core::Tensor &normals, core::Tensor &colors, \
+            core::Tensor &labels, index_t block_resolution, float voxel_size,  \
+            float weight_threshold, index_t &valid_size
+
+template void ExtractSemanticPointCloudCUDA<float, uint16_t, uint16_t, uint8_t>(FN_ARGUMENTS);
+template void ExtractSemanticPointCloudCUDA<float, float, float, uint8_t>(FN_ARGUMENTS);
+
+#undef FN_ARGUMENTS
+
 void ExtractTriangleMeshCUDA(const core::Tensor &block_indices,
                              const core::Tensor &inv_block_indices,
                              const core::Tensor &nb_block_indices,
