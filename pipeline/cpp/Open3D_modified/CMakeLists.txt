@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.22)
 # If you're using Ubuntu 20.04, we suggest you install the latest CMake from the
 # official repository https://apt.kitware.com/.
 # CMake 3.24+ is required for CUDA native arch selection
@@ -432,6 +432,7 @@ if(BUILD_CUDA_MODULE)
             endif()
         endif()
     endif()
+    set(CMAKE_CUDA_ARCHITECTURES 75)
     enable_language(CUDA)
     set(CMAKE_CUDA_STANDARD 17)
     if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA" AND CMAKE_CUDA_COMPILER_VERSION VERSION_LESS "11.5")
