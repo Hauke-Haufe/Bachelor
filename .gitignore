@@ -3,8 +3,8 @@ doc/build/
 
 .vscode
 # data
-data
-dataset
+data/
+dataset/
 install/
 
 

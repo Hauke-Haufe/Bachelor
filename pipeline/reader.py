@@ -175,5 +175,5 @@ def main(path):
     unpack_bag(path, config)
 
 if __name__ == "__main__":
-    #main("data/raw_data/RS/VGA/20250414_120850/recording.bag")
-    get_intrinics_rs
+    main("data/raw_data/RS/HD/20250414_122808/recording.bag")
+
