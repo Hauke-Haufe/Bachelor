@@ -289,6 +289,8 @@ void VoxelBlockGrid::Integrate(const core::Tensor &block_coords,
               depth_scale, depth_max, trunc_voxel_multiplier);
 }
 
+void 
+
 void VoxelBlockGrid::Integrate(const core::Tensor &block_coords,
                                const Image &depth,
                                const Image &color,
@@ -323,6 +325,20 @@ void VoxelBlockGrid::Integrate(const core::Tensor &block_coords,
             block_value_map, depth_intrinsic, color_intrinsic, extrinsic,
             block_resolution_, voxel_size_,
             voxel_size_ * trunc_voxel_multiplier, depth_scale, depth_max);
+}
+
+void VoxelBlockGrid::Integrate(const core::Tensor &block_coords,
+                               const Image &depth,
+                               const Image &color,
+                               const core::Tensor &label
+                               const core::Tensor &depth_intrinsic,
+                               const core::Tensor &color_intrinsic,
+                               const core::Tensor &extrinsic,
+                               float depth_scale,
+                               float depth_max,
+                               float trunc_voxel_multiplier){
+    SemanticIntegrate(block_coords, depth, color, label,  depth_intrinsic, extrinsic,
+            depth_scale, depth_max, trunc_voxel_multiplier)
 }
 
 void VoxelBlockGrid::SemanticIntegrate(const core::Tensor &block_coords,

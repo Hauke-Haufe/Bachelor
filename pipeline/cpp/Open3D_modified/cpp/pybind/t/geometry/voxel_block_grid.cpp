@@ -163,6 +163,21 @@ void pybind_voxel_block_grid_definitions(py::module& m) {
             "depth_max"_a.noconvert() = 3.0f,
             "trunc_voxel_multiplier"_a.noconvert() = 8.0f);
 
+     vbg.def("integrate",
+            py::overload_cast<const core::Tensor&, const Image&, const Image&,
+                              const ccore::Tensor&, const core::Tensor&, const core::Tensor&,
+                              const core::Tensor&, float, float, float>(
+                    &VoxelBlockGrid::Integrate),
+            "Specific operation for TSDF volumes."
+            "Integrate an RGB-D plus label frame in the selected block coordinates using "
+            "pinhole camera model.",
+            "block_coords"_a, "depth"_a, "color"_a,"label"_a, "depth_intrinsic"_a,
+            "color_intrinsic"_a, "extrinsic"_a,
+            "depth_scale"_a.noconvert() = 1000.0f,
+            "depth_max"_a.noconvert() = 3.0f,
+            "trunc_voxel_multiplier"_a.noconvert() = 8.0f);
+    
+
     vbg.def("ray_cast", &VoxelBlockGrid::RayCast,
             "Specific operation for TSDF volumes."
             "Perform volumetric ray casting in the selected block coordinates."
