@@ -3,12 +3,12 @@ set(CMAKE_CXX_STANDARD 17)
 enable_language(CUDA)
 project(SpatilalMapping)
 
-#set(CMAKE_PREFIX_PATH "/home/nb-messen-07/open3d_install/lib/cmake/Open3D")
-#set(CMAKE_PREFIX_PATH "C:/src/Open3d")
-set("home/hauke-haufe/src/Open3D/install/lib/cmake/Open3D")
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 find_package(Open3D REQUIRED)
 
-#include_directories(custom_kernel)
 
 add_executable(main main.cpp
     SemanticVBG.cpp)

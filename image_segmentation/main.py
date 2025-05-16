@@ -1,4 +1,3 @@
-import torch
 import os
 from tqdm import tqdm
 import lib.Deeplab.utils as utils
@@ -8,9 +7,7 @@ import numpy as np
 import lib.Deeplab.network as network
 
 from torch.utils import data
-from lib.Deeplab.utils import ext_transforms as et
 from lib.Deeplab.metrics import StreamSegMetrics
-from lib.Deeplab.network.modeling import  deeplabv3plus_mobilenet, deeplabv3plus_resnet50
 
 import torch
 import torch.nn as nn
@@ -23,8 +20,6 @@ import matplotlib
 
 
 def get_dataset():
-
-    
     
     dataset = Mydataset("dataset/runs/run5")
     indices = np.arange(len(dataset))
@@ -43,8 +38,8 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
     metrics.reset()
     ret_samples = []
     if opts.save_val_results:
-        if not os.path.exists('results'):
-            os.mkdir('results')
+        if not os.path.exists('data/results'):
+            os.mkdir('data/results')
         denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406],
                                    std=[0.229, 0.224, 0.225])
         img_id = 0
@@ -74,9 +69,9 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
                     target = loader.dataset.dataset.decode_target(target).astype(np.uint8)
                     pred = loader.dataset.dataset.decode_target(pred).astype(np.uint8)
 
-                    Image.fromarray(image).save('results/%d_image.png' % img_id)
-                    Image.fromarray(np.squeeze(target)).save('results/%d_target.png' % img_id)
-                    Image.fromarray(pred).save('results/%d_pred.png' % img_id)
+                    Image.fromarray(image).save('data/results/%d_image.png' % img_id)
+                    Image.fromarray(np.squeeze(target)).save('data/results/%d_target.png' % img_id)
+                    Image.fromarray(pred).save('data/results/%d_pred.png' % img_id)
 
                     fig = plt.figure()
                     plt.imshow(image)
@@ -85,7 +80,7 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
                     ax = plt.gca()
                     ax.xaxis.set_major_locator(matplotlib.ticker.NullLocator())
                     ax.yaxis.set_major_locator(matplotlib.ticker.NullLocator())
-                    plt.savefig('results/%d_overlay.png' % img_id, bbox_inches='tight', pad_inches=0)
+                    plt.savefig('data/results/%d_overlay.png' % img_id, bbox_inches='tight', pad_inches=0)
                     plt.close()
                     img_id += 1
 
@@ -117,8 +112,6 @@ def train(opts):
         val_dst, batch_size=opts.val_batch_size, shuffle=True, num_workers=2)
 
     # get Model
-    #model = deeplabv3plus_resnet50(num_classes=opts.num_classes, output_stride=8, pretrained_backbone=True)
-    #model = deeplabv3plus_mobilenet(num_classes=opts.num_classes, output_stride=8, pretrained_backbone=True)
     model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
     utils.set_bn_momentum(model.backbone, momentum=0.01)
 
@@ -155,14 +148,15 @@ def train(opts):
         }, path)
         print("Model saved as %s" % path)
 
-    utils.mkdir('checkpoints')
+    utils.mkdir('data/checkpoints')
     # Restore
     best_score = 0.0
     cur_itrs = 0
     cur_epochs = 0
+
     if opts.ckpt is not None and os.path.isfile(opts.ckpt):
 
-        checkpoint = torch.load(opts.ckpt, map_location=torch.device('cpu'))
+        checkpoint = torch.load(opts.ckpt, map_location=torch.device('cpu'), weights_only=False)
         model.load_state_dict(checkpoint["model_state"])
         model = nn.DataParallel(model)
         model.to(device)
@@ -198,12 +192,14 @@ def train(opts):
 
             optimizer.zero_grad()
             outputs = model(images)
+
             loss = criterion(outputs, labels.squeeze(1))
             loss.backward()
             optimizer.step()
 
             np_loss = loss.detach().cpu().numpy()
             interval_loss += np_loss
+
             if vis is not None:
 
                 vis.vis_scalar('Loss', cur_itrs, np_loss)
@@ -214,6 +210,10 @@ def train(opts):
                 print("Epoch %d, Itrs %d/%d, Loss=%f" %
                         (cur_epochs, cur_itrs, opts.total_itrs, interval_loss))
                 interval_loss = 0.0
+                
+                #preds =  outputs.detach().max(dim=1)[1].cpu().numpy()
+                #plt.imshow(preds[0])
+                #plt.show()
 
             if (cur_itrs) % opts.val_interval == 0:
 
@@ -230,7 +230,7 @@ def train(opts):
                 if val_score['Mean IoU'] > best_score: 
                      
                     best_score = val_score['Mean IoU']
-                    save_ckpt('checkpoints/best_%s_%s_os%d.pth' %
+                    save_ckpt('data/checkpoints/best_%s_%s_os%d.pth' %
                                 (opts.model, opts.dataset, opts.output_stride))
                     
                 # visualize validation score and samples

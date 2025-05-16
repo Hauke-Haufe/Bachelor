@@ -2,7 +2,8 @@ import os
 import torch.utils.data as data
 import numpy as np
 from PIL import Image
-from torchvision import transforms
+from torchvision.transforms import v2
+import time 
 
 
 def voc_cmap(N=256, normalized=False):
@@ -35,22 +36,22 @@ class Mydataset(data.Dataset):
         self.images = [os.path.join(root,"images", x) for x in names]
         self.masks = [os.path.join(root,"masks", x) for x in names]
         assert (len(self.images) == len(self.masks))
-
-
+    
     def __getitem__(self, index):
 
         img = Image.open(self.images[index]).convert('RGB')
         target = Image.open(self.masks[index])
-        transform = transforms.ToTensor()
-        img = transform(img)
-        target = transform(target)
+        width, height = img.size
+        transform = v2.Compose([
+            v2.RandomHorizontalFlip(p=0.5), v2.RandomRotation(degrees=(-20, 20)),
+            v2.RandomCrop((int(0.8 * height),  int(0.8 * width))),
+            v2.ToImage(),
+           ])
+        
+        img, target = transform(img, target)
 
         return img, target
 
-    #hier noch was machen
-    def transform(self, img, target):
-
-        return img, target
 
     def __len__(self):
         return len(self.images)

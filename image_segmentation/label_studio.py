@@ -138,6 +138,8 @@ def create_plygon_tasks(path, run):
 
 def create_masks(path, run):
 
+    #coco format
+
     with open(path, "r")as file:
         coco_data = json.load(file)
 
@@ -237,6 +239,8 @@ def import_masks_task(project, run):
 
 def make_final_mask(refined_mask_folder, image_path, json_path, output_folder):
 
+    #label studio task format
+
     def combine_masks(dim , mask_cow, mask_heu):
 
         
@@ -290,11 +294,9 @@ def make_final_mask(refined_mask_folder, image_path, json_path, output_folder):
         shutil.copy(os.path.join(image_path, filename), os.path.join(output_folder, "images", filename))
         
 
-
-
 if __name__ == "__main__":
     
     #create_masks("data/data_set/run5/result.json", "run5")
     #import_masks_task(9, "run5")
     #create_plygon_tasks("data/data_set", "run5")
-    make_final_mask("data/data_set/run5/refined","data/data_set/run5", "data/data_set/run5/project-9-at-2025-05-06-11-46-0d6a4d02.json", "dataset/run5")
+    make_final_mask("data/data_set/run5/refined","data/data_set/run5", "data/data_set/run5/project-9-at-2025-05-15-17-46-819e3ecf.json", "dataset/runs/run5")
