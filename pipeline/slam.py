@@ -5,11 +5,13 @@ import time
 import os 
 import multiprocessing
 from config import FRAGMENT_PATH, INTRINSICS_PATH 
-#import matplotlib.pyplot as plt
+import torch
+import torch.multiprocessing as mp
+import torch.utils.dlpack
 
 class model_tracking:
 
-    def run_system(self, fragment_id, sid, eid, config, intrinsics, path):
+    def run_system(self, fragment_id, sid, eid, config, intrinsics, path, model = None):
 
         device = o3d.core.Device("CUDA:0")
         T_frame_model = o3d.core.Tensor(np.identity(4))
@@ -53,6 +55,7 @@ class loop_closure:
 
     def __init__(self, lock):
         self._lock = lock
+
 
     @staticmethod
     def _odometry(source, target, instrinsics):
@@ -115,7 +118,6 @@ class loop_closure:
         
         return pose_graph
 
-
     def _create_posegraph(self, sid, eid,  config, instrinsics, path):
         pose_graph = o3d.pipelines.registration.PoseGraph()
         odometry = np.identity(4)
@@ -159,17 +161,28 @@ class loop_closure:
                         )
 
     @staticmethod
-    def _integrate(path, sid,  pose_graph, intrinsics):
+    def _integrate(path, sid,  pose_graph, intrinsics, model = None):
 
-        vgb = o3d.t.geometry.VoxelBlockGrid(
-            attr_names = ('tsdf', 'weight', 'color'),
-            attr_dtypes = (o3d.core.Dtype.Float32, o3d.core.Dtype.Float32,o3d.core.Dtype.Float32),
-            attr_channels = ((1), (1), (3)),
-            voxel_size = 0.01,
-            block_resolution = 16,
-            block_count = 9000,
-            device = o3d.core.Device("CUDA:0")
-        )
+        if model is None:
+            vgb = o3d.t.geometry.VoxelBlockGrid(
+                attr_names = ('tsdf', 'weight', 'color'),
+                attr_dtypes = (o3d.core.Dtype.Float32, o3d.core.Dtype.Float32,o3d.core.Dtype.Float32),
+                attr_channels = ((1), (1), (3)),
+                voxel_size = 0.01,
+                block_resolution = 16,
+                block_count = 9000,
+                device = o3d.core.Device("CUDA:0")
+            )
+        else:
+            vgb = o3d.t.geometry.VoxelBlockGrid(
+                attr_names = ('tsdf', 'weight', 'color', 'label'),
+                attr_dtypes = (o3d.core.Dtype.Float32, o3d.core.Dtype.Float32,o3d.core.Dtype.Float32, o3d.core.Dtype.Uint8),
+                attr_channels = ((1), (1), (3), (1)),
+                voxel_size = 0.01,
+                block_resolution = 16,
+                block_count = 9000,
+                device = o3d.core.Device("CUDA:0")
+            )
 
         for i in range(len(pose_graph.nodes)):
 
@@ -182,30 +195,42 @@ class loop_closure:
                 np.linalg.inv(pose)
             )
             
-
-            vgb.integrate(frustum_block_coords, depth_image, color_image,
-                intrinsics, 
-                np.linalg.inv(pose)
-            )
-
+            if model is None:
+                vgb.integrate(frustum_block_coords, depth_image, color_image,
+                    intrinsics, 
+                    np.linalg.inv(pose)
+                )
+            else:
+                image = o3d.core.Tensor.from_dlpack(torch.utils.dlpack.to_dlpack(color_image.as_tensor()))
+                mask = model(image)
+                vgb.integrate(frustum_block_coords, depth_image, color_image,
+                    mask, intrinsics, intrinsics, 
+                    np.linalg.inv(pose))
         return vgb
 
-
-    def run_system(self,fragment_id, sid, eid,  config, intrinsics, path):
+    def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
         pose_graph = self._create_posegraph(sid, eid,  config, intrinsics, path)
         pose_graph = self._optimize_posegraph(pose_graph)
 
         with self._lock:
-            vgb = self._integrate(path, sid, pose_graph, intrinsics)
+            vgb = self._integrate(path, sid, pose_graph, intrinsics, model)
             pointcloud = vgb.extract_point_cloud()
             o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
-      
 
-    
+
 class Scene_fragmenter:
-    def __init__(self, backend):
+
+    @staticmethod
+    def load_model_():  
+
+        pass
+
+    def __init__(self, backend, semantic = False):
         
+        if semantic:
+            self.model = self.load_model_()
+
         if backend == "model_tracking": 
             self.backend = model_tracking()
 
@@ -216,8 +241,6 @@ class Scene_fragmenter:
         else:
             raise Exception("None Valid backend")
 
-
-    
     @staticmethod
     def _prepare_task(path):
         for file in os.listdir(FRAGMENT_PATH):
@@ -258,14 +281,31 @@ class Scene_fragmenter:
         mp_context = multiprocessing.get_context('spawn')
 
         if parallel:
+            if self.model == None:
+                    
+                with mp_context.Pool(processes=max_workers) as pool:
+                    args = [(fragment_id, 
+                            ids[fragment_id][0], 
+                            ids[fragment_id][1], config, 
+                            o3d.core.Tensor(intrinsics.intrinsic_matrix),
+                            path) for fragment_id in range(n_fragments)]
+                    pool.starmap(self.backend.run_system, args)
+            
+            else:
+                mp.set_start_method('spawn', force = True)
+                self.model.share_memory()
 
-            with mp_context.Pool(processes=max_workers) as pool:
-                args = [(fragment_id, 
-                        ids[fragment_id][0], 
-                        ids[fragment_id][1], config, 
-                        o3d.core.Tensor(intrinsics.intrinsic_matrix),
-                        path) for fragment_id in range(n_fragments)]
-                pool.starmap(self.backend.run_system, args)
+                processes = []
+                for fragment_id in range(n_fragments):
+                    p = mp.Process(target = self.backend.run_system, args = (fragment_id,
+                                                                             ids[fragment_id][0], 
+                                                                             ids[fragment_id][1], 
+                                                                             config, 
+                                                                             o3d.core.Tensor(intrinsics.intrinsic_matrix),
+                                                                             path,
+                                                                             self.model))
+                for p in processes:
+                    p.join()
 
 
         else:
@@ -278,7 +318,7 @@ class Scene_fragmenter:
                                         o3d.core.Tensor(intrinsics.intrinsic_matrix), 
                                         path)
 
-        
+
 if __name__ == "__main__":
 
     start = time.time()
