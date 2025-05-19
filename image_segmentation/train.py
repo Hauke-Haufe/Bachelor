@@ -12,34 +12,37 @@ from lib.Deeplab.metrics import StreamSegMetrics
 import torch
 import torch.nn as nn
 from lib.Deeplab.utils.visualizer import Visualizer
-from cross_validation import Options
 from PIL import Image
 from my_dataset import Mydataset
 import matplotlib.pyplot as plt
 import matplotlib
+from pathlib import Path
 
 
-def get_dataset():
+#todo p[ath in validate 
+def get_dataset(path):
     
-    dataset = Mydataset("dataset/runs/run5")
-    indices = np.arange(len(dataset))
-    split = int(0.8 * len(indices))
-    train_indices = indices[:split]
-    val_indices = indices[split:]
-    
+    *parent_paths, _ = path.parts
+    parent_paths = Path(*parent_paths)
 
-    train_dst = data.Subset(dataset, train_indices)
-    val_dst = data.Subset(dataset, val_indices)
+    with open(parent_paths / "train.txt", "r") as f:
+        train_frames = f.read().splitlines()
+
+    with open(Path(parent_paths) / "eval.txt", "r") as f:
+        eval_frames = f.read().splitlines()
+
+    train_dst  = Mydataset(train_frames)
+    val_dst  = Mydataset(eval_frames)
 
     return train_dst, val_dst
 
-def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
+def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
     """Do validation and return specified samples"""
     metrics.reset()
     ret_samples = []
     if opts.save_val_results:
-        if not os.path.exists('data/results'):
-            os.mkdir('data/results')
+        result_path = path / "results"
+        result_path.mkdir(parents=True, exist_ok=True)
         denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406],
                                    std=[0.229, 0.224, 0.225])
         img_id = 0
@@ -66,12 +69,12 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
                     pred = preds[i]
 
                     image = (denorm(image) * 255).transpose(1, 2, 0).astype(np.uint8)
-                    target = loader.dataset.dataset.decode_target(target).astype(np.uint8)
-                    pred = loader.dataset.dataset.decode_target(pred).astype(np.uint8)
+                    target = loader.dataset.decode_target(target).astype(np.uint8)
+                    pred = loader.dataset.decode_target(pred).astype(np.uint8)
 
-                    Image.fromarray(image).save('data/results/%d_image.png' % img_id)
-                    Image.fromarray(np.squeeze(target)).save('data/results/%d_target.png' % img_id)
-                    Image.fromarray(pred).save('data/results/%d_pred.png' % img_id)
+                    Image.fromarray(image).save(result_path /f"{img_id}_image.png")
+                    Image.fromarray(np.squeeze(target)).save(result_path /f"{img_id}_target.png")
+                    Image.fromarray(pred).save(result_path /f"{img_id}_pred.png")
 
                     fig = plt.figure()
                     plt.imshow(image)
@@ -80,14 +83,14 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
                     ax = plt.gca()
                     ax.xaxis.set_major_locator(matplotlib.ticker.NullLocator())
                     ax.yaxis.set_major_locator(matplotlib.ticker.NullLocator())
-                    plt.savefig('data/results/%d_overlay.png' % img_id, bbox_inches='tight', pad_inches=0)
+                    plt.savefig(result_path /f"{img_id}_overlay.png", bbox_inches='tight', pad_inches=0)
                     plt.close()
                     img_id += 1
 
         score = metrics.get_results()
     return score, ret_samples
 
-def train(opts):
+def train(opts, fold_path):
 
     # Setup visualization
     vis = Visualizer(port=opts.vis_port,
@@ -104,7 +107,7 @@ def train(opts):
     random.seed(opts.random_seed)
 
     #get the Dataset
-    train_dst, val_dst = get_dataset()
+    train_dst, val_dst = get_dataset(fold_path)
     train_loader = data.DataLoader(
         train_dst, batch_size=opts.batch_size, shuffle=True, num_workers=2,
         drop_last=True)  # drop_last=True to ignore single-image batches.
@@ -148,7 +151,8 @@ def train(opts):
         }, path)
         print("Model saved as %s" % path)
 
-    utils.mkdir('data/checkpoints')
+    checkpoint_path = Path(fold_path)/ "checkpoints"
+    checkpoint_path.mkdir(parents=True, exist_ok=True)
     # Restore
     best_score = 0.0
     cur_itrs = 0
@@ -217,12 +221,11 @@ def train(opts):
 
             if (cur_itrs) % opts.val_interval == 0:
 
-                save_ckpt('data/checkpoints/latest_%s_%s_os%d.pth' %
-                            (opts.model, opts.dataset, opts.output_stride))
+                save_ckpt(checkpoint_path /  f'latest_{opts.model}_{opts.dataset}_os{opts.output_stride}.pth')
                 print("validation...")
                 model.eval()
-                val_score, ret_samples = validate(
-                    opts=opts, model=model, loader=val_loader, device=device, metrics=metrics,
+                val_score, ret_samples = validate(opts=opts, model=model, loader=val_loader, 
+                    device=device, metrics=metrics, path=fold_path,
                     ret_samples_ids=vis_sample_id)
                 print(metrics.to_str(val_score))
 
@@ -230,8 +233,7 @@ def train(opts):
                 if val_score['Mean IoU'] > best_score: 
                      
                     best_score = val_score['Mean IoU']
-                    save_ckpt('data/checkpoints/best_%s_%s_os%d.pth' %
-                                (opts.model, opts.dataset, opts.output_stride))
+                    save_ckpt(checkpoint_path /  f'best_{opts.model}_{opts.dataset}_os{opts.output_stride}.pth')
                     
                 # visualize validation score and samples
                 if vis is not None:  
@@ -243,8 +245,8 @@ def train(opts):
                     for k, (img, target, lbl) in enumerate(ret_samples):
 
                         img = (denorm(img) * 255).astype(np.uint8)
-                        target = train_dst.dataset.decode_target(target).transpose(2, 0, 1).astype(np.uint8)
-                        lbl = train_dst.dataset.decode_target(lbl).transpose(2, 0, 1).astype(np.uint8)
+                        target = train_dst.decode_target(target).transpose(2, 0, 1).astype(np.uint8)
+                        lbl = train_dst.decode_target(lbl).transpose(2, 0, 1).astype(np.uint8)
                         concat_img = np.concatenate((img, target, lbl), axis=2)  # concat along width
                         vis.vis_image('Sample %d' % k, concat_img)
                 model.train()
@@ -254,5 +256,6 @@ def train(opts):
                 return
 
 if __name__ == "__main__":
-    opts = Options()
-    train(opts, )
+    #opts = Options()
+    #train(opts, )
+    pass

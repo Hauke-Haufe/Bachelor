@@ -3,7 +3,7 @@ import torch.utils.data as data
 import numpy as np
 from PIL import Image
 from torchvision.transforms import v2
-import time 
+from pathlib import Path
 
 
 def voc_cmap(N=256, normalized=False):
@@ -29,12 +29,17 @@ def voc_cmap(N=256, normalized=False):
 class Mydataset(data.Dataset):
     cmap = voc_cmap()
 
-    def __init__(self,root):
+    def __init__(self, frames_path):
+        
 
-        names = os.listdir(os.path.join(root, "images"))
+        self.images = frames_path
+        self.masks = []
 
-        self.images = [os.path.join(root,"images", x) for x in names]
-        self.masks = [os.path.join(root,"masks", x) for x in names]
+        for image in self.images:
+            image_path = Path(image)
+            *parent_paths, _, filename = image_path.parts
+            self.masks.append(Path(*parent_paths)/  "masks"/ filename)
+
         assert (len(self.images) == len(self.masks))
     
     def __getitem__(self, index):
