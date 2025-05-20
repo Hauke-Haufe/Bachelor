@@ -1,10 +1,12 @@
+from config import FRAGMENT_PATH, INTRINSICS_PATH 
+
 import open3d as o3d
 import numpy as np
 import json
 import time
 import os 
 import multiprocessing
-from config import FRAGMENT_PATH, INTRINSICS_PATH 
+
 import torch
 import torch.multiprocessing as mp
 import torch.utils.dlpack
@@ -203,6 +205,7 @@ class loop_closure:
             else:
                 image = o3d.core.Tensor.from_dlpack(torch.utils.dlpack.to_dlpack(color_image.as_tensor()))
                 mask = model(image)
+
                 vgb.integrate(frustum_block_coords, depth_image, color_image,
                     mask, intrinsics, intrinsics, 
                     np.linalg.inv(pose))
@@ -218,18 +221,18 @@ class loop_closure:
             pointcloud = vgb.extract_point_cloud()
             o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
 
-
 class Scene_fragmenter:
 
     @staticmethod
-    def load_model_():  
+    def _load_model(path):  
 
-        pass
+        model = torch.jit.load(path)
 
-    def __init__(self, backend, semantic = False):
+    def __init__(self, backend, model_path = None):
         
-        if semantic:
-            self.model = self.load_model_()
+        if not model_path is None:
+            self.model = self._load_model(model_path)
+            self.model.train()
 
         if backend == "model_tracking": 
             self.backend = model_tracking()
@@ -281,7 +284,7 @@ class Scene_fragmenter:
         mp_context = multiprocessing.get_context('spawn')
 
         if parallel:
-            if self.model == None:
+            if self.model is None:
                     
                 with mp_context.Pool(processes=max_workers) as pool:
                     args = [(fragment_id, 
@@ -317,7 +320,6 @@ class Scene_fragmenter:
                                         config, 
                                         o3d.core.Tensor(intrinsics.intrinsic_matrix), 
                                         path)
-
 
 if __name__ == "__main__":
 

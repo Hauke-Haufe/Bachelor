@@ -1,22 +1,14 @@
 import os
-from tqdm import tqdm
-import lib.Deeplab.utils as utils
 import os
-import random
 import numpy as np
 import lib.Deeplab.network as network
 
-from torch.utils import data
-from lib.Deeplab.metrics import StreamSegMetrics
 
 import torch
 import torch.nn as nn
-from lib.Deeplab.utils.visualizer import Visualizer
 from cross_validation import Options
 from PIL import Image
-from my_dataset import Mydataset
 import matplotlib.pyplot as plt
-import matplotlib
 import torchvision.transforms as transforms
 
 

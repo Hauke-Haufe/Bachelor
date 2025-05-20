@@ -4,9 +4,9 @@ import numpy as np
 import json
 import os
 import cv2
-#from Kalmanfilter import IMUCalmanFilter
 
 
+#das realsense module compeliert nicht unter windows also 
 def unpack_bag(path, config):
 
     print(os.path.exists(path))
@@ -69,7 +69,6 @@ def unpack_bag(path, config):
 
     pipeline.stop()
     #np.save("data/images/timestamps.npy", np.asanyarray(timestamps))
-
 
 def clear_dirs():
     path_1 = "data/images/color"

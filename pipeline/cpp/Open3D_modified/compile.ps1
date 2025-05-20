@@ -16,4 +16,5 @@ Set-Location "$ScriptDir\build"
 
 cmake -G "Visual Studio 17 2022" -A x64 -DBUILD_CUDA_MODULE=ON -DCMAKE_INSTALL_PREFIX="$ScriptDir/install" -DCMAKE_BUILD_TYPE=Release ..
 cmake --build . --config Release --parallel --target INSTALL
+cmake --build . --config Release --target python-package
 cmake --install .

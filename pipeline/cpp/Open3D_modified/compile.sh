@@ -14,3 +14,4 @@ cd $SCRIPT_DIR/build
 cmake -DBUILD_CUDA_MODULE=true -DCMAKE_INSTALL_PREFIX=$SCRIPT_DIR/install -DCMAKE_BUILD_TYPE=Release ..
 make -j$(nproc)
 make install 
+make python-package
