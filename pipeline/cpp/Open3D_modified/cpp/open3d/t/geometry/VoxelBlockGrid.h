@@ -169,13 +169,13 @@ public:
     void Integrate(const core::Tensor &block_coords,
                    const Image &depth,
                    const Image &color,
-                   const core::Tensor &label
+                   const core::Tensor &label,
                    const core::Tensor &depth_intrinsic,
                    const core::Tensor &color_intrinsic,
                    const core::Tensor &extrinsic,
                    float depth_scale = 1000.0f,
                    float depth_max = 3.0f,
-                   float trunc_voxel_multiplier = 8.0f)
+                   float trunc_voxel_multiplier = 8.0f);
     
     //// RGBD plus semantic information integration
     void SemanticIntegrate(const core::Tensor &block_coords,

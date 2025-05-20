@@ -43,13 +43,12 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
     if opts.save_val_results:
         result_path = path / "results"
         result_path.mkdir(parents=True, exist_ok=True)
-        denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406],
-                                   std=[0.229, 0.224, 0.225])
+        #denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])
         img_id = 0
 
     with torch.no_grad():
         for i, (images, labels) in tqdm(enumerate(loader)):
-
+            
             images = images.to(device, dtype=torch.float32)
             labels = labels.to(device, dtype=torch.long)
 
@@ -68,11 +67,11 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
                     target = targets[i]
                     pred = preds[i]
 
-                    image = (denorm(image) * 255).transpose(1, 2, 0).astype(np.uint8)
+                    image = image.transpose(1, 2, 0).astype(np.uint8)
                     target = loader.dataset.decode_target(target).astype(np.uint8)
                     pred = loader.dataset.decode_target(pred).astype(np.uint8)
 
-                    Image.fromarray(image).save(result_path /f"{img_id}_image.png")
+                    Image.fromarray(image,  mode='RGB').save(result_path /f"{img_id}_image.png")
                     Image.fromarray(np.squeeze(target)).save(result_path /f"{img_id}_target.png")
                     Image.fromarray(pred).save(result_path /f"{img_id}_pred.png")
 
@@ -91,7 +90,7 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
     return score, ret_samples
 
 def train(opts, fold_path):
-
+    
     # Setup visualization
     vis = Visualizer(port=opts.vis_port,
                         env=opts.vis_env) if opts.enable_vis else None
@@ -137,7 +136,7 @@ def train(opts, fold_path):
     if opts.loss_type == 'focal_loss':
         criterion = utils.FocalLoss(ignore_index=255, size_average=True)
     elif opts.loss_type == 'cross_entropy':
-        criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
+        criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean', weight= opts.class_weights)
 
     def save_ckpt(path):
         """ save current model

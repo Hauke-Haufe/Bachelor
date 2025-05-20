@@ -165,7 +165,7 @@ void pybind_voxel_block_grid_definitions(py::module& m) {
 
      vbg.def("integrate",
             py::overload_cast<const core::Tensor&, const Image&, const Image&,
-                              const ccore::Tensor&, const core::Tensor&, const core::Tensor&,
+                              const core::Tensor&, const core::Tensor&, const core::Tensor&,
                               const core::Tensor&, float, float, float>(
                     &VoxelBlockGrid::Integrate),
             "Specific operation for TSDF volumes."
