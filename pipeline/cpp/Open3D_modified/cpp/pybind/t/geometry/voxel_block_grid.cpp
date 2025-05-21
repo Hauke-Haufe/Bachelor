@@ -197,6 +197,11 @@ void pybind_voxel_block_grid_definitions(py::module& m) {
             "Extract point cloud at isosurface points.",
             "weight_threshold"_a = 3.0f, "estimated_point_number"_a = -1);
 
+    vbg.def("extract_semantic_point_cloud", &VoxelBlockGrid::ExtractSemanticPointCloud,
+            "Specific operation for TSDF volumes."
+            "Extract point cloud at isosurface points + semantic lables.",
+            "weight_threshold"_a = 3.0f, "estimated_point_number"_a = -1);
+
     vbg.def("extract_triangle_mesh", &VoxelBlockGrid::ExtractTriangleMesh,
             "Specific operation for TSDF volumes."
             "Extract triangle mesh at isosurface points.",
