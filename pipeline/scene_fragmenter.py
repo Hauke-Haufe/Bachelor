@@ -1,12 +1,10 @@
-from config import FRAGMENT_PATH, INTRINSICS_PATH 
-
 import open3d as o3d
 import numpy as np
 import json
 import time
 import os 
 import multiprocessing
-
+from config import FRAGMENT_PATH, INTRINSICS_PATH 
 import torch
 import torch.multiprocessing as mp
 import torch.utils.dlpack
@@ -205,10 +203,11 @@ class loop_closure:
             else:
                 image = o3d.core.Tensor.from_dlpack(torch.utils.dlpack.to_dlpack(color_image.as_tensor()))
                 mask = model(image)
-
+                
                 vgb.integrate(frustum_block_coords, depth_image, color_image,
                     mask, intrinsics, intrinsics, 
                     np.linalg.inv(pose))
+                
         return vgb
 
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
@@ -224,15 +223,14 @@ class loop_closure:
 class Scene_fragmenter:
 
     @staticmethod
-    def _load_model(path):  
+    def load_model_():  
 
-        model = torch.jit.load(path)
+        pass
 
-    def __init__(self, backend, model_path = None):
+    def __init__(self, backend, semantic = False):
         
-        if not model_path is None:
-            self.model = self._load_model(model_path)
-            self.model.train()
+        if semantic:
+            self.model = self.load_model_()
 
         if backend == "model_tracking": 
             self.backend = model_tracking()
@@ -282,15 +280,16 @@ class Scene_fragmenter:
         max_workers = min(max(1, multiprocessing.cpu_count()-1), n_fragments)
         os.environ["OMP_NUM_THREADS"] = '1'
         mp_context = multiprocessing.get_context('spawn')
+        intrinsics_matrix = o3d.core.Tensor(intrinsics.intrinsic_matrix)
 
         if parallel:
-            if self.model is None:
+            if self.model == None:
                     
                 with mp_context.Pool(processes=max_workers) as pool:
                     args = [(fragment_id, 
                             ids[fragment_id][0], 
                             ids[fragment_id][1], config, 
-                            o3d.core.Tensor(intrinsics.intrinsic_matrix),
+                            intrinsics_matrix,
                             path) for fragment_id in range(n_fragments)]
                     pool.starmap(self.backend.run_system, args)
             
@@ -300,16 +299,16 @@ class Scene_fragmenter:
 
                 processes = []
                 for fragment_id in range(n_fragments):
-                    p = mp.Process(target = self.backend.run_system, args = (fragment_id,
-                                                                             ids[fragment_id][0], 
-                                                                             ids[fragment_id][1], 
-                                                                             config, 
-                                                                             o3d.core.Tensor(intrinsics.intrinsic_matrix),
-                                                                             path,
-                                                                             self.model))
+                    p = mp.Process(target = self.backend.run_system, 
+                                   args = (fragment_id,
+                                            ids[fragment_id][0], 
+                                            ids[fragment_id][1], 
+                                            config, 
+                                            intrinsics_matrix,
+                                            path,
+                                            self.model))
                 for p in processes:
                     p.join()
-
 
         else:
 
@@ -318,8 +317,8 @@ class Scene_fragmenter:
                                         ids[fragment_id][0], 
                                         ids[fragment_id][1], 
                                         config, 
-                                        o3d.core.Tensor(intrinsics.intrinsic_matrix), 
-                                        path)
+                                        intrinsics_matrix, 
+                                        path, self.model)
 
 if __name__ == "__main__":
 

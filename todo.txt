@@ -4,22 +4,15 @@ ideas:
 
 Akut:
 ----data structure andern
--locking in lopclosure integration !!!!!!!!!!!!!!
-
--fragment stiching funktioniert noch nicht (Ransac part)
--label daten
--muitlway mit slam und global icp
--herrausfinden wann am besten nach GPU
+-posegraph mit gtsam 
+-scene fragmenter mit imu anpassen
 
 Aufwand: (hoch)
 -custumize odometry mask wieghted (modify Hybridodometry cuda)
--custumize integration (voxelgrid) für sematische segmentierung der Pointcloud (modify grid + integration)
 -custimize icp mask wieghted (modify multiscale odometry)
--cpp zum laufen bringen (pain)
 
 nice_to_know:
 -nutzt left hand down Koordinatensystem (y_down)
 -integration nutzt viel gpu speicher
--fragment registration hat große probleme mit kühen
 
 
