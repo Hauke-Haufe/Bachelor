@@ -90,10 +90,12 @@ def cross_validation(folds_path):
 
     batch_vals = [3, 7, 13]
     stride = [8,16]
-    background_weighting = [0.3, 0.5, 0.7]
+    background_weighting = [0.05, 0.15, 0.3, 0.5]
 
-    max_count_com = 10 #todo das hier ist nbocht richtig  
-    total_com = len(batch_vals)*len(stride)
+    
+    total_com = len(batch_vals)*len(stride)*len(background_weighting)
+    
+    to_remove_total = 23
 
     folds_path = Path(folds_path)
     for path in folds_path.iterdir():
@@ -103,6 +105,7 @@ def cross_validation(folds_path):
             grid = list(itertools.product(*[batch_vals, stride, background_weighting]))
             grid = [list(item) for item in grid]
 
+
             with open(path/  "grid.json", "w") as file:
                 json.dump(grid, file , indent= 4)
         
@@ -110,10 +113,9 @@ def cross_validation(folds_path):
         with open(path/ "grid.json", "r") as file:
             grid = json.load(file)
         
-
-        if total_com - len(grid) < max_count_com:
-            num_picks =  max_count_com - total_com + len(grid) 
-            hyperparameter_optimization(grid, num_picks, path)
+        already_removed = total_com - len(grid)
+        num_picks = max(0, to_remove_total - already_removed)
+        hyperparameter_optimization(grid, num_picks, path)
 
 def hyperparameter_optimization(grid, num_picks, fold_path):
 
@@ -145,6 +147,8 @@ def hyperparameter_optimization(grid, num_picks, fold_path):
         
         with open(fold_path/  "grid.json", "w") as file:
             json.dump(grid, file , indent= 4)
+    
+    print()
 
 def test():
     opts = Options()
@@ -177,7 +181,8 @@ def result():
                     results[hyp] = (result["best_score"], result["cur_itrs"], fold.parts[-1], model_path)
 
     sorted_results = sorted(results.items(), key = lambda item: item[1][0], reverse = True)
-    best = sorted_results[0]
+    print(sorted_results)
+    """    best = sorted_results[0]
     stride = best[0].split("_")[-1]
 
     opts = Options()
@@ -188,7 +193,7 @@ def result():
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
     scripted_model = torch.jit.script(model)
-    scripted_model.save("data/model_scripted.pt")
+    scripted_model.save("data/model_scripted.pt")"""
     
 
 if __name__ == "__main__":
