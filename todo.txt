@@ -4,12 +4,14 @@ ideas:
 
 Akut:
 ----data structure andern
+-imu reader
 -posegraph mit gtsam 
 -scene fragmenter mit imu anpassen
 
 Aufwand: (hoch)
 -custumize odometry mask wieghted (modify Hybridodometry cuda)
 -custimize icp mask wieghted (modify multiscale odometry)
+-realsense recording logic
 
 nice_to_know:
 -nutzt left hand down Koordinatensystem (y_down)
