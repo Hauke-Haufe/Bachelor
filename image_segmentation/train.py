@@ -117,6 +117,9 @@ def train(opts, fold_path):
     model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
     utils.set_bn_momentum(model.backbone, momentum=0.01)
 
+    for param in model.backbone.parameters():
+        param.requires_grad = False
+
     # Set up metrics
     metrics = StreamSegMetrics(opts.num_classes)
 

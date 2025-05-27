@@ -98,5 +98,5 @@ def extract_mp4(video_path , run, freq, out_path= "data/extracted"):
 
 if __name__ == "__main__":  
     #extract_rs("C:/Users/Haufe/Desktop/beachlor/code/data/raw_data/RS/VGA", "C:/Users/Haufe/Desktop/beachlor/code/data/extracted")
-    extract_mp4("20250430_113057000_iOS.MP4", "run5", 15)
+    extract_mp4("VIDEO-2025-04-30-13-30-34 2025-05-22 12_22_17.mp4", "run6", 15)
     
