@@ -153,10 +153,12 @@ def hyperparameter_optimization(grid, num_picks, fold_path):
 def test():
     opts = Options()
     opts.batch_size = 3
-    opts.output_stride = 8
-    opts.class_weights[0] = 0.5
-    opts.val_interval = 10
-    opts.val_batch_size = 2
+    opts.output_stride = 16
+    opts.class_weights[0] = 0.1
+    opts.class_weights[2] = 1.5
+    opts.total_itrs = 10000
+    opts.val_interval = 100
+    opts.val_batch_size = 10
 
     path = Path("dataset")/ "test"/  f"{opts.batch_size}_{opts.output_stride}_{opts.class_weights[0]}"
 
@@ -198,6 +200,6 @@ def result():
 
 if __name__ == "__main__":
     #create_folds(5)
-    cross_validation("dataset/folds")
+    #cross_validation("dataset/folds")
     #result()
-    #test()
+    test()

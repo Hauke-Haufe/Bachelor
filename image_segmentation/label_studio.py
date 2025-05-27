@@ -11,12 +11,13 @@ import label_studio_converter.brush as brush
 import matplotlib.pyplot as plt
 import shutil
 from PIL import Image
+from pathlib import Path
 
 
 #starte label studio mit LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT= <ROOT> LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true label-studio
 #create a dataset mit dem Namen dataset1 sub dir von <root> und füge als storage hinzu
 
-def create_plygon_tasks(path, run):
+def create_plygon_tasks(dataset_root, run):
     """
     nutzt Sam um images aus einem run zu segmentieren um labelstudio task zu erstellen 
     
@@ -25,6 +26,8 @@ def create_plygon_tasks(path, run):
         run (string): den run der segmentiert werden soll
     
     """
+
+    
     # === Parameters ===
     IOU_THRESHOLD = 0.2
     MIN_IOU_SCORE = 0.70
@@ -94,9 +97,9 @@ def create_plygon_tasks(path, run):
     mask_generator = SamAutomaticMaskGenerator(sam)
 
     label_studio_annotations= []
-    files = [file for file in os.listdir(os.path.join(path, run)) if file.endswith(".png")]
+    files = [file for file in os.listdir(os.path.join(dataset_root, run)) if file.endswith(".png")]
     for file in files:
-        image = cv2.imread(os.path.join(path, run, file))
+        image = cv2.imread(os.path.join(dataset_root, run, file))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         masks = mask_generator.generate(image)
@@ -133,14 +136,14 @@ def create_plygon_tasks(path, run):
             }
         )
         
-    with open(os.path.join(path, run, "polygon_task.json"), "w") as f:
+    with open(os.path.join(dataset_root, run, "polygon_task.json"), "w") as f:
         json.dump(label_studio_annotations, f, indent=4)
 
-def create_masks(path, run):
+def create_masks(json_path, run):
 
     #coco format
 
-    with open(path, "r")as file:
+    with open(json_path, "r")as file:
         coco_data = json.load(file)
 
     def group_annotations_by_image_and_class(annotations):
@@ -296,7 +299,7 @@ def make_final_mask(refined_mask_folder, image_path, json_path, output_folder):
 
 if __name__ == "__main__":
     
-    #create_masks("data/data_set/run5/result.json", "run5")
-    #import_masks_task(9, "run5")
-    #create_plygon_tasks("data/data_set", "run5")
-    make_final_mask("data/data_set/run5/refined","data/data_set/run5", "data/data_set/run5/project-9-at-2025-05-15-17-46-819e3ecf.json", "dataset/runs/run5")
+    #create_plygon_tasks("data/data_set", "run6")
+    #create_masks("data/data_set/run3/result.json", "run3")
+    import_masks_task(14, "run6")
+    #make_final_mask("data/data_set/run5/refined","data/data_set/run5", "data/data_set/run5/project-9-at-2025-05-15-17-46-819e3ecf.json", "dataset/runs/run5")
