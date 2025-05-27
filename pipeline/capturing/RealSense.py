@@ -5,6 +5,8 @@ import numpy as np
 import time
 from datetime import datetime
 import os
+from pathlib import Path
+import cv2
 
 
 gyro_data = []
@@ -20,7 +22,20 @@ def record_frames():
     config.enable_record_to_file("data/recording.bag")
 
     pipeline.start(config)
+    path = "/home/nb-messen-07/Desktop/SpatialMapping/capturing/data/RS/VGA/"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = path + f"{timestamp}"
+    
+    os.makedirs( path, exist_ok=True)
 
+    global gyro_data
+    global acc_data
+
+
+    pipeline = rs.pipeline()
+    config = rs.config()
+    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+    config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
     time.sleep(5)
 
     pipeline.stop()
