@@ -31,7 +31,6 @@ def record_frames():
     global gyro_data
     global acc_data
 
-
     pipeline = rs.pipeline()
     config = rs.config()
     config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
@@ -157,8 +156,8 @@ def record_frames_imu():
         acc_data = np.asanyarray(acc_data)
         np.save(path + "/acceleration.npy", acc_data)
 
-record_frames_imuHD()
-#record_frames_imu()
+#record_frames_imuHD()
+record_frames_imu()
 
 '''def record_frames_imu():
     global gyro_data
