@@ -16,5 +16,6 @@ Aufwand: (hoch)
 nice_to_know:
 -nutzt left hand down Koordinatensystem (y_down)
 -integration nutzt viel gpu speicher
+-ACCEL with fps=63, GYRO with fps=200
 
 
