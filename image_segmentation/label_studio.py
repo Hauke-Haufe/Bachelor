@@ -48,7 +48,7 @@ class label_project:
         run_path =(self.root / f"run{key}")
         run_path.mkdir(parents=True, exist_ok=True)
         
-        self.runs[key] = {"polygon_project": None, 
+        self.runs[str(key)] = {"polygon_project": None, 
                                   "brush_project": None, 
                                   "images": [str(run_path/ file.name) for file in image_folder.iterdir() if file.suffix == ".png"]
                                   }
@@ -62,8 +62,9 @@ class label_project:
     #danger zone
     def delete_run(self, run: int):
 
-        shutil.rmtree(self.root / f"run{run}")
-        self.runs.pop(run, None)
+        if os.path.exists(self.root / f"run{run}"):
+            shutil.rmtree(self.root / f"run{run}")
+        self.runs.pop(str(run), None)
         self.save_config()
 
     def save_config(self):
@@ -77,6 +78,10 @@ class label_project:
 
     def create_polygon_task(self, run: int):
 
+        run = str(run)
+        if not run in self.runs:
+            raise RuntimeError("the run does not exists") 
+
         ls = Client(url=self.host, api_key=self.key)
 
         if self.runs[run]["polygon_project"] is None:
@@ -88,7 +93,7 @@ class label_project:
             self.runs[run]["polygon_project"] = project.id
             self.save_config()
         else:
-             ls.get_project(project_id= self.runs[run]["polygon_project"])
+             raise RecursionError("a polygon_project already exits the progress would be overwritten")
 
         # === Parameters ===
         IOU_THRESHOLD = 0.2
@@ -173,7 +178,7 @@ class label_project:
             ]
 
             merged_masks = merge_masks(filtered, IOU_THRESHOLD)
-            file_path ="data_set"/ run/ file
+            file_path = Path("data_set") / run/ file
 
             tasks.append(
                 {
@@ -408,7 +413,11 @@ if __name__ == "__main__":
     
     #save_json("data/data_set")
     project = label_project()
-    project.add_run("data/extracted/run6")
+    project.add_run("C:/Users/Haufe/Desktop/test") 
+    project.create_polygon_task(7)
+
+
+   
     
     #create_plygon_tasks("data/data_set", "run6")
     #create_masks("data/data_set/run3/result.json", "run3")
