@@ -9,5 +9,8 @@
     "frames_per_frag": 1000,
     "depth_scale": false,
     "depth_max": 3,
-    "frag_overlap": 30
+    "frag_overlap": 30,
+    "fragmenter_backend": "model_tracking",
+    "posegraph_backend": "gtsam",
+    "imu": true
 }

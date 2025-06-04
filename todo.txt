@@ -19,3 +19,5 @@ nice_to_know:
 -ACCEL with fps=63, GYRO with fps=200
 
 
+ACHTUNG:
+-cmake list in modified open3d setet den nvcc comiler path und die achritecture 

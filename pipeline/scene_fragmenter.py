@@ -5,6 +5,7 @@ import time
 import os 
 import multiprocessing
 from config import FRAGMENT_PATH, INTRINSICS_PATH 
+from posegraph import GTSAMPosegraph
 import torch
 import torch.multiprocessing as mp
 import torch.utils.dlpack
@@ -56,9 +57,8 @@ class loop_closure:
     def __init__(self, lock):
         self._lock = lock
 
-
     @staticmethod
-    def _odometry(source, target, instrinsics):
+    def odometry_(source, target, instrinsics):
 
         try:
             start = time.time()
@@ -97,7 +97,7 @@ class loop_closure:
             return success, None, None
 
     @staticmethod 
-    def _optimize_posegraph(pose_graph):
+    def optimize_posegraph_(pose_graph):
 
         max_correspondence_distance = 0.01
         preference_loop_closure = 0.2
@@ -118,7 +118,7 @@ class loop_closure:
         
         return pose_graph
 
-    def _create_posegraph(self, sid, eid,  config, instrinsics, path):
+    def create_posegraph_(self, sid, eid,  config, instrinsics, path):
         pose_graph = o3d.pipelines.registration.PoseGraph()
         odometry = np.identity(4)
         pose_graph.nodes.append(o3d.pipelines.registration.PoseGraphNode(odometry))
@@ -161,7 +161,7 @@ class loop_closure:
                         )
 
     @staticmethod
-    def _integrate(path, sid,  pose_graph, intrinsics, model = None):
+    def integrate_(path, sid,  pose_graph, intrinsics, model = None):
 
         if model is None:
             vgb = o3d.t.geometry.VoxelBlockGrid(
@@ -212,13 +212,59 @@ class loop_closure:
 
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
-        pose_graph = self._create_posegraph(sid, eid,  config, intrinsics, path)
-        pose_graph = self._optimize_posegraph(pose_graph)
+        pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path)
+        pose_graph = self.optimize_posegraph_(pose_graph)
 
         with self._lock:
-            vgb = self._integrate(path, sid, pose_graph, intrinsics, model)
+            vgb = self.integrate_(path, sid, pose_graph, intrinsics, model)
             pointcloud = vgb.extract_point_cloud()
             o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
+
+class gtsam_posegraph:
+
+    def __init__(self):
+
+        self.Posegraph = GTSAMPosegraph()
+
+    @staticmethod
+    def odometry_(source, target, instrinsics):
+
+        try:
+            start = time.time()
+            critiria = [o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=6, 
+                                                                             relative_rmse=1.000000e-06, 
+                                                                             relative_fitness=1.000000e-06), 
+                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=3, 
+                                                                             relative_rmse=1.000000e-06, 
+                                                                             relative_fitness=1.000000e-06), 
+                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=1, 
+                                                                             relative_rmse=1.000000e-06, 
+                                                                             relative_fitness=1.000000e-06)]
+            
+            
+            result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(source.cuda(),
+                                                                        target.cuda(),
+                                                                        instrinsics, 
+                                                                        criteria_list = critiria)
+            print(f"odo_time:{time.time()-start}")
+            success = True
+            
+
+            info = o3d.t.pipelines.odometry.compute_odometry_information_matrix(source.depth,
+                                                                     target.depth,
+                                                                     instrinsics,
+                                                                     result.transformation,
+                                                                     0.015)   
+
+            return success, result, info.cpu().numpy()
+
+        except Exception:
+            success = False
+
+            print("Loop closure failed")
+
+            return success, None, None
+
 
 class Scene_fragmenter:
 
@@ -231,6 +277,8 @@ class Scene_fragmenter:
         
         if semantic:
             self.model = self.load_model_()
+        else:
+            self.model = None
 
         if backend == "model_tracking": 
             self.backend = model_tracking()
@@ -238,6 +286,9 @@ class Scene_fragmenter:
         elif backend == "loop_closure":
             self.lock = multiprocessing.Manager().Lock()
             self.backend = loop_closure(self.lock)
+        
+        elif backend == "gtsam_posegraph":
+            self.backend = gtsam_posegraph()
     
         else:
             raise Exception("None Valid backend")
