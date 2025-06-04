@@ -97,13 +97,13 @@ class imuNoise:
     def get_bias(self):
         return self.bias()
 
-
-
-
 #wrapper class für gtsam
 class GTSAMPosegraph:
 
+    #contructs a gtsam Nonlinear Graph and adds a prior
     def __init__(self, intial_pose,  imu: Optional[imuNoise] = None):
+        
+        self.result = None
 
         self.graph = gtsam.NonlinearFactorGraph()
         self.initial = gtsam.Values()
@@ -162,9 +162,19 @@ class GTSAMPosegraph:
     
     def optimize(self):
 
-        optimizer = gtsam.LevenbergMarquardOptimizer(self.graph, self.initial)
-        result = optimizer.optimise()
+        def symbolChr(key):
+            return (key >> 56) & 0xFF
 
+        optimizer = gtsam.LevenbergMarquardOptimizer(self.graph, self.initial)
+        result = optimizer.optimize()
+
+        optimsied_posegraph = o3d.pipelines.registration.PoseGraph()
+        len_graph = sum(1 for key in result.keys() if symbolChr(key) ==ord('x'))
+        for i in range(len_graph):
+            optimsied_posegraph.nodes.append(result.at(symbol('x', i)))
+
+        return optimsied_posegraph
+        
 class Open3dPosegraph():
 
     def __init__(self, inital_pose):
@@ -173,7 +183,7 @@ class Open3dPosegraph():
 
     def add_note(self, i, trans):
 
-        self.pose_graph[i] = o3d.pipelines.registration.PoseGraphNode(trans)
+        self.pose_graph.nodes.append(o3d.pipelines.registration.PoseGraphNode(trans)) 
 
     def add_odometry_edge(self, odometry,info, i, j, uncertain):
        
@@ -199,6 +209,7 @@ class Open3dPosegraph():
                                                        method, 
                                                        criteria,
                                                        option)
+        return self.pose_graph
 
 class Posegraph():
 
@@ -215,7 +226,7 @@ class Posegraph():
             else:
                 self.posegraph = GTSAMPosegraph(inital, noise)
         
-        elif backend == "open3d":
+        elif backend == "Open3D":
 
             if imu:
                 raise RuntimeError("imu integration is not availble for this backend")
@@ -224,13 +235,14 @@ class Posegraph():
                 self.posegraph = Open3dPosegraph(inital)
     
     def add_note(self, i, trans):
-        self.backend.add_note(i, trans)
+        self.posegraph.add_note(i, trans)
 
     def add_odometry_edge(self, odometry,info, i, j, uncertain):
-        self.backend.add_odometry_edge(odometry, info , i, j, uncertain)
+        self.posegraph.add_odometry_edge(odometry, info , i, j, uncertain)
     
     def add_imu_edge(self, accel, gyro, i, j):
-        self.backend.add_imu_edge(accel, gyro, i, j)
+        self.posegraph.add_imu_edge(accel, gyro, i, j)
+
     def optimize(self):
-        self.backend.optimize()
+        return self.posegraph.optimize()
 
