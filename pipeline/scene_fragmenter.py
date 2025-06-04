@@ -5,7 +5,7 @@ import time
 import os 
 import multiprocessing
 from config import FRAGMENT_PATH, INTRINSICS_PATH 
-from posegraph import GTSAMPosegraph
+from posegraph import Posegraph
 import torch
 import torch.multiprocessing as mp
 import torch.utils.dlpack
@@ -62,66 +62,47 @@ class loop_closure:
 
         try:
             start = time.time()
-            critiria = [o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=6, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06), 
-                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=3, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06), 
-                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=1, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06)]
+            critiria = [
+            o3d.t.pipelines.odometry.OdometryConvergenceCriteria(
+                max_iteration=6, 
+                relative_rmse=1.000000e-06, 
+                relative_fitness=1.000000e-06), 
+            o3d.t.pipelines.odometry.OdometryConvergenceCriteria(
+                max_iteration=3, 
+                relative_rmse=1.000000e-06, 
+                relative_fitness=1.000000e-06), 
+            o3d.t.pipelines.odometry.OdometryConvergenceCriteria(
+                max_iteration=1, 
+                relative_rmse=1.000000e-06, 
+                relative_fitness=1.000000e-06)
+            ]
             
+            result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(
+                source.cuda(),
+                target.cuda(),
+                instrinsics, 
+                criteria_list = critiria)
             
-            result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(source.cuda(),
-                                                                        target.cuda(),
-                                                                        instrinsics, 
-                                                                        criteria_list = critiria)
             print(f"odo_time:{time.time()-start}")
-            success = True
-            
 
-            info = o3d.t.pipelines.odometry.compute_odometry_information_matrix(source.depth,
-                                                                     target.depth,
-                                                                     instrinsics,
-                                                                     result.transformation,
-                                                                     0.015)   
+            info = o3d.t.pipelines.odometry.compute_odometry_information_matrix(
+                source.depth,
+                target.depth,
+                instrinsics,
+                result.transformation,
+                0.015)   
 
-            return success, result, info.cpu().numpy()
+            return True, result, info.cpu().numpy()
 
         except Exception:
-            success = False
-
             print("Loop closure failed")
 
-            return success, None, None
-
-    @staticmethod 
-    def optimize_posegraph_(pose_graph):
-
-        max_correspondence_distance = 0.01
-        preference_loop_closure = 0.2
-
-        method = o3d.pipelines.registration.GlobalOptimizationLevenbergMarquardt()
-        criteria = o3d.pipelines.registration.GlobalOptimizationConvergenceCriteria(
-        )
-        option = o3d.pipelines.registration.GlobalOptimizationOption(
-            max_correspondence_distance=max_correspondence_distance,
-            edge_prune_threshold=0.25,
-            preference_loop_closure=preference_loop_closure,
-            reference_node=0)
-
-        o3d.pipelines.registration.global_optimization(pose_graph, 
-                                                       method, 
-                                                       criteria,
-                                                       option)
-        
-        return pose_graph
+            return False, None, None
 
     def create_posegraph_(self, sid, eid,  config, instrinsics, path):
-        pose_graph = o3d.pipelines.registration.PoseGraph()
+
+        pose_graph = Posegraph(np.identity(4), "Open3D")
         odometry = np.identity(4)
-        pose_graph.nodes.append(o3d.pipelines.registration.PoseGraphNode(odometry))
 
         images = []
         start = time.time()
@@ -142,23 +123,17 @@ class loop_closure:
                     else:
                         uncertain = True
 
-
-                    success, icp, info= self._odometry(
+                    success, icp, info= self.odometry_(
                             images[source_id-sid], images[target_id- sid], instrinsics)
 
                     if success: 
                         trans = icp.transformation
-                        odometry = np.dot(trans.numpy(),odometry)
-                        pose_graph.nodes.append(
-                            o3d.pipelines.registration.PoseGraphNode(np.linalg.inv(odometry))
-                        )
+                        odometry = np.dot(trans.numpy(), odometry)
 
-                        pose_graph.edges.append(
-                            o3d.pipelines.registration.PoseGraphEdge(
-                                source_id - sid, target_id -sid,
-                                trans.numpy(), info, uncertain
-                                )
-                        )
+                        pose_graph.add_note(source_id, np.linalg.inv(odometry))
+                        pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, uncertain)
+        
+        return pose_graph
 
     @staticmethod
     def integrate_(path, sid,  pose_graph, intrinsics, model = None):
@@ -213,58 +188,12 @@ class loop_closure:
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
         pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path)
-        pose_graph = self.optimize_posegraph_(pose_graph)
+        pose_graph = pose_graph.optimize()
 
         with self._lock:
             vgb = self.integrate_(path, sid, pose_graph, intrinsics, model)
             pointcloud = vgb.extract_point_cloud()
             o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
-
-class gtsam_posegraph:
-
-    def __init__(self):
-
-        self.Posegraph = GTSAMPosegraph()
-
-    @staticmethod
-    def odometry_(source, target, instrinsics):
-
-        try:
-            start = time.time()
-            critiria = [o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=6, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06), 
-                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=3, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06), 
-                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=1, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06)]
-            
-            
-            result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(source.cuda(),
-                                                                        target.cuda(),
-                                                                        instrinsics, 
-                                                                        criteria_list = critiria)
-            print(f"odo_time:{time.time()-start}")
-            success = True
-            
-
-            info = o3d.t.pipelines.odometry.compute_odometry_information_matrix(source.depth,
-                                                                     target.depth,
-                                                                     instrinsics,
-                                                                     result.transformation,
-                                                                     0.015)   
-
-            return success, result, info.cpu().numpy()
-
-        except Exception:
-            success = False
-
-            print("Loop closure failed")
-
-            return success, None, None
-
 
 class Scene_fragmenter:
 
