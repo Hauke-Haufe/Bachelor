@@ -6,7 +6,7 @@
     "fps": 30,
     "key_frame_freq": 2,
     "max_images": 300,
-    "frames_per_frag": 300,
+    "frames_per_frag": 200,
     "depth_scale": false,
     "depth_max": 3,
     "frag_overlap": 30,

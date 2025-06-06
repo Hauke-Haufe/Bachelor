@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime
 import threading 
 import time
-import queue
+from collections import OrderedDict
 
 class test:
     
@@ -359,43 +359,77 @@ class File_io():
 
         self.pipeline.stop()
 
-class File_server:
+class Frame_server:
 
-    def __init__(self, root_dir: Path):
+    def __init__(self, root_dir: Path, sid, eid, max_images, imu = False):
+        
+        self.max_size = 10
 
         self.root_dir = root_dir
         dirs = ["color", "accel", "gyro", "depth"]
         
-        files = {}
+        self.dirs = {}
         for direc in dirs:
             directory = (self.root / direc)
-            files[direc] = directory
+            self.dirs[direc] = directory
 
-        self.loader_queue = queue.Queue()
-        self.loader_thread = threading.Thread(target=self.load_worker, args=(self,))
+        self.buffer = OrderedDict
+        self.loader_thread = threading.Thread(target=self.load_worker, args=(self))
+        self.lock = threading.Lock()
+
+        self.sid = sid
+        self.eid = eid
+
+        self.loader_thread.start()
     
     def sanity_check():
         pass
         
     def load_worker(self):
+        
+        accel, gyro = None, None
+        self.cur = self.sid 
+        while self.cur < self.eid:
 
-        end_flag = True
-        _, length = self.files["color"]
-        i = 0 
-        while end_flag:
-
-            if self.loader_queue.qsize < 10:
+            if len(self.buffer) < self.max_size:
                 
-                self.loader_queue.put()
-                i += 1
-            
-            if i == length:
-                end_flag = False
+                if self.imu:
+                    accel = np.load(self.dirs["accel"] / f"{self.curr}.npy")
+                    gyro = np.load(self.dirs["gyro"] / f"{self.curr}.npy")
+
+                color_image = o3d.t.io.read_image(self.dirs["color"] / f"{self.curr}.png")
+                depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"{self.curr}.png")
+                image = o3d.t.geometry.RGBDImage(color_image, depth_image)
+
+                with self.lock:
+                    self.buffer[self.cur] = (accel, gyro, image, self.cur)
+                
+                self.cur += 1
+
+    def step_frame(self):
+
+        with self.lock:
+            self.buffer.popitem(last=False)
             
 
+    def __getitem__(self, key):
+        
+        if key in self.buffer:
 
-    def next_frame():
-        pass
+            with self.lock:
+                return self.buffer[key]
+
+        else:
+            accel, gyro = None, None
+            if self.imu:
+                accel = np.load(self.dirs["accel"] / f"{self.curr}.npy")
+                gyro = np.load(self.dirs["gyro"] / f"{self.curr}.npy")
+
+            color_image = o3d.t.io.read_image(self.dirs["color"] / f"{self.curr}.png")
+            depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"{self.curr}.png")
+            image = o3d.t.geometry.RGBDImage(color_image, depth_image)
+
+            return (accel, gyro, image, self.cur)
 
 
 if __name__ == "__main__":

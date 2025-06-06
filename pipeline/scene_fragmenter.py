@@ -54,8 +54,16 @@ class model_tracking:
 
 class loop_closure:
 
+    #achtung nicht threaded getestet
     def __init__(self, lock):
         self._lock = lock
+
+        self.tl_flag = False
+        self.d_flag = False
+
+        self.tl_frame = 0
+        self.n_sid = 0
+        
 
     @staticmethod
     def odometry_(source, target, instrinsics):
@@ -83,7 +91,7 @@ class loop_closure:
                 instrinsics, 
                 criteria_list = critiria)
             
-            print(f"odo_time:{time.time()-start}")
+            #print(f"odo_time:{time.time()-start}")
 
             info = o3d.t.pipelines.odometry.compute_odometry_information_matrix(
                 source.depth,
@@ -116,7 +124,7 @@ class loop_closure:
         for source_id in range(sid, eid):
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
-                if target_id-source_id <7:
+                if target_id-source_id <2:
 
                     if target_id == source_id +1:
                         uncertain = False
@@ -126,13 +134,23 @@ class loop_closure:
                     success, icp, info= self.odometry_(
                             images[source_id-sid], images[target_id- sid], instrinsics)
 
+                    if target_id == source_id +1 and not success:
+                        self.tl_flag = True
+                        self.d_flag = True
+                        self.tl_frame = source_id
+
+                        return pose_graph
+
                     if success: 
                         trans = icp.transformation
                         odometry = np.dot(trans.numpy(), odometry)
+                        
+                        if target_id == source_id +1:
+                            pose_graph.add_note(source_id, np.linalg.inv(odometry))
 
-                        pose_graph.add_note(source_id, np.linalg.inv(odometry))
                         pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, uncertain)
         
+        self.tl_flag = False
         return pose_graph
 
     @staticmethod
@@ -188,12 +206,29 @@ class loop_closure:
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
         pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path)
-        pose_graph = pose_graph.optimize()
 
+        while self.tl_flag:
+
+            print(f"tracking lost at {self.tl_frame}")
+
+            if pose_graph.count_nodes() > 10:
+                pose_graph_opt = pose_graph.optimize()
+                vgb = self.integrate_(path, self.n_sid ,pose_graph_opt, intrinsics, model)
+                pointcloud = vgb.extract_point_cloud()
+                o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}_{self.n_sid}.pcd"), pointcloud)
+            
+            self.n_sid = sid + self.tl_frame +1
+            pose_graph = self.create_posegraph_(self.n_sid, eid, config, intrinsics, path)
+                
+        pose_graph_opt = pose_graph.optimize()
         with self._lock:
-            vgb = self.integrate_(path, sid, pose_graph, intrinsics, model)
-            pointcloud = vgb.extract_point_cloud()
-            o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
+            
+            if len(pose_graph_opt.nodes) >10:
+                vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
+                pointcloud = vgb.extract_point_cloud()
+                o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
+
+
 
 class Scene_fragmenter:
 
@@ -215,10 +250,7 @@ class Scene_fragmenter:
         elif backend == "loop_closure":
             self.lock = multiprocessing.Manager().Lock()
             self.backend = loop_closure(self.lock)
-        
-        elif backend == "gtsam_posegraph":
-            self.backend = gtsam_posegraph()
-    
+
         else:
             raise Exception("None Valid backend")
 
