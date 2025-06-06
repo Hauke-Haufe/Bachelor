@@ -1,14 +1,20 @@
 import open3d as o3d
 import numpy as np
+import multiprocessing
+
 import json
 import time
 import os 
-import multiprocessing
-from config import FRAGMENT_PATH, INTRINSICS_PATH 
-from posegraph import Posegraph
+from pathlib import Path
+
 import torch
 import torch.multiprocessing as mp
 import torch.utils.dlpack
+
+from posegraph import Posegraph
+from sensor_io import Frame_server, Frame_get
+from config import FRAGMENT_PATH, INTRINSICS_PATH 
+
 
 class model_tracking:
 
@@ -107,32 +113,28 @@ class loop_closure:
 
             return False, None, None
 
-    def create_posegraph_(self, sid, eid,  config, instrinsics, path):
+    def create_posegraph_(self, sid, eid,  config, instrinsics, path, images):
 
         pose_graph = Posegraph(np.identity(4), "Open3D")
         odometry = np.identity(4)
 
-        images = []
-        start = time.time()
-        for i in range(sid, eid):
-            color_image = o3d.t.io.read_image(f"{path}/color/image{i}.png")
-            depth_image = o3d.t.io.read_image(f"{path}/depth/image{i}.png")
-            image = o3d.t.geometry.RGBDImage(color_image, depth_image)
-            images.append(image)
-        print(time.time()-start)
-
         for source_id in range(sid, eid):
+            
+            source_image , _, _, _ = images[ source_id]
+            images.step_frame()
+
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
                 if target_id-source_id <2:
+                    
+                    target_image, _, _, _= images[target_id]
 
                     if target_id == source_id +1:
                         uncertain = False
                     else:
                         uncertain = True
-
                     success, icp, info= self.odometry_(
-                            images[source_id-sid], images[target_id- sid], instrinsics)
+                            source_image, target_image, instrinsics)
 
                     if target_id == source_id +1 and not success:
                         self.tl_flag = True
@@ -146,10 +148,10 @@ class loop_closure:
                         odometry = np.dot(trans.numpy(), odometry)
                         
                         if target_id == source_id +1:
-                            pose_graph.add_note(source_id, np.linalg.inv(odometry))
+                            pose_graph.add_note(source_id-sid, np.linalg.inv(odometry))
 
                         pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, uncertain)
-        
+
         self.tl_flag = False
         return pose_graph
 
@@ -205,7 +207,8 @@ class loop_closure:
 
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
-        pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path)
+        image_loader = Frame_get(Path(path), sid, eid, config["imu"])
+        pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path, image_loader)
 
         while self.tl_flag:
 
@@ -218,7 +221,7 @@ class loop_closure:
                 o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}_{self.n_sid}.pcd"), pointcloud)
             
             self.n_sid = sid + self.tl_frame +1
-            pose_graph = self.create_posegraph_(self.n_sid, eid, config, intrinsics, path)
+            pose_graph = self.create_posegraph_(self.n_sid, eid, config, intrinsics, path, image_loader)
                 
         pose_graph_opt = pose_graph.optimize()
         with self._lock:
@@ -227,8 +230,6 @@ class loop_closure:
                 vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
                 pointcloud = vgb.extract_point_cloud()
                 o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
-
-
 
 class Scene_fragmenter:
 
@@ -336,7 +337,7 @@ if __name__ == "__main__":
 
     start = time.time()
     odo =  Scene_fragmenter("loop_closure")
-    odo.make_fragments("data/images", False)
+    odo.make_fragments("data/images", True)
     print(time.time()-start)
 
     pcd = []
