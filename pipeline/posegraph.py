@@ -174,7 +174,15 @@ class GTSAMPosegraph:
             optimsied_posegraph.nodes.append(result.at(symbol('x', i)))
 
         return optimsied_posegraph
+    
+    def count_nodes(self):
+
+        def symbolChr(key):
+            return (key >> 56) & 0xFF
+        len_graph = sum(1 for key in self.pose_graph.keys() if symbolChr(key) ==ord('x'))
         
+        return len_graph
+
 class Open3dPosegraph():
 
     def __init__(self, inital_pose):
@@ -211,6 +219,10 @@ class Open3dPosegraph():
                                                        option)
         return self.pose_graph
 
+    def count_nodes(self):
+
+        return len(self.pose_graph.nodes)
+
 class Posegraph():
 
     def __init__(self, inital, backend: str, imu = False):
@@ -242,6 +254,9 @@ class Posegraph():
     
     def add_imu_edge(self, accel, gyro, i, j):
         self.posegraph.add_imu_edge(accel, gyro, i, j)
+
+    def count_nodes(self):
+        return self.posegraph.count_nodes()
 
     def optimize(self):
         return self.posegraph.optimize()
