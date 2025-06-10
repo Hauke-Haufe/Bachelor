@@ -1,19 +1,48 @@
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
+
 from pathlib import Path
+
 import numpy as np
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
+import torch.nn.functional as F
+
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
-import cv2
-import time
+
+
+def convert_mask_to_sam_logits(mask_binary, target_size=(256, 256), fg_value=10.0, bg_value=-10.0):
+    """
+    Convert binary mask to SAM-compatible mask_input (logits format).
+    
+    Parameters:
+    - mask_binary: numpy array or tensor of shape (H, W), values 0 or 1
+    - target_size: size expected by SAM (e.g., H//4, W//4 of input image)
+    - fg_value: logit value for foreground
+    - bg_value: logit value for background
+
+    Returns:
+    - mask_input: torch.Tensor of shape [1, 1, H', W'] with logit values
+    """
+    if isinstance(mask_binary, np.ndarray):
+        mask_binary = torch.tensor(mask_binary, dtype=torch.float32)
+
+    # Ensure shape [1, 1, H, W]
+    mask_tensor = mask_binary[None, None, :, :]  # shape [1, 1, H, W]
+
+    # Resize to match SAM encoder resolution (typically H//4, W//4)
+    mask_resized = F.interpolate(mask_tensor, size=target_size, mode="bilinear", align_corners=False)
+
+    # Convert to logits: fg_value for 1s, bg_value for 0s
+    mask_logits = mask_resized * (fg_value - bg_value) + bg_value  # linear map from 0→bg to 1→fg
+
+    return mask_logits[0,0]
 
 class LabelwithSam:
 
@@ -53,7 +82,6 @@ class LabelwithSam:
         self.p_flag = True
         self.vis = True
 
-        self.render()
 
         #--------------------------------------
         #-----------Point Keybinds-------------
@@ -78,26 +106,62 @@ class LabelwithSam:
         # generate mask from seleted prompts 
         self.root.bind("<KeyPress-g>", self.generate_mask)
         
+        self.zoom_factor = 1.0
+        self.zoom_step = 0.1  # step for each scroll
+        self.min_zoom = 0.1
+        self.max_zoom = 5.0
+        self.canvas.bind("<MouseWheel>", self.on_mousewheel)
+
         #toggle vis Elements
         self.root.bind("<KeyPress-v>", self.toggle_vis)
-
 
         #next Image button
         next_btn = tk.Button(control_frame, text="Next image", command=self.next_image)
         next_btn.pack(side="left", pady=2)
 
+        #self.init_segment()
+        self.render()
         self.root.mainloop()
+
+    def init_segment(self):
+
+        cfg = get_cfg()
+        cfg.merge_from_file(model_zoo.get_config_file(
+            "Misc/cascade_mask_rcnn_X_152_32x8d_FPN_IN5k_gn_dconv.yaml"))
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.2  # Confidence threshold
+        cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(
+            "Misc/cascade_mask_rcnn_X_152_32x8d_FPN_IN5k_gn_dconv.yaml")
+        cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+        predictor = DefaultPredictor(cfg)
+        outputs = predictor(np.array(self.img))
+
+        for mask in outputs["instances"].pred_masks.cpu().numpy():
+            logit = convert_mask_to_sam_logits(mask)
+            self.masks.append({"mask":mask, "selected": False, "logits": logit})
+
+
+    def on_mousewheel(self, event):
+        # Determine zoom direction
+        if event.delta > 0 or event.num == 4:
+            self.zoom_factor = min(self.max_zoom, self.zoom_factor + self.zoom_step)
+        elif event.delta < 0 or event.num == 5:
+            self.zoom_factor = max(self.min_zoom, self.zoom_factor - self.zoom_step)
+
+        self.render()
 
     def create_point(self, event):
         x, y = event.x, event.y
-   
+        x = int(x/self.zoom_factor)
+        y = int(y/self.zoom_factor)
+
         radius = 3
         if self.p_flag:
             self.points.append({"coord": (x, y), "inside":True})
-            self.canvas.create_oval(x-radius, y-radius, x+radius, y+radius, fill="green")
         else:
             self.points.append({"coord": (x, y), "inside":False})
-            self.canvas.create_oval(x-radius, y-radius, x+radius, y+radius, fill="red")
+
+        self.render()
     
     def change_input_mode(self, event):
         self.p_flag = not self.p_flag
@@ -116,6 +180,8 @@ class LabelwithSam:
 
     def select_mask(self, event):
         x, y = event.x, event.y
+        x = int(x/self.zoom_factor)
+        y = int(y/self.zoom_factor)
         for i in range(len(self.masks)):
                 if self.masks[i]["mask"][y,x]:
                     self.masks[i]["selected"] = not self.masks[i]["selected"]
@@ -123,9 +189,8 @@ class LabelwithSam:
         self.render()
 
     def delete_selected_masks(self,event):
-        for mask in self.masks:
-            if mask["selected"]:
-                self.masks.remove(mask)
+
+        self.masks = [mask for mask in self.masks if not mask["selected"]]
 
         self.render()
     
@@ -139,7 +204,6 @@ class LabelwithSam:
         self.points = []
         self.img = Image.open(next(self.run_folder))
         self.render()
-
 
     def generate_mask(self, event):
         
@@ -160,9 +224,9 @@ class LabelwithSam:
         
         mask_in = self.get_selected_mask()
         if mask_in is not None:
-            mask_in = mask_in[None, :, :]
+            mask_in = mask_in
             
-        for i in range(2):
+        for i in range(4):
             sam_masks, scores, logits = self.sam.predict(
                     point_coords=points,
                     point_labels = labels,
@@ -182,10 +246,18 @@ class LabelwithSam:
         for mask in self.masks:
 
             if mask["selected"]:
-                return(mask["logits"])
+                selected_masks.append(mask["logits"])
 
+        if len(selected_masks) > 0:
+            return np.asanyarray(selected_masks)
+        else:
+            return None
+    
     def render(self):
         
+        new_size = (int(self.img.width * self.zoom_factor),
+                    int(self.img.height * self.zoom_factor))
+
         if self.vis:
             img_overlay = self.img.convert("RGBA")
             self.tk_img = ImageTk.PhotoImage(self.img)
@@ -211,21 +283,22 @@ class LabelwithSam:
                 mask_img = Image.fromarray(mask_rgba, mode="RGBA")
                 img_overlay = Image.alpha_composite(img_overlay, mask_img)
             
-            self.tk_img = ImageTk.PhotoImage(img_overlay)
+            self.tk_img = ImageTk.PhotoImage(img_overlay.resize(new_size, Image.LANCZOS))
 
             self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
             self.canvas.config(width=self.tk_img.width(), height=self.tk_img.height())
 
             radius = 3
             for point in self.points:
-                coord = point["coord"]
+                x, y = point["coord"]
+                zx, zy = x * self.zoom_factor, y * self.zoom_factor
                 if point["inside"]:
-                    self.canvas.create_oval(coord[0]-radius,coord[1]-radius, coord[0]+radius, coord[1]+radius, fill="green")
+                    self.canvas.create_oval(zx-radius,zy-radius, zx+radius, zy+radius, fill="green")
                 else:
-                    self.canvas.create_oval(coord[0]-radius, coord[1]-radius, coord[0]+radius, coord[1]+radius, fill="red")
+                    self.canvas.create_oval(zx-radius,zy-radius, zx+radius, zy+radius, fill="red")
 
         else:
-            self.tk_img = ImageTk.PhotoImage(self.img)
+            self.tk_img = ImageTk.PhotoImage(self.img.resize(new_size, Image.LANCZOS))
             self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
             self.canvas.config(width=self.tk_img.width(), height=self.tk_img.height())
 
