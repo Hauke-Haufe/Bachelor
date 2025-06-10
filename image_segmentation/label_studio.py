@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import shutil
 from PIL import Image
 from pathlib import Path
+import datetime
+
 
 
 #starte label studio mit LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT= <ROOT> LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true label-studio
@@ -19,6 +21,68 @@ from pathlib import Path
 
 #sync up mit Labelstudio images
 #implement sanity checks with the label studio database for the run
+
+
+def iou(mask1, mask2):
+
+    inter = np.logical_and(mask1, mask2).sum()
+    union = np.logical_or(mask1, mask2).sum()
+    return inter / union if union > 0 else 0
+
+def merge_masks(masks, iou_threshold):
+    """
+    Kombiniert Masken, die überlappen
+
+    Args:
+        masks (dict): segmentation Resultate aus dem SAM Netzwerk
+        iou_threshold (float): Schwellenwert ab dem Segmente als übelappend gelten
+
+    Returns:
+        (list): kombinierte Masken
+    """
+
+    merged = []
+    used = [False] * len(masks)
+
+    for i, m1 in enumerate(masks):
+        if used[i]:
+            continue
+        combined_mask = m1['segmentation'].copy()
+        for j in range(i + 1, len(masks)):
+            if used[j]:
+                continue
+            m2 = masks[j]
+            if iou(combined_mask, m2['segmentation']) > iou_threshold:
+                combined_mask = np.logical_or(combined_mask, m2['segmentation'])
+                used[j] = True
+        used[i] = True
+        merged.append(combined_mask)
+
+    return merged
+
+def mask_to_polygons(mask, min_area=100, min_points=3):
+    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    polygons = []
+
+    for contour in contours:
+        contour = contour.squeeze()
+
+        # Ensure valid shape and point count
+        if len(contour.shape) != 2 or len(contour) < min_points:
+            continue
+
+        # Filter by area (using cv2.contourArea)
+        area = cv2.contourArea(contour)
+        if area < min_area:
+            continue
+
+        polygon = contour.flatten().tolist()
+        polygons.append(polygon)
+
+    return polygons
+
+
+#class for labeling and managing working with Labelstudio
 class label_project:
 
     def __init__(self, root_path = "data/data_set"):
@@ -27,12 +91,21 @@ class label_project:
         with open(self.root / "progress.json") as f:
             progress = json.load(f)
 
+        self.backup_path = self.root / "backup"
+        self.backup_path.mkdir(parents=True, exist_ok=True)
+
+        self.classes = ["heu", "cow"]
+
         self.runs = progress["runs"]
         self.key = progress["api_key"]
         self.host = progress["host"]
         self.polygon_config = progress["polygon_config"]
         self.brush_config = progress["brush_config"]
-        
+    
+    #--------------------------------------
+    #   Projectmanger functions
+    #--------------------------------------
+    #adds a run to the project with the images without any labelstudio project beeing created
     def add_run(self, image_folder: str):
         
         image_folder = Path(image_folder)
@@ -59,7 +132,7 @@ class label_project:
         
         self.save_config()
     
-    #danger zone
+    #danger zone deletes a run from the progress json and the images get deleted
     def delete_run(self, run: int):
 
         if os.path.exists(self.root / f"run{run}"):
@@ -67,6 +140,7 @@ class label_project:
         self.runs.pop(str(run), None)
         self.save_config()
 
+    #saves the current config of the project to the progress json
     def save_config(self):
 
         with open(self.root / "progress.json", "w") as f:
@@ -74,8 +148,65 @@ class label_project:
                         "api_key": self.key,
                         "host": self.host,
                         "polygon_config": self.polygon_config,
-                        "brush_config":  self.brush_config}, f)
+                        "brush_config":  self.brush_config}, f, indent=4)
 
+    #saves the actual progress for all runs in from of the labelstudio jsons to the backup folder
+    def backup_progress(self):
+
+        for run, _ in self.runs.items():
+            self.backup_run(run)
+
+    #saves the actual progress for one run in form of the labelstudio jsons to the backup folder
+    def backup_run(self, run):
+        ls = Client(url=self.host, api_key=self.key)
+
+        if self.runs[run]["polygon_project"] is not None:
+            project = ls.get_project(self.runs[run]["polygon_project"]) 
+            project_tasks = project.get_tasks()
+
+            backup_run_path = self.backup_path / f"run{run}_polygon.json"
+            if backup_run_path.is_file():
+                with open(backup_run_path, "r") as f:
+                    backup = json.load(f)
+
+                with open(backup_run_path, "w") as f:
+                    backup.append({"date":str(datetime.datetime.now()),"data": project_tasks})
+                    json.dump(backup, f)
+            else:
+                with open(backup_run_path, "w") as f:
+                    json.dump([{"date":str(datetime.datetime.now()),"data": project_tasks}], f)
+
+            print(f"Backup von Polygon_task Run{run} erstellt")
+
+        if self.runs[run]["brush_project"] is not None:
+            project = ls.get_project(self.runs[run]["brush_project"]) 
+            project_tasks = project.get_tasks()
+
+            backup_run_path = self.backup_path / f"run{run}_brush.json"
+            if backup_run_path.is_file():
+                with open(backup_run_path, "r") as f:
+                    backup = json.load(f)
+
+                with open(backup_run_path, "w") as f:
+                    backup.append({"date":str(datetime.datetime.now()),"data": project_tasks})
+                    json.dump(backup, f)
+            else:
+                with open(backup_run_path, "w") as f:
+                    json.dump([{"date":str(datetime.datetime.now()),"data": project_tasks}], f)
+            
+            print(f"Backup von Brush_task Run{run} erstellt")
+
+
+    #--------------------------------------
+    #         old label workflow
+    #--------------------------------------
+    #the old Labeling pipline consist out of two part. First the Segment anything Model (Sam) is used
+    #to segment any images and create a polygon labeling project in Label Studio. This is supposed to get
+    #coarse lables to start with. The polygon need to be sorted and labeled. 
+    #In the next step the labled polygons get converted to a brush task in Lablestudio. This is for the mask 
+    #refinement and creation of the finals Masks
+
+    #creates a new Labelstudio project and uses Automaticsegmenter from Sam to create polygon segmentations
     def create_polygon_task(self, run: int):
 
         run = str(run)
@@ -93,71 +224,17 @@ class label_project:
             self.runs[run]["polygon_project"] = project.id
             self.save_config()
         else:
-             raise RecursionError("a polygon_project already exits the progress would be overwritten")
+            print("a polygon_project already exits the progress would be overwritten. Type yes to proceed")
+            if input() == "yes":
+                self.backup_run(run)
 
+            project = ls.get_project(self.runs[run]["polygon_project"]) 
+        
         # === Parameters ===
         IOU_THRESHOLD = 0.2
         MIN_IOU_SCORE = 0.70
         MIN_STABILITY = 0.92
         MIN_AREA = 300
-
-        def iou(mask1, mask2):
-
-            inter = np.logical_and(mask1, mask2).sum()
-            union = np.logical_or(mask1, mask2).sum()
-            return inter / union if union > 0 else 0
-
-        def merge_masks(masks, iou_threshold):
-            """
-            Kombiniert Masken, die überlappen
-
-            Args:
-                masks (dict): segmentation Resultate aus dem SAM Netzwerk
-                iou_threshold (float): Schwellenwert ab dem Segmente als übelappend gelten
-
-            Returns:
-                (list): kombinierte Masken
-            """
-
-            merged = []
-            used = [False] * len(masks)
-
-            for i, m1 in enumerate(masks):
-                if used[i]:
-                    continue
-                combined_mask = m1['segmentation'].copy()
-                for j in range(i + 1, len(masks)):
-                    if used[j]:
-                        continue
-                    m2 = masks[j]
-                    if iou(combined_mask, m2['segmentation']) > iou_threshold:
-                        combined_mask = np.logical_or(combined_mask, m2['segmentation'])
-                        used[j] = True
-                used[i] = True
-                merged.append(combined_mask)
-
-            return merged
-
-        def mask_to_polygons(mask, min_area=100, min_points=3):
-            contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            polygons = []
-
-            for contour in contours:
-                contour = contour.squeeze()
-
-                # Ensure valid shape and point count
-                if len(contour.shape) != 2 or len(contour) < min_points:
-                    continue
-
-                # Filter by area (using cv2.contourArea)
-                area = cv2.contourArea(contour)
-                if area < min_area:
-                    continue
-
-                polygon = contour.flatten().tolist()
-                polygons.append(polygon)
-
-            return polygons
 
         sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
         sam.to("cuda")
@@ -178,12 +255,11 @@ class label_project:
             ]
 
             merged_masks = merge_masks(filtered, IOU_THRESHOLD)
-            file_path = Path("data_set") / run/ file
 
             tasks.append(
                 {
                     "data": {
-                        "image": f"/data/local-files/?d={file_path}"
+                        "image": f"/data/local-files/?d={file}"
                     },
                     "annotations": [{
                         "result": [
@@ -205,18 +281,25 @@ class label_project:
             
         project.import_tasks(tasks)
 
-    def create_mask_task(self, run: int):
+    #uses the Polygon segmentation with actual lables to convert to a brush Labelstudio Project
+    def create_brush_task(self, run: int):
 
-        if self.runs[run]["polygon_task"] is None:
+        run = str(run)
+        if self.runs[run]["polygon_project"] is None:
             raise RuntimeError("u need a polygon task first for this run")
+        if self.runs[run]["brush_project"] is not None:
+            raise RuntimeError("u already have existing progress in this runs brush task")
         
         ls = Client(url=self.host, api_key=self.key)
-        project = ls.get_project(self.runs[run]["polygon_task"]) 
-        project_tasks = project.get_task
+        project = ls.get_project(self.runs[run]["polygon_project"]) 
+        project_tasks = project.get_tasks()
 
-        for task in tqdm(project_tasks):
+        for task in tqdm(project_tasks): 
 
-            print("hi")
+            class_polygon_dict = {}
+            for label in self.classes:
+                class_polygon_dict[label] = []
+            
 
 def save_json(root):
 
@@ -413,12 +496,8 @@ if __name__ == "__main__":
     
     #save_json("data/data_set")
     project = label_project()
-    project.add_run("C:/Users/Haufe/Desktop/test") 
-    project.create_polygon_task(7)
+    project.create_brush_task(7)
 
-
-   
-    
     #create_plygon_tasks("data/data_set", "run6")
     #create_masks("data/data_set/run3/result.json", "run3")
     #import_masks_task(14, "run6")
