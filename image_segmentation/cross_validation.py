@@ -154,11 +154,12 @@ def test():
     opts = Options()
     opts.batch_size = 3
     opts.output_stride = 16
-    opts.class_weights[0] = 0.1
+    opts.class_weights[0] = 0.3
     opts.class_weights[2] = 1.5
     opts.total_itrs = 10000
     opts.val_interval = 100
     opts.val_batch_size = 10
+    opts.loss_type = "focal_loss"
 
     path = Path("dataset")/ "test"/  f"{opts.batch_size}_{opts.output_stride}_{opts.class_weights[0]}"
 
