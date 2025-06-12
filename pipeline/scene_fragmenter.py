@@ -135,7 +135,7 @@ class loop_closure:
         for source_id in range(sid, eid):
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
-                if target_id-source_id <7:
+                if target_id-source_id <4:
 
                     if target_id == source_id +1:
                         uncertain = False
@@ -149,9 +149,10 @@ class loop_closure:
                     if success: 
                         trans = icp.transformation
                         odometry = np.dot(trans.numpy(),odometry)
-                        pose_graph.nodes.append(
-                            o3d.pipelines.registration.PoseGraphNode(np.linalg.inv(odometry))
-                        )
+                        if target_id == source_id +1:
+                            pose_graph.nodes.append(
+                                o3d.pipelines.registration.PoseGraphNode(np.linalg.inv(odometry))
+                            )
 
                         pose_graph.edges.append(
                             o3d.pipelines.registration.PoseGraphEdge(
@@ -159,6 +160,7 @@ class loop_closure:
                                 trans.numpy(), info, uncertain
                                 )
                         )
+        return pose_graph
 
     @staticmethod
     def _integrate(path, sid,  pose_graph, intrinsics, model = None):
@@ -231,6 +233,8 @@ class Scene_fragmenter:
         
         if semantic:
             self.model = self.load_model_()
+        else:
+            self.model = None
 
         if backend == "model_tracking": 
             self.backend = model_tracking()
@@ -324,7 +328,7 @@ if __name__ == "__main__":
 
     start = time.time()
     odo =  Scene_fragmenter("loop_closure")
-    odo.make_fragments("data/images", False)
+    odo.make_fragments("data/images", True)
     print(time.time()-start)
 
     pcd = []
