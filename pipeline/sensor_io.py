@@ -1,15 +1,80 @@
 import pyrealsense2 as rs
 import open3d as o3d
 import numpy as np
+import cv2
+
 import json
 import os
-import cv2
 from pathlib import Path
 from datetime import datetime
-import threading
 import time
+import queue
 
-class RSrecorder():
+import threading 
+from collections import OrderedDict
+
+class test:
+    
+    def __init__(self):
+        self.color_queue = queue.Queue()
+        self.depth_queue = queue.Queue()
+        self.gyro_queue = queue.Queue()
+        self.accel_queue = queue.Queue()   
+
+    def frame_callback(self, frame):
+
+        stream_type = frame.get_profile().stream_type()
+        timestamp = frame.get_timestamp()
+
+        if stream_type == rs.stream.color:
+            self.color_queue.put((timestamp, frame))
+        elif stream_type == rs.stream.depth:
+            self.depth_queue.put((timestamp, frame))
+        elif stream_type == rs.stream.gyro:
+            self.gyro_queue.put((timestamp, frame))
+        elif stream_type == rs.stream.accel:
+            self.accel_queue.put((timestamp, frame))
+
+    def monitor(self):
+
+        while True:
+
+            if not self.color_queue.empty():
+                ts, _ = self.color_queue.no_wait()
+                print(f"color: {ts}")
+            if not self.depth_queue.empty():
+                ts, _ = self.depth_queue.no_wait()
+                print(f"depth: {ts}")
+            if not self.gyro_queue.empty():
+                ts, _ = self.gyro_queue.no_wait()
+                print(f"gyro: {ts}")
+            if not self.accel_queue.empty():
+                ts, _ = self.accel_queue.no_wait()
+                print(f"accel: {ts}")
+
+    def unpack(self, bag_path):
+
+        ctx = rs.context()
+        cfg = rs.config()
+        cfg.enable_device_from_file(bag_path)
+
+        pipeline = rs.pipeline(ctx)
+        profile = pipeline.start(cfg)
+
+        device = profile.get_device()
+        playback = device.as_playback()
+        playback.set_real_time(True)
+
+        sensors = device.query_sensors()
+        for sensor in sensors:
+            stream_profiles = sensor.get_stream_profiles()
+            sensor.open(stream_profiles)
+            sensor.start(self.frame_callback)
+        
+        thread = threading.Thread(target=self.monitor)
+        thread.start()
+   
+class RSrecorder:
     
     def __init__(self, save_path, HD = False, imu = True):
         
@@ -91,8 +156,8 @@ class RSrecorder():
 
     #future set a flag for the recording stop
     #elegantere Lösung
-    """
-    def capture(self):
+
+    def capture_smart(self):
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         bag_path = self.path / f"{timestamp}.bag"
@@ -107,6 +172,7 @@ class RSrecorder():
             config.enable_stream(rs.stream.gyro)
 
         config.enable_record_to_file(str(bag_path))
+        pipeline.start(config)
 
         #recording loop
         try:
@@ -114,34 +180,20 @@ class RSrecorder():
                 pass
         
         except KeyboardInterrupt:
-            pass"""
+            pipeline.stop()
     
-class RSplayer():
+class File_io():
     
-    def __init__(self, bag_path, config):
+    def __init__(self, root_dir: str):
 
+        self.root_dir = Path(root_dir)
 
-        reader = o3d.t.io.RSBagReader()
-        reader.open(bag_path)
-        self.stream_lenght = reader.metadata.stream_length_usec / 1000000
-        self.fps = reader.metadata.fps
-        self.intrisics = reader.metadata.intrinsics
-        reader.close()
+        folders = ["depth", "color", "gyro", "accel"]
+        for folder in folders:
+            if not (self.root_dir / folder).is_dir:
+                (self.root_dir / folder).mkdir(parents=True)
+        
 
-        self.bag_path = bag_path
-        self.freq = int(self.fps /config["fps"])
-        self.max_images = config["max_images"]
-
-        self.pipeline = rs.pipeline()
-        rs_config = rs.config()
-        rs_config.enable_device_from_file(bag_path, repeat_playback=False)
-
-        self.align = rs.align(rs.stream.color)
-        profile = self.pipeline.start(rs_config)
-        playback = profile.get_device().as_playback()
-        playback.set_real_time(False)
-
-    
     #unpacks the bag into the destination directory
     #funktioniert nicht muss in c++ implementiert werden
 
@@ -237,7 +289,27 @@ class RSplayer():
         return timeframe_gyrodata, timeframe_accdata, index
 
     #imu datawith the index i from the i-1 to the i keyframe
-    def unpack(self, dest_path):
+    def unpack(self,bag_path, config):
+
+        reader = o3d.t.io.RSBagReader()
+        reader.open(bag_path)
+        self.stream_lenght = reader.metadata.stream_length_usec / 1000000
+        self.fps = reader.metadata.fps
+        self.intrisics = reader.metadata.intrinsics
+        reader.close()
+
+        self.bag_path = bag_path
+        self.freq = int(self.fps /config["fps"])
+        self.max_images = config["max_images"]
+
+        self.pipeline = rs.pipeline()
+        rs_config = rs.config()
+        rs_config.enable_device_from_file(bag_path, repeat_playback=False)
+
+        self.align = rs.align(rs.stream.color)
+        profile = self.pipeline.start(rs_config)
+        playback = profile.get_device().as_playback()
+        playback.set_real_time(False)
 
         gyro_path = Path(self.bag_path).parent / "gyrodata.npy"
         accel_path = Path(self.bag_path).parent / "acceleration.npy"
@@ -245,7 +317,7 @@ class RSplayer():
         if not ( gyro_path.is_file() and accel_path.is_file()):
             raise RuntimeError("no imu data found")
         
-        dest_path = Path(dest_path)
+        dest_path = Path(self.root_dir)
 
         accel_raw = np.load(accel_path)
         gyro_raw = np.load(gyro_path)
@@ -290,19 +362,120 @@ class RSplayer():
 
         self.pipeline.stop()
 
-        #handles io with file system
-        def next_frame():
+class Frame_get:
+
+    def __init__(self, root_dir: Path, sid, eid, imu = False):
+        images = []
+        start = time.time()
+        for i in range(sid, eid):
+            color_image = o3d.t.io.read_image(root_dir / f"color/image{i}.png")
+            depth_image = o3d.t.io.read_image(root_dir / f"depth/image{i}.png")
+            image = o3d.t.geometry.RGBDImage(color_image, depth_image)
+            images.append(image)
+        print(time.time()-start)
+        
+        self.images = images
+        self.sid = sid
+    
+    def step_frame(self):
+        pass
+
+    def __getitem__(self, key):
+        return self.images[key], None, None, None
+
+class Frame_server:
+
+    def __init__(self, root_dir: Path, sid, eid, imu = False):
+        
+        self.imu = imu
+        self.max_size = 30
+
+        self.root_dir = root_dir
+        dirs = ["color", "accel", "gyro", "depth"]
+        
+        self.dirs = {}
+        for direc in dirs:
+            directory = (self.root_dir / direc)
+            self.dirs[direc] = directory
+
+        self.buffer = OrderedDict()
+        self.loader_thread = threading.Thread(target=self.load_worker)
+        self.lock = threading.Lock()
+
+        self.sid = sid
+        self.eid = eid
+        self.cur = self.sid 
+
+        self.loader_thread.start()
+    
+    def sanity_check():
+        pass
+        
+    def load_worker(self):
+        
+        accel, gyro = None, None
+
+        while self.cur < self.eid:
+
+            if len(self.buffer) < self.max_size:
+                
+                if self.imu:
+                    accel = np.load(self.dirs["accel"] / f"{self.cur}.npy")
+                    gyro = np.load(self.dirs["gyro"] / f"{self.cur}.npy")
+
+
+                color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
+                depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
+                image = o3d.t.geometry.RGBDImage(color_image, depth_image).cuda()
+                
+
+                with self.lock:
+                    self.buffer[self.cur] = (image, accel, gyro,  self.cur)
+                
+                self.cur += 1
+
+    def step_frame(self):
+
+        with self.lock:
+            if len(self.buffer)> 0:
+                self.buffer.popitem(last=False)
+            
+
+    def __getitem__(self, key):
+        
+        a = time.time()
+        while len(self.buffer) < self.cur- key -10:
             pass
+        
+        #print(time.time()-a)
+        if key in self.buffer:
+
+            with self.lock:
+                return self.buffer[key]
+
+        else:
+            print("cache wurde verfehlt")
+            accel, gyro = None, None
+            if self.imu:
+                accel = np.load(self.dirs["accel"] / f"{self.cur}.npy")
+                gyro = np.load(self.dirs["gyro"] / f"{self.cur}.npy")
+
+            color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
+            depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
+            image = o3d.t.geometry.RGBDImage(color_image, depth_image)
+
+            return image, accel, gyro,  self.cur
+
 
 if __name__ == "__main__":
 
-    """    with open("config.json", "rb") as file:
+    with open("config.json", "rb") as file:
         config = json.load(file)
 
-    player = RSplayer("data/raw_data/RS/HD/20250414_122808/recording.bag", config)
-    player.unpack("data/images")"""
+    #recorder = RSrecorder('data/test')
+    #recorder.capture_smart()
 
-    recorder = RSrecorder('data/test')
-    recorder.capture()
+    t = test()
+    t.unpack("data/test/20250604_132357.bag")
 
     
