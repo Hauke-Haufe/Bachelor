@@ -67,7 +67,7 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
                     target = targets[i]
                     pred = preds[i]
 
-                    image = image.transpose(1, 2, 0).astype(np.uint8)
+                    
                     target = loader.dataset.decode_target(target).astype(np.uint8)
                     pred = loader.dataset.decode_target(pred).astype(np.uint8)
 

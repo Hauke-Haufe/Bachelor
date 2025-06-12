@@ -1,13 +1,20 @@
 import open3d as o3d
 import numpy as np
+import multiprocessing
+
 import json
 import time
 import os 
-import multiprocessing
-from config import FRAGMENT_PATH, INTRINSICS_PATH 
+from pathlib import Path
+
 import torch
 import torch.multiprocessing as mp
 import torch.utils.dlpack
+
+from posegraph import Posegraph
+from sensor_io import Frame_server, Frame_get
+from config import FRAGMENT_PATH, INTRINSICS_PATH 
+
 
 class model_tracking:
 
@@ -53,101 +60,96 @@ class model_tracking:
 
 class loop_closure:
 
+    #achtung nicht threaded getestet
     def __init__(self, lock):
         self._lock = lock
 
+        self.tl_flag = False
+        self.d_flag = False
+
+        self.tl_frame = 0
+        self.n_sid = 0
+        
 
     @staticmethod
-    def _odometry(source, target, instrinsics):
+    def odometry_(source, target, instrinsics):
 
         try:
             start = time.time()
-            critiria = [o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=6, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06), 
-                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=3, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06), 
-                        o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=1, 
-                                                                             relative_rmse=1.000000e-06, 
-                                                                             relative_fitness=1.000000e-06)]
+            critiria = [
+            o3d.t.pipelines.odometry.OdometryConvergenceCriteria(
+                max_iteration=6, 
+                relative_rmse=1.000000e-06, 
+                relative_fitness=1.000000e-06), 
+            o3d.t.pipelines.odometry.OdometryConvergenceCriteria(
+                max_iteration=3, 
+                relative_rmse=1.000000e-06, 
+                relative_fitness=1.000000e-06), 
+            o3d.t.pipelines.odometry.OdometryConvergenceCriteria(
+                max_iteration=1, 
+                relative_rmse=1.000000e-06, 
+                relative_fitness=1.000000e-06)
+            ]
             
+            result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(
+                source.cuda(),
+                target.cuda(),
+                instrinsics, 
+                criteria_list = critiria)
             
-            result = o3d.t.pipelines.odometry.rgbd_odometry_multi_scale(source.cuda(),
-                                                                        target.cuda(),
-                                                                        instrinsics, 
-                                                                        criteria_list = critiria)
-            print(f"odo_time:{time.time()-start}")
-            success = True
-            
+            #print(f"odo_time:{time.time()-start}")
 
-            info = o3d.t.pipelines.odometry.compute_odometry_information_matrix(source.depth,
-                                                                     target.depth,
-                                                                     instrinsics,
-                                                                     result.transformation,
-                                                                     0.015)   
+            info = o3d.t.pipelines.odometry.compute_odometry_information_matrix(
+                source.depth,
+                target.depth,
+                instrinsics,
+                result.transformation,
+                0.015)   
 
-            return success, result, info.cpu().numpy()
+            return True, result, info.cpu().numpy()
 
         except Exception:
-            success = False
-
             print("Loop closure failed")
 
-            return success, None, None
+            return False, None, None
 
-    @staticmethod 
-    def _optimize_posegraph(pose_graph):
+    def create_posegraph_(self, sid, eid,  config, instrinsics, path, images):
 
-        max_correspondence_distance = 0.01
-        preference_loop_closure = 0.2
-
-        method = o3d.pipelines.registration.GlobalOptimizationLevenbergMarquardt()
-        criteria = o3d.pipelines.registration.GlobalOptimizationConvergenceCriteria(
-        )
-        option = o3d.pipelines.registration.GlobalOptimizationOption(
-            max_correspondence_distance=max_correspondence_distance,
-            edge_prune_threshold=0.25,
-            preference_loop_closure=preference_loop_closure,
-            reference_node=0)
-
-        o3d.pipelines.registration.global_optimization(pose_graph, 
-                                                       method, 
-                                                       criteria,
-                                                       option)
-        
-        return pose_graph
-
-    def _create_posegraph(self, sid, eid,  config, instrinsics, path):
-        pose_graph = o3d.pipelines.registration.PoseGraph()
+        pose_graph = Posegraph(np.identity(4), "Open3D")
         odometry = np.identity(4)
-        pose_graph.nodes.append(o3d.pipelines.registration.PoseGraphNode(odometry))
-
-        images = []
-        start = time.time()
-        for i in range(sid, eid):
-            color_image = o3d.t.io.read_image(f"{path}/color/image{i}.png")
-            depth_image = o3d.t.io.read_image(f"{path}/depth/image{i}.png")
-            image = o3d.t.geometry.RGBDImage(color_image, depth_image)
-            images.append(image)
-        print(time.time()-start)
 
         for source_id in range(sid, eid):
+            
+            source_image , _, _, _ = images[ source_id]
+            images.step_frame()
+
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
+<<<<<<< HEAD
                 if target_id-source_id <4:
+=======
+                if target_id-source_id <2:
+                    
+                    target_image, _, _, _= images[target_id]
+>>>>>>> 1fae8fabe728ed36d907373926df5fc36d0f071e
 
                     if target_id == source_id +1:
                         uncertain = False
                     else:
                         uncertain = True
+                    success, icp, info= self.odometry_(
+                            source_image, target_image, instrinsics)
 
+                    if target_id == source_id +1 and not success:
+                        self.tl_flag = True
+                        self.d_flag = True
+                        self.tl_frame = source_id
 
-                    success, icp, info= self._odometry(
-                            images[source_id-sid], images[target_id- sid], instrinsics)
+                        return pose_graph
 
                     if success: 
                         trans = icp.transformation
+<<<<<<< HEAD
                         odometry = np.dot(trans.numpy(),odometry)
                         if target_id == source_id +1:
                             pose_graph.nodes.append(
@@ -160,10 +162,20 @@ class loop_closure:
                                 trans.numpy(), info, uncertain
                                 )
                         )
+=======
+                        odometry = np.dot(trans.numpy(), odometry)
+                        
+                        if target_id == source_id +1:
+                            pose_graph.add_note(source_id-sid, np.linalg.inv(odometry))
+
+                        pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, uncertain)
+
+        self.tl_flag = False
+>>>>>>> 1fae8fabe728ed36d907373926df5fc36d0f071e
         return pose_graph
 
     @staticmethod
-    def _integrate(path, sid,  pose_graph, intrinsics, model = None):
+    def integrate_(path, sid,  pose_graph, intrinsics, model = None):
 
         if model is None:
             vgb = o3d.t.geometry.VoxelBlockGrid(
@@ -214,13 +226,29 @@ class loop_closure:
 
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
-        pose_graph = self._create_posegraph(sid, eid,  config, intrinsics, path)
-        pose_graph = self._optimize_posegraph(pose_graph)
+        image_loader = Frame_get(Path(path), sid, eid, config["imu"])
+        pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path, image_loader)
 
+        while self.tl_flag:
+
+            print(f"tracking lost at {self.tl_frame}")
+
+            if pose_graph.count_nodes() > 10:
+                pose_graph_opt = pose_graph.optimize()
+                vgb = self.integrate_(path, self.n_sid ,pose_graph_opt, intrinsics, model)
+                pointcloud = vgb.extract_point_cloud()
+                o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}_{self.n_sid}.pcd"), pointcloud)
+            
+            self.n_sid = sid + self.tl_frame +1
+            pose_graph = self.create_posegraph_(self.n_sid, eid, config, intrinsics, path, image_loader)
+                
+        pose_graph_opt = pose_graph.optimize()
         with self._lock:
-            vgb = self._integrate(path, sid, pose_graph, intrinsics, model)
-            pointcloud = vgb.extract_point_cloud()
-            o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
+            
+            if len(pose_graph_opt.nodes) >10:
+                vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
+                pointcloud = vgb.extract_point_cloud()
+                o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
 
 class Scene_fragmenter:
 
@@ -242,7 +270,7 @@ class Scene_fragmenter:
         elif backend == "loop_closure":
             self.lock = multiprocessing.Manager().Lock()
             self.backend = loop_closure(self.lock)
-    
+
         else:
             raise Exception("None Valid backend")
 

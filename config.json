@@ -5,9 +5,17 @@
     "max_iteration": 50,
     "fps": 30,
     "key_frame_freq": 2,
+<<<<<<< HEAD
     "max_images": 500,
     "frames_per_frag": 500,
+=======
+    "max_images": 300,
+    "frames_per_frag": 200,
+>>>>>>> 1fae8fabe728ed36d907373926df5fc36d0f071e
     "depth_scale": false,
     "depth_max": 3,
-    "frag_overlap": 30
+    "frag_overlap": 30,
+    "fragmenter_backend": "model_tracking",
+    "posegraph_backend": "gtsam",
+    "imu": false
 }
