@@ -1,6 +1,5 @@
-import tkinter as tk
-from tkinter import filedialog
 from PIL import Image, ImageTk
+import time
 
 from pathlib import Path
 
@@ -9,11 +8,13 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 
-from detectron2.engine import DefaultPredictor
+import tkinter as tk
+from tkinter import filedialog
+"""from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
-from detectron2.data import MetadataCatalog
+from detectron2.data import MetadataCatalog"""
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
 
@@ -46,9 +47,9 @@ def convert_mask_to_sam_logits(mask_binary, target_size=(256, 256), fg_value=10.
 
 class LabelwithSam:
 
-    def __init__(self, run_folder):
+    def __init__(self, sam, image):
 
-        self.root = tk.Tk()
+        self.root =  tk.Tk() 
 
         #--------------------------------------
         #----------Setup Window Layout --------
@@ -63,25 +64,28 @@ class LabelwithSam:
         control_frame = tk.Frame(self.root)
         control_frame.pack(side=tk.TOP, fill=tk.X)
 
-        info_field = tk.Entry(control_frame, width=20)
-        info_field.pack(side=tk.LEFT, padx=5)
 
         #--------------------------------------
         #---------set start Parameters---------
         #--------------------------------------
-        self.run_folder = Path(run_folder).iterdir()
 
-        self.sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
+        #self.sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
+        self.sam = sam_model_registry["vit_b"](checkpoint="data/sam_vit_b.pth")
+        #self.sam = sam_model_registry["vit_l"](checkpoint="data/sam_vit_l.pth")
         self.sam.to("cuda")
         self.sam = SamPredictor(self.sam)
 
-        self.img = Image.open(next(self.run_folder))
         self.masks = [] 
         self.points = []
+        self.img = Image.open(image)
 
         self.p_flag = True
         self.vis = True
 
+
+        self.classes = {0:{"name": "object", "color": (255, 0, 0, 100)},
+                        1: {"name": "cow", "color": (255,192,203, 100)}, 
+                        2:{"name":"heu", "color": (255, 255, 0, 100)}}
 
         #--------------------------------------
         #-----------Point Keybinds-------------
@@ -106,22 +110,33 @@ class LabelwithSam:
         # generate mask from seleted prompts 
         self.root.bind("<KeyPress-g>", self.generate_mask)
         
+        for i, _ in self.classes.items():
+            self.root.bind(str(i), self.on_number)
+
+        #zooming 
         self.zoom_factor = 1.0
         self.zoom_step = 0.1  # step for each scroll
         self.min_zoom = 0.1
         self.max_zoom = 5.0
         self.canvas.bind("<MouseWheel>", self.on_mousewheel)
+        self.root.bind("<Control-KeyPress-Up>", self.zoom_in)
+        self.root.bind("<Control-KeyPress-Down>", self.zoom_out)
+        
+        #reset for new mask creation
+        self.root.bind("<KeyPress-r>", self.reset)
 
         #toggle vis Elements
         self.root.bind("<KeyPress-v>", self.toggle_vis)
 
         #next Image button
-        next_btn = tk.Button(control_frame, text="Next image", command=self.next_image)
+        next_btn = tk.Button(control_frame, text="Finish", command=self.finish_image)
         next_btn.pack(side="left", pady=2)
 
         #self.init_segment()
+        
         self.render()
         self.root.mainloop()
+
 
     def init_segment(self):
 
@@ -139,8 +154,10 @@ class LabelwithSam:
         for mask in outputs["instances"].pred_masks.cpu().numpy():
             logit = convert_mask_to_sam_logits(mask)
             self.masks.append({"mask":mask, "selected": False, "logits": logit})
-
-
+    
+    #--------------------------------------
+    #gui functionality
+    #--------------------------------------
     def on_mousewheel(self, event):
         # Determine zoom direction
         if event.delta > 0 or event.num == 4:
@@ -150,6 +167,37 @@ class LabelwithSam:
 
         self.render()
 
+    def on_number(self, event):
+
+        number_pressed = event.char
+        if number_pressed.isdigit():
+            for i in range(len(self.masks)):
+                if self.masks[i]["selected"]:
+                    self.masks[i]["class"] = int(number_pressed)
+
+        self.reset(None)
+        self.render()
+    
+    def zoom_in(self, event):
+
+        self.zoom_factor = min(self.max_zoom, self.zoom_factor + self.zoom_step)
+        self.render()
+
+    def zoom_out(self, event):
+
+        self.zoom_factor = max(self.min_zoom, self.zoom_factor - self.zoom_step)
+        self.render()
+
+    def reset(self, event):
+
+        for i in range(len(self.masks)):
+            if self.masks[i]["selected"]:
+                self.masks[i]["selected"] = False
+        
+        self.clear_all_points(None)
+        self.p_flag = True
+        self.render()
+    
     def create_point(self, event):
         x, y = event.x, event.y
         x = int(x/self.zoom_factor)
@@ -198,12 +246,17 @@ class LabelwithSam:
         self.vis = not self.vis
         self.render()
 
-    def next_image(self):
+    def finish_image(self):
 
-        self.masks = []
-        self.points = []
-        self.img = Image.open(next(self.run_folder))
-        self.render()
+        self.root.quit()
+        self.root.destroy()
+        
+    def get_mask(self):
+        
+        return [
+            {"mask": mask["mask"], 
+            "class" : self.classes[mask["class"]]["name"]} 
+            for mask in self.masks]
 
     def generate_mask(self, event):
         
@@ -237,7 +290,7 @@ class LabelwithSam:
             mask_in = mask_in[None, :, :]
 
         self.masks = [mask for mask in self.masks if not mask["selected"]]
-        self.masks.append({"mask":sam_masks[0], "selected": True, "logits": logits[np.argmax(scores), :, :]})
+        self.masks.append({"mask":sam_masks[0], "selected": True, "logits": logits[np.argmax(scores), :, :], "class": 0})
         self.render()
 
     def get_selected_mask(self):
@@ -253,14 +306,18 @@ class LabelwithSam:
         else:
             return None
     
+    #--------------------------------------
+    #render Funktion
+    #--------------------------------------
     def render(self):
+        
         
         new_size = (int(self.img.width * self.zoom_factor),
                     int(self.img.height * self.zoom_factor))
 
         if self.vis:
             img_overlay = self.img.convert("RGBA")
-            self.tk_img = ImageTk.PhotoImage(self.img)
+            self.tk_img = ImageTk.PhotoImage(self.img, master = self.root)
 
             self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
             self.canvas.config(width=self.tk_img.width(), height=self.tk_img.height())
@@ -272,7 +329,7 @@ class LabelwithSam:
                 if mask["selected"]:
                     overlay_color = (0, 255, 0, 100)
                 else:
-                    overlay_color = (255, 0, 0, 100)  # red with alpha=100/255
+                    overlay_color = self.classes[mask["class"]]["color"]
 
                 # Convert the binary mask to a uint8 image with RGBA color where mask==1
                 # mask must be shape (H, W)
@@ -302,6 +359,18 @@ class LabelwithSam:
             self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
             self.canvas.config(width=self.tk_img.width(), height=self.tk_img.height())
 
-if __name__ == "__main__":
     
-    app = LabelwithSam("data/data_set/run2")
+if __name__ == "__main__":
+
+    #self.sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
+    sam = sam_model_registry["vit_b"](checkpoint="data/sam_vit_b.pth")
+    #self.sam = sam_model_registry["vit_l"](checkpoint="data/sam_vit_l.pth")
+    sam.to("cuda")
+
+    for image in Path("data/images/color").iterdir():
+        label = LabelwithSam(sam, image)
+        masks = label.get_mask()
+        del label
+
+
+
