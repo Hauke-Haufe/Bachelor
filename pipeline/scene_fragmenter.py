@@ -125,13 +125,9 @@ class loop_closure:
 
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
-<<<<<<< HEAD
-                if target_id-source_id <4:
-=======
                 if target_id-source_id <2:
                     
                     target_image, _, _, _= images[target_id]
->>>>>>> 1fae8fabe728ed36d907373926df5fc36d0f071e
 
                     if target_id == source_id +1:
                         uncertain = False
@@ -149,20 +145,6 @@ class loop_closure:
 
                     if success: 
                         trans = icp.transformation
-<<<<<<< HEAD
-                        odometry = np.dot(trans.numpy(),odometry)
-                        if target_id == source_id +1:
-                            pose_graph.nodes.append(
-                                o3d.pipelines.registration.PoseGraphNode(np.linalg.inv(odometry))
-                            )
-
-                        pose_graph.edges.append(
-                            o3d.pipelines.registration.PoseGraphEdge(
-                                source_id - sid, target_id -sid,
-                                trans.numpy(), info, uncertain
-                                )
-                        )
-=======
                         odometry = np.dot(trans.numpy(), odometry)
                         
                         if target_id == source_id +1:
@@ -171,7 +153,6 @@ class loop_closure:
                         pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, uncertain)
 
         self.tl_flag = False
->>>>>>> 1fae8fabe728ed36d907373926df5fc36d0f071e
         return pose_graph
 
     @staticmethod
