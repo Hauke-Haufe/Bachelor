@@ -3,10 +3,9 @@ ideas:
 
 
 Akut:
-----data structure andern
--imu reader
--posegraph mit gtsam 
--scene fragmenter mit imu anpassen
+-python würfelt Laufzeit
+
+
 
 Aufwand: (hoch)
 -custumize odometry mask wieghted (modify Hybridodometry cuda)
