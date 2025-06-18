@@ -6,7 +6,6 @@ Akut:
 -python würfelt Laufzeit
 
 
-
 Aufwand: (hoch)
 -custumize odometry mask wieghted (modify Hybridodometry cuda)
 -custimize icp mask wieghted (modify multiscale odometry)
