@@ -67,7 +67,7 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
                     target = targets[i]
                     pred = preds[i]
 
-                    image = image.transpose(1, 2, 0).astype(np.uint8)
+                    
                     target = loader.dataset.decode_target(target).astype(np.uint8)
                     pred = loader.dataset.decode_target(pred).astype(np.uint8)
 
@@ -206,10 +206,6 @@ def train(opts, fold_path):
             np_loss = loss.detach().cpu().numpy()
             interval_loss += np_loss
 
-            if vis is not None:
-
-                vis.vis_scalar('Loss', cur_itrs, np_loss)
-
             if (cur_itrs) % 10 == 0:
 
                 interval_loss = interval_loss / 10
@@ -237,20 +233,6 @@ def train(opts, fold_path):
                     best_score = val_score['Mean IoU']
                     save_ckpt(checkpoint_path /  f'best_{opts.model}_{opts.dataset}_os{opts.output_stride}.pth')
                     
-                # visualize validation score and samples
-                if vis is not None:  
-
-                    vis.vis_scalar("[Val] Overall Acc", cur_itrs, val_score['Overall Acc'])
-                    vis.vis_scalar("[Val] Mean IoU", cur_itrs, val_score['Mean IoU'])
-                    vis.vis_table("[Val] Class IoU", val_score['Class IoU'])
-
-                    for k, (img, target, lbl) in enumerate(ret_samples):
-
-                        img = (denorm(img) * 255).astype(np.uint8)
-                        target = train_dst.decode_target(target).transpose(2, 0, 1).astype(np.uint8)
-                        lbl = train_dst.decode_target(lbl).transpose(2, 0, 1).astype(np.uint8)
-                        concat_img = np.concatenate((img, target, lbl), axis=2)  # concat along width
-                        vis.vis_image('Sample %d' % k, concat_img)
                 model.train()
             scheduler.step()
 
