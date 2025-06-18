@@ -207,7 +207,7 @@ class loop_closure:
 
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
-        image_loader = Frame_get(Path(path), sid, eid, config["imu"])
+        image_loader = Frame_server(Path(path), sid, eid, config["imu"])
         pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path, image_loader)
 
         while self.tl_flag:
@@ -326,6 +326,7 @@ class Scene_fragmenter:
         else:
 
             for fragment_id in range(n_fragments):
+            
                 self.backend.run_system(fragment_id, 
                                         ids[fragment_id][0], 
                                         ids[fragment_id][1], 
