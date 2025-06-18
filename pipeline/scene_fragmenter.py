@@ -15,6 +15,18 @@ from posegraph import Posegraph
 from sensor_io import Frame_server, Frame_get
 from config import FRAGMENT_PATH, INTRINSICS_PATH 
 
+import matplotlib.pyplot as plt
+
+
+def test(posegraph):
+    
+    ax = plt.figure().add_subplot(projection = '3d')
+    for i in range(len(posegraph.nodes)):
+
+        pose = posegraph.nodes[i].pose
+        p = pose[0:3, 3]
+        ax.scatter(p[0], p[1], p[2])
+    plt.show()
 
 class model_tracking:
 
@@ -125,16 +137,12 @@ class loop_closure:
 
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
-                if target_id-source_id <2:
+                if target_id-source_id <5:
                     
                     target_image, target_accel, target_gyro, _= images[target_id]
 
                     if target_id == source_id +1:
                         uncertain = False
-
-                        if config["imu"]:
-                            pose_graph.add_imu_edge(target_accel, target_gyro, source_id, target_id)
-
                     else:
                         uncertain = True
 
@@ -154,6 +162,8 @@ class loop_closure:
                         
                         if target_id == source_id +1:
                             pose_graph.add_note(source_id-sid +1, np.linalg.inv(odometry))
+                        if not uncertain and config["imu"]:
+                            pose_graph.add_imu_edge(target_accel, target_gyro, source_id, target_id)
 
                         pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, uncertain)
 
@@ -229,6 +239,7 @@ class loop_closure:
             pose_graph = self.create_posegraph_(self.n_sid, eid, config, intrinsics, path, image_loader)
                 
         pose_graph_opt = pose_graph.optimize()
+        test(pose_graph_opt)
         with self._lock:
             if len(pose_graph_opt.nodes) >10:
                 vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
@@ -294,7 +305,7 @@ class Scene_fragmenter:
         ids, n_fragments, intrinsics, config = self._prepare_task(path)
 
         #achtung hier kann gern mal gpu Ueberfordert werden
-        max_workers = min(max(1, multiprocessing.cpu_count()-1), n_fragments)
+        max_workers = 1#min(max(1, multiprocessing.cpu_count()-1), n_fragments)
         os.environ["OMP_NUM_THREADS"] = '1'
         mp_context = multiprocessing.get_context('spawn')
         intrinsics_matrix = o3d.core.Tensor(intrinsics.intrinsic_matrix)
@@ -342,7 +353,7 @@ if __name__ == "__main__":
 
     start = time.time()
     odo =  Scene_fragmenter("loop_closure")
-    odo.make_fragments("data/images", False)
+    odo.make_fragments("data/images", True)
     print(time.time()-start)
 
     pcd = []

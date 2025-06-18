@@ -12,5 +12,5 @@
     "frag_overlap": 30,
     "fragmenter_backend": "model_tracking",
     "posegraph_backend": "gtsam",
-    "imu": true
+    "imu": false
 }
