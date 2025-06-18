@@ -115,7 +115,8 @@ class RSrecorder:
                             self.gyro_data.append([timestamp, data.x, data.y, data.z])
                         else :
                             self.accel_data.append([timestamp, data.x, data.y, data.z])
-        
+
+                        
         finally:
             imu_pipeline.stop()
 
@@ -279,8 +280,8 @@ class File_io():
         timeframe_gyrodata = []
         timeframe_accdata = []
         while gyro_data[index][0] < timestamp and index < acc_data.shape[0]-1:
-            timeframe_gyrodata.append(gyro_data[index][1:4])
-            timeframe_accdata.append(acc_data[index][1:4])
+            timeframe_gyrodata.append(gyro_data[index][0:4])
+            timeframe_accdata.append(acc_data[index][0:4])
             index += 1
 
         timeframe_accdata = np.asanyarray(timeframe_accdata)
@@ -408,10 +409,11 @@ class Frame_server:
 
         #fill the buffer
         accel, gyro = None, None
+        #c = np.array([[1,0,0,0],[0,1,0,0], [0,0,0,1], [0,0,1,0]])
         for i in range(self.max_size):
             if self.imu:
-                accel = np.load(self.dirs["accel"] / f"{self.cur}.npy")
-                gyro = np.load(self.dirs["gyro"] / f"{self.cur}.npy")
+                accel =  0.01* np.load(self.dirs["accel"] / f"{self.cur}.npy")#@ c.T 
+                gyro =0.01* np.load(self.dirs["gyro"] / f"{self.cur}.npy") #@ c.T
 
 
             color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
@@ -430,14 +432,14 @@ class Frame_server:
     def load_worker(self):
         
         accel, gyro = None, None
-
+        #c = np.array([[1,0,0,0],[0,1,0,0], [0,0,0,1], [0,0,1,0]])
         while self.cur < self.eid:
 
             if len(self.buffer) < self.max_size:
                 
                 if self.imu:
-                    accel = np.load(self.dirs["accel"] / f"{self.cur}.npy")
-                    gyro = np.load(self.dirs["gyro"] / f"{self.cur}.npy")
+                    accel = 0.01* np.load(self.dirs["accel"] / f"{self.cur}.npy") #@ c.T 
+                    gyro = 0.01*np.load(self.dirs["gyro"] / f"{self.cur}.npy")# @ c.T
 
                 color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
                 depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
@@ -472,8 +474,8 @@ class Frame_server:
             print("cache wurde verfehlt")
             accel, gyro = None, None
             if self.imu:
-                accel = np.load(self.dirs["accel"] / f"{self.cur}.npy")
-                gyro = np.load(self.dirs["gyro"] / f"{self.cur}.npy")
+                accel =0.01 * np.load(self.dirs["accel"] / f"{self.cur}.npy")
+                gyro = 0.01 *np.load(self.dirs["gyro"] / f"{self.cur}.npy")
 
             color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
             depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
@@ -487,10 +489,13 @@ if __name__ == "__main__":
     with open("config.json", "rb") as file:
         config = json.load(file)
 
-    #recorder = RSrecorder('data/test')
-    #recorder.capture_smart()
+    recorder = RSrecorder('data/test')
+    recorder.capture()
 
-    t = test()
-    t.unpack("data/test/20250604_132357.bag")
+    #io = File_io("data/images")
+    #io.unpack("data/raw_data/RS/VGA/20250414_120152/recording.bag", config)
+
+    #t = File_io("data/test")
+    #t.unpack("data/test", config)
 
     

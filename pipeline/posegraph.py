@@ -13,13 +13,13 @@ class imuNoise:
     #the data is assument to come form a stationary recording
     def __init__(self):
 
-        self.param = gtsam.PreintegrationCombinedParams(np.array([0,-9.81,0]))
+        self.param = gtsam.PreintegrationCombinedParams(np.array([0,-0.0981,0]))
         self.bias = gtsam.imuBias.ConstantBias()
 
     def from_data(self, g_path, a_path):
 
-        self.accel_data = np.load(g_path)
-        self.gyro_data = np.load(a_path)
+        self.accel_data = 0.01*np.load(a_path)
+        self.gyro_data = 0.01* np.load(g_path)
         self._calc_covs()
 
     def from_cache(self, cache_path):
@@ -66,8 +66,9 @@ class imuNoise:
         self.param.setBiasAccCovariance(np.cov(accel_means.T))
 
     def _calc_bias(self):
-        gyro_bias =np.mean( self.gyro_data[:,1:4], axis = 0)- self.param.n_gravity
-        accel_bias = np.mean(self.accel_data[:,1:4], axis = 0) 
+        #c = np.array([[1,0,0], [0,0,1], [0,1,0]])
+        gyro_bias =np.mean( self.gyro_data[:,1:4] , axis = 0)
+        accel_bias = np.mean(self.accel_data[:,1:4], axis = 0) - self.param.n_gravity
         bias = gtsam.imuBias.ConstantBias(accel_bias, gyro_bias)
         self.bias = bias
 
@@ -95,7 +96,7 @@ class imuNoise:
         return self.param
     
     def get_bias(self):
-        return self.bias()
+        return self.bias
 
 #wrapper class für gtsam
 class GTSAMPosegraph:
@@ -104,6 +105,7 @@ class GTSAMPosegraph:
     def __init__(self, intial_pose,  imu: Optional[imuNoise] = None):
         
         self.result = None
+        self.imu = imu
 
         self.graph = gtsam.NonlinearFactorGraph()
         self.initial = gtsam.Values()
@@ -150,11 +152,19 @@ class GTSAMPosegraph:
 
         prev = gyro[0][0]
         preint = gtsam.PreintegratedCombinedMeasurements(self.params, self.bias)
-        for i in range(len(gyro)):
+        for k in range(1, len(gyro)):
+            gyro_data = gyro[k][1:4]
+            accel_data = accel[k][1:4]
 
-            dt = prev - gyro[i][0]
-            preint.integrate(accel[i][1:4], gyro[i][1:4], dt)
-            prev = gyro[i][0]
+            dt =  gyro[k][0] -prev
+            if dt > 0:
+                preint.integrateMeasurement(accel_data,gyro_data, dt)
+                prev = gyro[k][0]
+
+        p_0 = self.initial.atPose3(symbol('x', i)).translation()
+        p_1 = self.initial.atPose3(symbol('x', j)).translation()
+        dt = gyro[len(gyro)-1][0]- gyro[0][0] 
+        v = (p_1 -p_0)/dt
 
         self.graph.add(gtsam.CombinedImuFactor(
             symbol('x', i), symbol('v', i),
@@ -162,8 +172,8 @@ class GTSAMPosegraph:
             symbol('b', i), symbol('b', j), 
             preint))
 
-        self.inital.insert(symbol('b', j), self.bias)
-        self.initial.insert(symbol('v', j), )
+        self.initial.insert(symbol('b', j), self.bias)
+        self.initial.insert(symbol('v', j), v)
     
     def optimize(self):
 
@@ -269,4 +279,9 @@ class Posegraph():
         return self.posegraph.optimize()
 
 
+if __name__ == "__main__":
+
+    noise = imuNoise()
+    noise.from_data("data/test/gyrodata.npy", "data/test/acceleration.npy" )
+    noise.save("data")
 
