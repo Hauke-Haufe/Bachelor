@@ -114,7 +114,7 @@ class GTSAMPosegraph:
         self.odometry_noise = gtsam.noiseModel.Diagonal.Sigmas(np.array([0.1,0.1,0.1,]))
         
         pose0 = gtsam.Pose3(intial_pose)
-        self.graph.add(gtsam.PriorFactorpose3(symbol('x', 0), pose0), self.pose_noise)
+        self.graph.add(gtsam.PriorFactorPose3(symbol('x', 0), pose0, self.pose_noise))
         self.initial.insert(symbol('x', 0), pose0)
 
         if not imu is None:
@@ -123,20 +123,25 @@ class GTSAMPosegraph:
             self.params = imu.get_params()
 
             self.graph.add(gtsam.PriorFactorVector(symbol('v', 0), vel0, self.vel_noise))
-            self.graph.add(gtsam.PriorfactorConstantBias(symbol('b', 0), self.bias, self.bias_noise))
+            self.graph.add(gtsam.PriorFactorConstantBias(symbol('b', 0), self.bias, self.bias_noise))
             self.initial.insert(symbol('v', 0), vel0)
             self.initial.insert(symbol('b', 0), self.bias)
 
     
     def add_odometry_edge(self, odometry,info, i, j, uncertain):
-
-        odom_cov = np.linalg.inv(info + 1e-6 *np.eye(6))
-        odom_noise = gtsam.noiseModel.Gaussian.Covariance(odom_cov)
+        
+        loop_coef = 1
+        if uncertain:
+            loop_coef = 1.5
+        
+        odom_cov = np.linalg.inv(info + 1e-6*np.eye(6))
+        odom_noise = gtsam.noiseModel.Gaussian.Information(loop_coef*odom_cov)
+        odometry = gtsam.Pose3(odometry)
         self.graph.add(gtsam.BetweenFactorPose3(symbol('x', i), symbol('x', j), odometry, odom_noise))
     
     def add_note(self, i, trans):
-
-        self.intial.insert(symbol('x', i), trans)
+        trans = gtsam.Pose3(trans)
+        self.initial.insert(symbol('x', i), trans)
 
     def add_imu_edge(self, accel, gyro, i, j):
 
@@ -165,13 +170,15 @@ class GTSAMPosegraph:
         def symbolChr(key):
             return (key >> 56) & 0xFF
 
-        optimizer = gtsam.LevenbergMarquardOptimizer(self.graph, self.initial)
+        optimizer = gtsam.LevenbergMarquardtOptimizer(self.graph, self.initial)
         result = optimizer.optimize()
 
         optimsied_posegraph = o3d.pipelines.registration.PoseGraph()
         len_graph = sum(1 for key in result.keys() if symbolChr(key) ==ord('x'))
         for i in range(len_graph):
-            optimsied_posegraph.nodes.append(result.at(symbol('x', i)))
+            pose = result.atPose3(symbol('x', i)).matrix()
+            node = o3d.pipelines.registration.PoseGraphNode(pose)
+            optimsied_posegraph.nodes.append(node)
 
         return optimsied_posegraph
     
@@ -179,7 +186,7 @@ class GTSAMPosegraph:
 
         def symbolChr(key):
             return (key >> 56) & 0xFF
-        len_graph = sum(1 for key in self.pose_graph.keys() if symbolChr(key) ==ord('x'))
+        len_graph = sum(1 for key in self.graph.keys() if symbolChr(key) ==ord('x'))
         
         return len_graph
 
@@ -236,7 +243,7 @@ class Posegraph():
                 self.posegraph = GTSAMPosegraph(inital, noise)
 
             else:
-                self.posegraph = GTSAMPosegraph(inital, noise)
+                self.posegraph = GTSAMPosegraph(inital)
         
         elif backend == "Open3D":
 
@@ -260,4 +267,6 @@ class Posegraph():
 
     def optimize(self):
         return self.posegraph.optimize()
+
+
 

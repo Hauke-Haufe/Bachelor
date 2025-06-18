@@ -115,24 +115,29 @@ class loop_closure:
 
     def create_posegraph_(self, sid, eid,  config, instrinsics, path, images):
 
-        pose_graph = Posegraph(np.identity(4), "Open3D")
+        pose_graph = Posegraph(np.identity(4), config["posegraph_backend"], config["imu"])
         odometry = np.identity(4)
 
         for source_id in range(sid, eid):
             
-            source_image , _, _, _ = images[ source_id]
+            source_image ,_, _,_ = images[ source_id]
             images.step_frame()
 
             for target_id in range(source_id +1, eid , config["key_frame_freq"]):
                 
                 if target_id-source_id <2:
                     
-                    target_image, _, _, _= images[target_id]
+                    target_image, target_accel, target_gyro, _= images[target_id]
 
                     if target_id == source_id +1:
                         uncertain = False
+
+                        if config["imu"]:
+                            pose_graph.add_imu_edge(target_accel, target_gyro, source_id, target_id)
+
                     else:
                         uncertain = True
+
                     success, icp, info= self.odometry_(
                             source_image, target_image, instrinsics)
 
@@ -148,7 +153,7 @@ class loop_closure:
                         odometry = np.dot(trans.numpy(), odometry)
                         
                         if target_id == source_id +1:
-                            pose_graph.add_note(source_id-sid, np.linalg.inv(odometry))
+                            pose_graph.add_note(source_id-sid +1, np.linalg.inv(odometry))
 
                         pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, uncertain)
 
@@ -225,7 +230,6 @@ class loop_closure:
                 
         pose_graph_opt = pose_graph.optimize()
         with self._lock:
-            
             if len(pose_graph_opt.nodes) >10:
                 vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
                 pointcloud = vgb.extract_point_cloud()
@@ -338,7 +342,7 @@ if __name__ == "__main__":
 
     start = time.time()
     odo =  Scene_fragmenter("loop_closure")
-    odo.make_fragments("data/images", True)
+    odo.make_fragments("data/images", False)
     print(time.time()-start)
 
     pcd = []
