@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import shutil
 from PIL import Image
 from pathlib import Path
+import datetime
+
 
 
 #starte label studio mit LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT= <ROOT> LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true label-studio
@@ -19,6 +21,100 @@ from pathlib import Path
 
 #sync up mit Labelstudio images
 #implement sanity checks with the label studio database for the run
+
+
+def iou(mask1, mask2):
+
+    inter = np.logical_and(mask1, mask2).sum()
+    union = np.logical_or(mask1, mask2).sum()
+    return inter / union if union > 0 else 0
+
+def merge_masks(masks, iou_threshold):
+    """
+    Kombiniert Masken, die überlappen
+
+    Args:
+        masks (dict): segmentation Resultate aus dem SAM Netzwerk
+        iou_threshold (float): Schwellenwert ab dem Segmente als übelappend gelten
+
+    Returns:
+        (list): kombinierte Masken
+    """
+
+    merged = []
+    used = [False] * len(masks)
+
+    for i, m1 in enumerate(masks):
+        if used[i]:
+            continue
+        combined_mask = m1['segmentation'].copy()
+        for j in range(i + 1, len(masks)):
+            if used[j]:
+                continue
+            m2 = masks[j]
+            if iou(combined_mask, m2['segmentation']) > iou_threshold:
+                combined_mask = np.logical_or(combined_mask, m2['segmentation'])
+                used[j] = True
+        used[i] = True
+        merged.append(combined_mask)
+
+    return merged
+
+def mask_to_polygons(mask, min_area=100, min_points=3):
+    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    polygons = []
+
+    for contour in contours:
+        contour = contour.squeeze()
+
+        # Ensure valid shape and point count
+        if len(contour.shape) != 2 or len(contour) < min_points:
+            continue
+
+        # Filter by area (using cv2.contourArea)
+        area = cv2.contourArea(contour)
+        if area < min_area:
+            continue
+
+        polygon = contour.flatten().tolist()
+        polygons.append(polygon)
+
+    return polygons
+
+def add_storage():
+        # Connect to Label Studio
+    ls = Client(url='http://localhost:8080', api_key='<your_api_token>')
+
+    # Define storage settings
+    storage_config = {
+        'path': '/absolute/path/to/your/images',  # Must be accessible to the server
+        'use_blob_urls': True,                    # Allows file:// URI usage
+        'title': 'My Local Storage',
+        'description': 'Local dataset for image labeling',
+        'regex_filter': r'.*\.(jpg|png|jpeg)$',   # Optional: limit file types
+        'use_file_name_as_label': False
+    }
+
+    # Create local file import storage
+    response = ls.make_request(
+        'post',
+        '/api/storages/localfiles',
+        json=storage_config
+    )
+
+def mask2labelstudioresult(rle, label):
+        return {
+                "from_name": "tag",   # BrushLabels name
+                "to_name": "image",   # Image field name
+                "type": "brushlabels",
+                "value": {
+                    "format": "rle",
+                    "rle": rle,
+                    "brushlabels": [label]
+                }
+            }
+
+#class for labeling and managing working with Labelstudio
 class label_project:
 
     def __init__(self, root_path = "data/data_set"):
@@ -27,12 +123,22 @@ class label_project:
         with open(self.root / "progress.json") as f:
             progress = json.load(f)
 
+        self.backup_path = self.root / "backup"
+        self.backup_path.mkdir(parents=True, exist_ok=True)
+
+        self.classes = ["heu", "cow"]
+        self.prio_rule = [1, 0]
+
         self.runs = progress["runs"]
         self.key = progress["api_key"]
         self.host = progress["host"]
         self.polygon_config = progress["polygon_config"]
         self.brush_config = progress["brush_config"]
-        
+    
+    #--------------------------------------
+    #   Projectmanger functions
+    #--------------------------------------
+    #adds a run to the project with the images without any labelstudio project beeing created
     def add_run(self, image_folder: str):
         
         image_folder = Path(image_folder)
@@ -59,7 +165,7 @@ class label_project:
         
         self.save_config()
     
-    #danger zone
+    #danger zone deletes a run from the progress json and the images get deleted
     def delete_run(self, run: int):
 
         if os.path.exists(self.root / f"run{run}"):
@@ -67,6 +173,7 @@ class label_project:
         self.runs.pop(str(run), None)
         self.save_config()
 
+    #saves the current config of the project to the progress json
     def save_config(self):
 
         with open(self.root / "progress.json", "w") as f:
@@ -74,8 +181,49 @@ class label_project:
                         "api_key": self.key,
                         "host": self.host,
                         "polygon_config": self.polygon_config,
-                        "brush_config":  self.brush_config}, f)
+                        "brush_config":  self.brush_config}, f, indent=4)
 
+    #saves the actual progress for all runs in from of the labelstudio jsons to the backup folder
+    def backup_progress(self):
+
+        for run, _ in self.runs.items():
+            self.backup_run(run)
+
+    #saves the actual progress for one run in form of the labelstudio jsons to the backup folder
+    def backup_run(self, run, type = "polygon"):
+
+        ls = Client(url=self.host, api_key=self.key)
+        if not(type == 'polygon' or type == 'brush'):
+            raise RuntimeError("not a valid task to save only polygon and brush available")
+
+        if self.runs[run][f"{type}_project"] is not None:
+            project = ls.get_project(self.runs[run][f"{type}_project"]) 
+            project_tasks = project.get_tasks()
+
+            backup_run_path = self.backup_path / f"run{run}_{type}.json"
+            if backup_run_path.is_file():
+                with open(backup_run_path, "r") as f:
+                    backup = json.load(f)
+
+                with open(backup_run_path, "w") as f:
+                    backup.append({"date":str(datetime.datetime.now()),"data": project_tasks})
+                    json.dump(backup, f)
+            else:
+                with open(backup_run_path, "w") as f:
+                    json.dump([{"date":str(datetime.datetime.now()),"data": project_tasks}], f)
+
+            print(f"Backup von {type}_task run {run} erstellt")
+        
+    #--------------------------------------
+    #         old label workflow
+    #--------------------------------------
+    #the old Labeling pipline consist out of two part. First the Segment anything Model (Sam) is used
+    #to segment any images and create a polygon labeling project in Label Studio. This is supposed to get
+    #coarse lables to start with. The polygon need to be sorted and labeled. 
+    #In the next step the labled polygons get converted to a brush task in Lablestudio. This is for the mask 
+    #refinement and creation of the finals Masks
+
+    #creates a new Labelstudio project and uses Automaticsegmenter from Sam to create polygon segmentations
     def create_polygon_task(self, run: int):
 
         run = str(run)
@@ -93,71 +241,21 @@ class label_project:
             self.runs[run]["polygon_project"] = project.id
             self.save_config()
         else:
-             raise RecursionError("a polygon_project already exits the progress would be overwritten")
+            print("WARNING: a polygon_project already exits the progress would be overwritten. Type yes to proceed")
+            if input() == "yes":
 
+                self.backup_run(run, "polygon")
+                project = ls.get_project(self.runs[run]["polygon_project"])
+                project.delete_all_tasks()
+            else:
+                return
+
+        
         # === Parameters ===
         IOU_THRESHOLD = 0.2
         MIN_IOU_SCORE = 0.70
         MIN_STABILITY = 0.92
         MIN_AREA = 300
-
-        def iou(mask1, mask2):
-
-            inter = np.logical_and(mask1, mask2).sum()
-            union = np.logical_or(mask1, mask2).sum()
-            return inter / union if union > 0 else 0
-
-        def merge_masks(masks, iou_threshold):
-            """
-            Kombiniert Masken, die überlappen
-
-            Args:
-                masks (dict): segmentation Resultate aus dem SAM Netzwerk
-                iou_threshold (float): Schwellenwert ab dem Segmente als übelappend gelten
-
-            Returns:
-                (list): kombinierte Masken
-            """
-
-            merged = []
-            used = [False] * len(masks)
-
-            for i, m1 in enumerate(masks):
-                if used[i]:
-                    continue
-                combined_mask = m1['segmentation'].copy()
-                for j in range(i + 1, len(masks)):
-                    if used[j]:
-                        continue
-                    m2 = masks[j]
-                    if iou(combined_mask, m2['segmentation']) > iou_threshold:
-                        combined_mask = np.logical_or(combined_mask, m2['segmentation'])
-                        used[j] = True
-                used[i] = True
-                merged.append(combined_mask)
-
-            return merged
-
-        def mask_to_polygons(mask, min_area=100, min_points=3):
-            contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            polygons = []
-
-            for contour in contours:
-                contour = contour.squeeze()
-
-                # Ensure valid shape and point count
-                if len(contour.shape) != 2 or len(contour) < min_points:
-                    continue
-
-                # Filter by area (using cv2.contourArea)
-                area = cv2.contourArea(contour)
-                if area < min_area:
-                    continue
-
-                polygon = contour.flatten().tolist()
-                polygons.append(polygon)
-
-            return polygons
 
         sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
         sam.to("cuda")
@@ -178,14 +276,14 @@ class label_project:
             ]
 
             merged_masks = merge_masks(filtered, IOU_THRESHOLD)
-            file_path = Path("data_set") / run/ file
+            file_path =  Path(*Path(file).parts[1:])
 
             tasks.append(
                 {
                     "data": {
                         "image": f"/data/local-files/?d={file_path}"
                     },
-                    "annotations": [{
+                    "predictions": [{
                         "result": [
                             {
                                 "from_name": "label",
@@ -205,18 +303,112 @@ class label_project:
             
         project.import_tasks(tasks)
 
-    def create_mask_task(self, run: int):
+    #uses the Polygon segmentation with actual lables to convert to a brush Labelstudio Project
+    def create_brush_task(self, run: int):
 
-        if self.runs[run]["polygon_task"] is None:
+        run = str(run)
+        ls = Client(url=self.host, api_key=self.key)
+
+        if self.runs[run]["polygon_project"] is None:
             raise RuntimeError("u need a polygon task first for this run")
         
+        if self.runs[run]["brush_project"] is None:
+            brush_project = ls.start_project(
+                title = f"Brush_tasks{run}",
+                label_config = self.brush_config
+            )
+
+            self.runs[run]["brush_project"] = brush_project.id
+            self.save_config()
+        else:
+            print("WARNING: u already have existing progress in this runs brush task. If u want to overide it type yes")
+            if input() == "yes":
+                self.backup_run(run, "brush")
+                brush_project = ls.get_project(self.runs[run]["brush_project"]) 
+                brush_project.delete_all_tasks()
+            else:
+                return
+        
+        project = ls.get_project(self.runs[run]["polygon_project"]) 
+        project_tasks = project.get_tasks()
+
+        for i in range(len(project_tasks)): 
+            task = project_tasks[i]
+
+            results = []
+            class_polygon_dict = {}
+            for label in self.classes:
+                class_polygon_dict[label] = []
+            
+            for polygon in task["annotations"][0]["result"]:
+                points = polygon["value"]["points"]
+                label = polygon["value"]["polygonlabels"][0]
+
+                if label in self.classes:
+                    class_polygon_dict[label].append(points)
+
+            height = task["annotations"][0]["result"][0]["original_height"]
+            width = task["annotations"][0]["result"][0]["original_width"]
+
+            for label in self.classes:
+                mask = np.zeros((height, width), dtype=np.uint8)
+                for poly in class_polygon_dict[label]:
+                    poly = [[int(point[0]/ 100 * width +1), int(point[1]/ 100 *height +1)] for point in poly]
+                    pts = np.array(poly, dtype=np.int32).reshape(-1, 2)
+                    cv2.fillPoly(mask, [pts], color=1)
+
+                plt.imshow(mask)
+                plt.show()
+                mask = (mask > 0).astype(np.uint8) * 255
+                rle = brush.mask2rle(mask)
+                results.append(mask2labelstudioresult(rle, label))
+            
+
+            brush_project.import_tasks({
+                "data": {
+                    "image": task["data"]["image"]
+                    }})
+            
+            brush_task = brush_project.get_tasks()[i]
+            brush_project.create_prediction(
+                task_id=brush_task['id'],
+                model_version=None,
+                result= results
+            )
+    
+    #exports all brush labled masks
+    def export_final_masks(self, run: int, destination_folder):
+
+        run = str(run)
         ls = Client(url=self.host, api_key=self.key)
-        project = ls.get_project(self.runs[run]["polygon_task"]) 
-        project_tasks = project.get_task
 
-        for task in tqdm(project_tasks):
+        if self.runs[run]["brush_project"] is not None:
+            project = ls.get_project(self.runs[run]["brush_project"]) 
+        else:
+            raise RuntimeError("u need to have a brush project before exporting it")
+        
+        tasks = project.get_tasks()
 
-            print("hi")
+        for task in tqdm(tasks):
+            
+            if len(task["annotations"]) > 0:
+                if len(task["annotations"][0]["result"]) >0:
+                    mask_by_clas_dict = {}
+                    height = task["annotations"][0]["result"][0]["original_height"]
+                    width = task["annotations"][0]["result"][0]["original_width"]
+
+                    for label in self.classes:
+                        mask_by_clas_dict[label] = np.zeros((height, width))
+
+                    for result in task["annotations"][0]["result"]:
+                        mask = brush.decode_rle(result["value"]["rle"]).reshape((height, width, 4))[:, :, 3]
+                        
+                        
+                        label = result["value"]["brushlabels"][0]
+                        mask_by_clas_dict[label] = np.logical_or(mask, mask_by_clas_dict[label])
+
+        #still need to be overlapt
+                    
 
 def save_json(root):
 
@@ -248,106 +440,6 @@ def save_json(root):
     with open(root /"progress.json", "w") as f:
         json.dump(runs, f)
 
-def create_masks(json_path, run):
-
-    #coco format
-
-    with open(json_path, "r")as file:
-        coco_data = json.load(file)
-
-    def group_annotations_by_image_and_class(annotations):
-        """
-        Groups COCO annotations by (image_id, category_id)
-        Returns: dict[(image_id, category_id)] = list of polygons
-        """
-        grouped = defaultdict(list)
-        for ann in annotations:
-            key = (ann['image_id'], ann['category_id'])
-            for seg in ann['segmentation']:
-                grouped[key].append(seg)
-
-        return grouped
-
-
-    def rasterize_polygon_segments(polygons, image_shape):
-
-        mask = np.zeros(image_shape, dtype=np.uint8)
-        for poly in polygons:
-            pts = np.array(poly, dtype=np.int32).reshape(-1, 2)
-            cv2.fillPoly(mask, [pts], color=1)
-
-        return mask
-    
-    grouped = group_annotations_by_image_and_class(coco_data["annotations"])
-
-    img_shapes = {img["id"]: (img["height"], img["width"]) for img in coco_data["images"]}
-    catid_to_name = {cat["id"]: cat["name"] for cat in coco_data["categories"]}
-    imgid_to_path = {img["id"]: Path(*Path(img["file_name"]).parts[-3:]) for img in coco_data["images"]}
-
-
-    for (image_id, category_id), polygons in grouped.items():
-        shape = img_shapes[image_id]
-        mask = rasterize_polygon_segments(polygons, shape)
-        path =  imgid_to_path[image_id]
-        if catid_to_name[category_id] == "heu":
-            full_path = os.path.join("data", "data_set", run , "unrefined", os.path.splitext(path.parts[-1])[0] +"heu.npy")
-            np.save(full_path, mask)
-        elif catid_to_name[category_id] == "cow":
-            full_path = os.path.join("data", "data_set", run, "unrefined", os.path.splitext(path.parts[-1])[0] +"cow.npy")
-            np.save(full_path, mask)
-    
-def import_masks_task(project, run):
-    
-    classes = ["cow", "heu"]
-
-    #am besten api key nicht auf github
-    ls = Client(url="http://localhost:8080", api_key="179e598bf40ebfc8904c1987e2507c0fe11936f0")
-    project = ls.get_project(project) 
-
-    def mask2labelstudioresult(task_id, rle, label):
-        return {
-                "from_name": "tag",   # BrushLabels name
-                "to_name": "image",   # Image field name
-                "type": "brushlabels",
-                "value": {
-                    "format": "rle",
-                    "rle": rle,
-                    "brushlabels": [label]
-                }
-            }
-    
-
-    # Load tasks
-    project_tasks = project.get_tasks()
-
-    # Mask folder
-    mask_path = os.path.join("data","data_set", run, "unrefined")
-
-
-    for task in tqdm(project_tasks):
-
-        results = []
-        for c in classes:
-            mask_filename = os.path.splitext(task['data']['image'])[0] + f"{c}.npy"
-            mask_filename =Path(mask_filename).parts[-1]
-            
-            if os.path.exists(os.path.join(mask_path, mask_filename)):
-                mask = np.load(os.path.join(mask_path, mask_filename))
-
-                # Binarize mask
-                mask = (mask > 0).astype(np.uint8) * 255
-
-                # Convert to Label Studio RLE
-                rle = brush.mask2rle(mask)
-
-                # Upload the prediction
-                results.append(mask2labelstudioresult(task['id'], rle, c))
-        
-        project.create_prediction(
-            task_id=task['id'],
-            model_version=None,
-            result= results
-        )
 
 def make_final_mask(refined_mask_folder, image_path, json_path, output_folder):
 
@@ -405,20 +497,13 @@ def make_final_mask(refined_mask_folder, image_path, json_path, output_folder):
         #np.save(os.path.join(os.path.abspath(output_folder), "masks",  filename.strip(".png")), combined_mask)
         shutil.copy(os.path.join(image_path, filename), os.path.join(output_folder, "images", filename))        
 
-    
-    with open(root/"progress.json", "w") as f:
-        json.dump(runs, f)
 
 if __name__ == "__main__":
     
     #save_json("data/data_set")
     project = label_project()
-    project.add_run("C:/Users/Haufe/Desktop/test") 
-    project.create_polygon_task(7)
+    project.export_final_masks(7, "data")
 
-
-   
-    
     #create_plygon_tasks("data/data_set", "run6")
     #create_masks("data/data_set/run3/result.json", "run3")
     #import_masks_task(14, "run6")
