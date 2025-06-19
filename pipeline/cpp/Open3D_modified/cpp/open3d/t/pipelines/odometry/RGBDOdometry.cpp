@@ -285,6 +285,123 @@ OdometryResult RGBDOdometryMultiScaleIntensity(
     return result;
 }
 
+//---------------------------------------------------------------------------------------------------------------
+//uint_8 IMage vlt hinzufuegen oder bool
+OdometryResult RGBDOdometryMultiScaleHybrid(
+        const RGBDImage& source,
+        const RGBDImage& target,
+        const Image& source_mask,
+        const Tensor& intrinsics,
+        const Tensor& trans,
+        const float depth_scale,
+        const float depth_max,
+        const std::vector<OdometryConvergenceCriteria>& criteria,
+        const OdometryLossParams& params){
+        
+        int64_t n_levels = int64_t(criteria.size());
+        std::vector<Tensor> source_intensity(n_levels);
+        std::vector<Tensor> target_intensity(n_levels);
+        std::vector<Tensor> mask(n_levels);           
+
+        std::vector<Tensor> source_depth(n_levels);
+        std::vector<Tensor> target_depth(n_levels);
+        std::vector<Tensor> target_intensity_dx(n_levels);
+        std::vector<Tensor> target_intensity_dy(n_levels);
+
+        std::vector<Tensor> target_depth_dx(n_levels);
+        std::vector<Tensor> target_depth_dy(n_levels);
+
+        std::vector<Tensor> source_vertex_maps(n_levels);
+
+        std::vector<Tensor> intrinsic_matrices(n_levels);
+
+        Image source_depth_curr(source.depth_);
+        Image target_depth_curr(target.depth_);
+
+        Image source_intensity_curr = source.color_.RGBToGray().To(core::Float32);
+        Image target_intensity_curr = target.color_.RGBToGray().To(core::Float32);
+        Image source_mask_curr = source_mask;
+
+        Tensor intrinsics_pyr = intrinsics;
+        // Create image pyramid
+        for (int64_t i = 0; i < n_levels; ++i) {
+                source_depth[n_levels - 1 - i] = source_depth_curr.AsTensor().Clone();
+                target_depth[n_levels - 1 - i] = target_depth_curr.AsTensor().Clone();
+
+                source_intensity[n_levels - 1 - i] =
+                        source_intensity_curr.AsTensor().Clone();
+                target_intensity[n_levels - 1 - i] =
+                        target_intensity_curr.AsTensor().Clone();
+                mask[n_levels - 1 - i]= 
+                        source_mask_curr.AsTensor().Clone();
+
+                Image source_vertex_map =
+                        source_depth_curr.CreateVertexMap(intrinsics_pyr, NAN);
+                source_vertex_maps[n_levels - 1 - i] = source_vertex_map.AsTensor();
+
+                auto target_intensity_grad = target_intensity_curr.FilterSobel();
+                target_intensity_dx[n_levels - 1 - i] =
+                        target_intensity_grad.first.AsTensor();
+                target_intensity_dy[n_levels - 1 - i] =
+                        target_intensity_grad.second.AsTensor();
+
+                auto target_depth_grad = target_depth_curr.FilterSobel();
+                target_depth_dx[n_levels - 1 - i] = target_depth_grad.first.AsTensor();
+                target_depth_dy[n_levels - 1 - i] = target_depth_grad.second.AsTensor();
+
+                intrinsic_matrices[n_levels - 1 - i] = intrinsics_pyr.Clone();
+                if (i != n_levels - 1) {
+                source_depth_curr = source_depth_curr.PyrDownDepth(
+                        params.depth_outlier_trunc_ * 2, NAN);
+                target_depth_curr = target_depth_curr.PyrDownDepth(
+                        params.depth_outlier_trunc_ * 2, NAN);
+                source_intensity_curr = source_intensity_curr.PyrDown();
+                target_intensity_curr = target_intensity_curr.PyrDown();
+                source_mask_curr = source_mask_curr.PyrDown();
+
+                intrinsics_pyr /= 2;
+                intrinsics_pyr[-1][-1] = 1;
+                }
+        }
+
+        // Odometry
+        OdometryResult result(trans, /*prev rmse*/ 0.0, /*prev fitness*/ 1.0);
+        for (int64_t i = 0; i < n_levels; ++i) {
+                for (int iter = 0; iter < criteria[i].max_iteration_; ++iter) {
+
+                        auto delta_result = ComputeOdometryResultHybrid(
+                                source_depth[i], target_depth[i], source_intensity[i],
+                                target_intensity[i], target_depth_dx[i], target_depth_dy[i],
+                                target_intensity_dx[i], target_intensity_dy[i],
+                                mask[i], 
+                                source_vertex_maps[i], intrinsic_matrices[i],
+                                result.transformation_, params.depth_outlier_trunc_,
+                                params.depth_huber_delta_, params.intensity_huber_delta_);
+                        result.transformation_ =
+                                delta_result.transformation_.Matmul(result.transformation_);
+                        utility::LogDebug("level {}, iter {}: rmse = {}, fitness = {}", i,
+                                        iter, delta_result.inlier_rmse_,
+                                        delta_result.fitness_);
+
+                        if (std::abs(result.fitness_ - delta_result.fitness_) /
+                                        result.fitness_ <
+                                criteria[i].relative_fitness_ &&
+                        std::abs(result.inlier_rmse_ - delta_result.inlier_rmse_) /
+                                        result.inlier_rmse_ <
+                                criteria[i].relative_rmse_) {
+                        utility::LogDebug("Early exit at level {}, iter {}", i, iter);
+                        break;
+                        }
+                        result.inlier_rmse_ = delta_result.inlier_rmse_;
+                        result.fitness_ = delta_result.fitness_;
+                }
+        }
+
+        return result;
+
+}
+
+
 OdometryResult RGBDOdometryMultiScaleHybrid(
         const RGBDImage& source,
         const RGBDImage& target,
@@ -449,6 +566,47 @@ OdometryResult ComputeOdometryResultIntensity(
             double(inlier_count) / double(source_vertex_map.GetShape(0) *
                                           source_vertex_map.GetShape(1)));
 }
+
+OdometryResult ComputeOdometryResultHybrid(const Tensor& source_depth,
+                                           const Tensor& target_depth,
+                                           const Tensor& source_intensity,
+                                           const Tensor& target_intensity,
+                                           const Tensor& target_depth_dx,
+                                           const Tensor& target_depth_dy,
+                                           const Tensor& target_intensity_dx,
+                                           const Tensor& target_intensity_dy,
+                                           const Tensor& target_mask, 
+                                           const Tensor& source_vertex_map,
+                                           const Tensor& intrinsics,
+                                           const Tensor& init_source_to_target,
+                                           const float depth_outlier_trunc,
+                                           const float depth_huber_delta,
+                                           const float intensity_huber_delta) {
+        
+
+        // Delta target_to_source on host.
+        Tensor se3_delta;
+        float inlier_residual;
+        int inlier_count;
+        kernel::odometry::ComputeOdometryResultHybrid(
+                source_depth, target_depth, source_intensity, target_intensity,
+                target_depth_dx, target_depth_dy, target_intensity_dx,
+                target_intensity_dy, source_vertex_map, target_mask, intrinsics,
+                init_source_to_target, se3_delta, inlier_residual, inlier_count,
+                depth_outlier_trunc, depth_huber_delta, intensity_huber_delta);
+        // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.
+        if (inlier_count <= 0) {
+                utility::LogError("Invalid inlier_count value {}, must be > 0.",
+                                inlier_count);
+        }
+        return OdometryResult(
+                pipelines::kernel::PoseToTransformation(se3_delta),
+                inlier_residual / inlier_count,
+                double(inlier_count) / double(source_vertex_map.GetShape(0) *
+                                                source_vertex_map.GetShape(1)));
+}
+
+
 
 OdometryResult ComputeOdometryResultHybrid(const Tensor& source_depth,
                                            const Tensor& target_depth,
