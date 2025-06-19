@@ -7,7 +7,9 @@ cmake_minimum_required(VERSION 3.22)
 
 # CMAKE_HOST_SYSTEM_PROCESSOR is only available after calling project(),
 # which depends on ${OPEN3D_VERSION}, which depends on ${DEVELOPER_BUILD}.
-set(CMAKE_CUDA_COMPILER "/usr/local/cuda-12.9/bin/nvcc")
+#----------------------------------------------------------------------------
+#set(CMAKE_CUDA_COMPILER "/usr/local/cuda-12.9/bin/nvcc")
+
 if(UNIX AND NOT APPLE)
     execute_process(COMMAND uname -m
         OUTPUT_VARIABLE PROCESSOR_ARCH
