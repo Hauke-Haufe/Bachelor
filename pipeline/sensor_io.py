@@ -189,8 +189,8 @@ class File_io():
 
         self.root_dir = Path(root_dir)
 
-        folders = ["depth", "color", "gyro", "accel"]
-        for folder in folders:
+        self.folders = ["depth", "color", "gyro", "accel"]
+        for folder in self.folders:
             if not (self.root_dir / folder).is_dir:
                 (self.root_dir / folder).mkdir(parents=True)
         
@@ -263,14 +263,12 @@ class File_io():
 
         self.pipeline.stop()"""
     
-    def clean_dirs_(dest_path):
+    def clean_dirs_(self):
 
-        paths = [dest_path / "color", dest_path / "depth", dest_path / "gyro", dest_path / "accel"]
-
-        for path in paths:
-            if os.path.exists(path):
-                for file in os.listdir(path):
-                    file_path = os.path.join(path,file)
+        for path in self.folders:
+            if os.path.exists(self.root_dir /path):
+                for file in os.listdir(self.root_dir /path):
+                    file_path = os.path.join(self.root_dir /path,file)
                     if os.path.isfile(file_path):
                         os.remove(file_path)
 
@@ -291,6 +289,8 @@ class File_io():
 
     #imu datawith the index i from the i-1 to the i keyframe
     def unpack(self,bag_path, config):
+        
+        self.clean_dirs_()
 
         reader = o3d.t.io.RSBagReader()
         reader.open(bag_path)
@@ -386,10 +386,10 @@ class Frame_get:
 
 class Frame_server:
 
-    def __init__(self, root_dir: Path, sid, eid, imu = False):
+    def __init__(self, root_dir: Path, sid, eid, config):
         
-        self.imu = imu
-        self.max_size = 30
+        self.imu = config["imu"]
+        self.max_size = max(2,config["key_framefreq"] * config["num_keyframes"])
 
         self.root_dir = root_dir
         dirs = ["color", "accel", "gyro", "depth"]
@@ -489,11 +489,11 @@ if __name__ == "__main__":
     with open("config.json", "rb") as file:
         config = json.load(file)
 
-    recorder = RSrecorder('data/test')
-    recorder.capture()
+    #recorder = RSrecorder('data/test')
+    #recorder.capture()
 
-    #io = File_io("data/images")
-    #io.unpack("data/raw_data/RS/VGA/20250414_120152/recording.bag", config)
+    io = File_io("data/images")
+    io.unpack("data/raw_data/RS/VGA/20250414_120152/recording.bag", config)
 
     #t = File_io("data/test")
     #t.unpack("data/test", config)

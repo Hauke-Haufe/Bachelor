@@ -135,20 +135,20 @@ class loop_closure:
             source_image ,_, _,_ = images[ source_id]
             images.step_frame()
 
-            for target_id in range(source_id +1, eid , config["key_frame_freq"]):
+            for target_id in range(source_id +1, eid , config["key_framefreq"]):
                 
-                if target_id-source_id <5:
+                if target_id-source_id < max(2,config["key_framefreq"] * config["num_keyframes"]):
                     
                     target_image, target_accel, target_gyro, _= images[target_id]
 
                     if target_id == source_id +1:
-                        uncertain = False
+                        loop_closure = False
                     else:
-                        uncertain = True
+                        loop_closure = True
 
                     success, icp, info= self.odometry_(
-                            source_image, target_image, instrinsics)
-
+                            source_image, target_image, instrinsics.cpu())
+                    
                     if target_id == source_id +1 and not success:
                         self.tl_flag = True
                         self.d_flag = True
@@ -158,14 +158,18 @@ class loop_closure:
 
                     if success: 
                         trans = icp.transformation
-                        odometry = np.dot(trans.numpy(), odometry)
                         
+                        t = trans[:3,3]
+                        if np.linalg.norm(t) > 0.2:
+                            print(source_id, target_id)
+
                         if target_id == source_id +1:
+                            odometry = np.dot(trans.numpy(), odometry)
                             pose_graph.add_note(source_id-sid +1, np.linalg.inv(odometry))
-                        if not uncertain and config["imu"]:
+                        if not loop_closure and config["imu"]:
                             pose_graph.add_imu_edge(target_accel, target_gyro, source_id, target_id)
 
-                        pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, uncertain)
+                        pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, loop_closure)
 
         self.tl_flag = False
         return pose_graph
@@ -222,8 +226,12 @@ class loop_closure:
 
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
-        image_loader = Frame_server(Path(path), sid, eid, config["imu"])
+        image_loader = Frame_server(Path(path), sid, eid, config)
         pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path, image_loader)
+
+        b = config["posegraph_backend"]
+        p = pose_graph.convert_to_open3d()
+        o3d.io.write_pose_graph(os.path.join(FRAGMENT_PATH, f"{b}pre_{fragment_id}.json"), p)
 
         while self.tl_flag:
 
@@ -239,7 +247,8 @@ class loop_closure:
             pose_graph = self.create_posegraph_(self.n_sid, eid, config, intrinsics, path, image_loader)
                 
         pose_graph_opt = pose_graph.optimize()
-        test(pose_graph_opt)
+        o3d.io.write_pose_graph(os.path.join(FRAGMENT_PATH, f"{b}{fragment_id}.json"), pose_graph_opt)
+        #test(pose_graph_opt)
         with self._lock:
             if len(pose_graph_opt.nodes) >10:
                 vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
@@ -272,6 +281,7 @@ class Scene_fragmenter:
 
     @staticmethod
     def _prepare_task(path):
+
         for file in os.listdir(FRAGMENT_PATH):
             file_path = os.path.join(FRAGMENT_PATH,file)
             if os.path.isfile(file_path):
@@ -305,7 +315,7 @@ class Scene_fragmenter:
         ids, n_fragments, intrinsics, config = self._prepare_task(path)
 
         #achtung hier kann gern mal gpu Ueberfordert werden
-        max_workers = 1#min(max(1, multiprocessing.cpu_count()-1), n_fragments)
+        max_workers = 2 #min(max(1, multiprocessing.cpu_count()-1), n_fragments)
         os.environ["OMP_NUM_THREADS"] = '1'
         mp_context = multiprocessing.get_context('spawn')
         intrinsics_matrix = o3d.core.Tensor(intrinsics.intrinsic_matrix)
@@ -345,7 +355,7 @@ class Scene_fragmenter:
                 self.backend.run_system(fragment_id, 
                                         ids[fragment_id][0], 
                                         ids[fragment_id][1], 
-                                        config, 
+                                        config.copy(), 
                                         intrinsics_matrix, 
                                         path, self.model)
 
@@ -358,7 +368,8 @@ if __name__ == "__main__":
 
     pcd = []
     for file in os.listdir("data/fragments"):
-        pcd.append(o3d.io.read_point_cloud(os.path.join("data/fragments", file)))
+        if file.endswith(".pcd"):
+            pcd.append(o3d.io.read_point_cloud(os.path.join("data/fragments", file)))
        
     o3d.visualization.draw(pcd[0])
     

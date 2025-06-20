@@ -1,15 +1,20 @@
 {
     "voxel_size":  0.01,
     "color": true,
-    "ransac": false,
-    "max_iteration": 50,
-    "fps": 30,
-    "key_frame_freq": 2,
-    "max_images": 300,
-    "frames_per_frag": 200,
     "depth_scale": false,
     "depth_max": 3,
-    "frag_overlap": 30,
+    
+    "ransac": false,
+    "max_iteration": 50,
+
+    "fps": 30,
+    "max_images": 1000,
+    "frames_per_frag": 200,
+    "frag_overlap": 100,
+
+    "key_framefreq": 7,
+    "num_keyframes": 3,
+
     "fragmenter_backend": "model_tracking",
     "posegraph_backend": "gtsam",
     "imu": false
