@@ -70,7 +70,7 @@ if __name__ == "__main__":
     pre = o3d.io.read_pose_graph("data/fragments/gtsampre_0.json")
     posegraph = o3d.io.read_pose_graph("data/fragments/gtsam0.json")
     #posegraph1 = o3d.io.read_pose_graph("data/fragments/open3d0.json")
-    graphs = [ pre]#, posegraph]
+    graphs = [ pre, posegraph]#, posegraph]
     test_graph(posegraph)
     #test_graph(pre)
     plot_graph(pcd, graphs, False, True)

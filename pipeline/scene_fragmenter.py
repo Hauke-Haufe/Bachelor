@@ -158,10 +158,6 @@ class loop_closure:
 
                     if success: 
                         trans = icp.transformation
-                        
-                        t = trans[:3,3]
-                        if np.linalg.norm(t) > 0.2:
-                            print(source_id, target_id)
 
                         if target_id == source_id +1:
                             odometry = np.dot(trans.numpy(), odometry)
