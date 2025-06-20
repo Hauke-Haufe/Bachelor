@@ -407,27 +407,28 @@ class Frame_server:
         self.eid = eid
         self.cur = self.sid 
 
-        #fill the buffer
-        accel, gyro = None, None
-        #c = np.array([[1,0,0,0],[0,1,0,0], [0,0,0,1], [0,0,1,0]])
+
         for i in range(self.max_size):
-            if self.imu:
-                accel =  0.01* np.load(self.dirs["accel"] / f"{self.cur}.npy")#@ c.T 
-                gyro =0.01* np.load(self.dirs["gyro"] / f"{self.cur}.npy") #@ c.T
-
-
-            color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
-            depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
-            image = o3d.t.geometry.RGBDImage(color_image, depth_image).cuda()
-            
+            image, accel, gyro = self.load_(i)
 
             with self.lock:
                 self.buffer[self.cur] = (image, accel, gyro,  self.cur)
-            
             self.cur += 1
 
         self.loader_thread.start()
     
+    def load_(self, index):
+
+        accel, gyro = None, None
+        if self.imu:
+            accel = np.load(self.dirs["accel"] / f"{index}.npy") #@ c.T 
+            gyro = np.load(self.dirs["gyro"] / f"{index}.npy")# @ c.T
+
+        color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{index}.png")
+        depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{index}.png")
+        image = o3d.t.geometry.RGBDImage(color_image, depth_image).cuda()
+
+        return image, accel, gyro
         
     def load_worker(self):
         
@@ -437,14 +438,7 @@ class Frame_server:
 
             if len(self.buffer) < self.max_size:
                 
-                if self.imu:
-                    accel = 0.01* np.load(self.dirs["accel"] / f"{self.cur}.npy") #@ c.T 
-                    gyro = 0.01*np.load(self.dirs["gyro"] / f"{self.cur}.npy")# @ c.T
-
-                color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
-                depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
-                image = o3d.t.geometry.RGBDImage(color_image, depth_image).cuda()
-                
+                image, accel, gyro = self.load_(self.cur)
 
                 with self.lock:
                     self.buffer[self.cur] = (image, accel, gyro,  self.cur)
@@ -466,20 +460,12 @@ class Frame_server:
         
         #print(time.time()-a)
         if key in self.buffer:
-
             with self.lock:
                 return self.buffer[key]
 
         else:
             print("cache wurde verfehlt")
-            accel, gyro = None, None
-            if self.imu:
-                accel =0.01 * np.load(self.dirs["accel"] / f"{self.cur}.npy")
-                gyro = 0.01 *np.load(self.dirs["gyro"] / f"{self.cur}.npy")
-
-            color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
-            depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
-            image = o3d.t.geometry.RGBDImage(color_image, depth_image)
+            image, accel, gyro = self.load_(self.cur)
 
             return image, accel, gyro,  self.cur
 

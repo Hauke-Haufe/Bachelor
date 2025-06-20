@@ -13,13 +13,13 @@ class imuNoise:
     #the data is assument to come form a stationary recording
     def __init__(self):
 
-        self.param = gtsam.PreintegrationCombinedParams(np.array([0,-0.0981,0]))
+        self.param = gtsam.PreintegrationCombinedParams(np.array([0,-9.81,0]))
         self.bias = gtsam.imuBias.ConstantBias()
 
     def from_data(self, g_path, a_path):
 
-        self.accel_data = 0.01*np.load(a_path)
-        self.gyro_data = 0.01* np.load(g_path)
+        self.accel_data = np.load(a_path)
+        self.gyro_data = np.load(g_path)
         self._calc_covs()
 
     def from_cache(self, cache_path):
@@ -27,10 +27,10 @@ class imuNoise:
         with open(cache_path, "r") as f:
             file = json.load(f)
         
-        self.param.setGyroscopeCovariance(np.array(file["GyroscopeCov"]))
-        self.param.setAccelerometerCovariance(np.array(file["AccelerometerCov"]))
-        self.param.setBiasOmegaCovariance(np.array(file["BiasOmegaCov"]))
-        self.param.setBiasAccCovariance(np.array(file["BiasAccCov"])) 
+        self.param.setGyroscopeCovariance(100 *np.array(file["GyroscopeCov"]))
+        self.param.setAccelerometerCovariance(100* np.array(file["AccelerometerCov"]))
+        self.param.setBiasOmegaCovariance(100* np.array(file["BiasOmegaCov"]))
+        self.param.setBiasAccCovariance(100*np.array(file["BiasAccCov"])) 
 
         self.bias = gtsam.imuBias.ConstantBias(np.array(file["BiasAcc"]), np.array(file["BiasOmega"]))
 
@@ -129,12 +129,11 @@ class GTSAMPosegraph:
             self.initial.insert(symbol('v', 0), vel0)
             self.initial.insert(symbol('b', 0), self.bias)
 
-    
     def add_odometry_edge(self, odometry,info, i, j, uncertain):
         
         loop_coef = 1
         if uncertain:
-            loop_coef = 10
+            loop_coef = 100
 
         odom_cov = np.linalg.inv(info + 1e-6*np.eye(6))
         odom_noise = gtsam.noiseModel.Gaussian.Covariance(loop_coef*odom_cov)
