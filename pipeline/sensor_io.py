@@ -189,8 +189,8 @@ class File_io():
 
         self.root_dir = Path(root_dir)
 
-        folders = ["depth", "color", "gyro", "accel"]
-        for folder in folders:
+        self.folders = ["depth", "color", "gyro", "accel"]
+        for folder in self.folders:
             if not (self.root_dir / folder).is_dir:
                 (self.root_dir / folder).mkdir(parents=True)
         
@@ -263,14 +263,12 @@ class File_io():
 
         self.pipeline.stop()"""
     
-    def clean_dirs_(dest_path):
+    def clean_dirs_(self):
 
-        paths = [dest_path / "color", dest_path / "depth", dest_path / "gyro", dest_path / "accel"]
-
-        for path in paths:
-            if os.path.exists(path):
-                for file in os.listdir(path):
-                    file_path = os.path.join(path,file)
+        for path in self.folders:
+            if os.path.exists(self.root_dir /path):
+                for file in os.listdir(self.root_dir /path):
+                    file_path = os.path.join(self.root_dir /path,file)
                     if os.path.isfile(file_path):
                         os.remove(file_path)
 
@@ -291,6 +289,8 @@ class File_io():
 
     #imu datawith the index i from the i-1 to the i keyframe
     def unpack(self,bag_path, config):
+        
+        self.clean_dirs_()
 
         reader = o3d.t.io.RSBagReader()
         reader.open(bag_path)
@@ -386,10 +386,10 @@ class Frame_get:
 
 class Frame_server:
 
-    def __init__(self, root_dir: Path, sid, eid, imu = False):
+    def __init__(self, root_dir: Path, sid, eid, config):
         
-        self.imu = imu
-        self.max_size = 30
+        self.imu = config["imu"]
+        self.max_size = max(2,config["key_framefreq"] * config["num_keyframes"])
 
         self.root_dir = root_dir
         dirs = ["color", "accel", "gyro", "depth"]
@@ -407,27 +407,28 @@ class Frame_server:
         self.eid = eid
         self.cur = self.sid 
 
-        #fill the buffer
-        accel, gyro = None, None
-        #c = np.array([[1,0,0,0],[0,1,0,0], [0,0,0,1], [0,0,1,0]])
+
         for i in range(self.max_size):
-            if self.imu:
-                accel =  0.01* np.load(self.dirs["accel"] / f"{self.cur}.npy")#@ c.T 
-                gyro =0.01* np.load(self.dirs["gyro"] / f"{self.cur}.npy") #@ c.T
-
-
-            color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
-            depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
-            image = o3d.t.geometry.RGBDImage(color_image, depth_image).cuda()
-            
+            image, accel, gyro = self.load_(i)
 
             with self.lock:
                 self.buffer[self.cur] = (image, accel, gyro,  self.cur)
-            
             self.cur += 1
 
         self.loader_thread.start()
     
+    def load_(self, index):
+
+        accel, gyro = None, None
+        if self.imu:
+            accel = np.load(self.dirs["accel"] / f"{index}.npy") #@ c.T 
+            gyro = np.load(self.dirs["gyro"] / f"{index}.npy")# @ c.T
+
+        color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{index}.png")
+        depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{index}.png")
+        image = o3d.t.geometry.RGBDImage(color_image, depth_image).cuda()
+
+        return image, accel, gyro
         
     def load_worker(self):
         
@@ -437,14 +438,7 @@ class Frame_server:
 
             if len(self.buffer) < self.max_size:
                 
-                if self.imu:
-                    accel = 0.01* np.load(self.dirs["accel"] / f"{self.cur}.npy") #@ c.T 
-                    gyro = 0.01*np.load(self.dirs["gyro"] / f"{self.cur}.npy")# @ c.T
-
-                color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
-                depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
-                image = o3d.t.geometry.RGBDImage(color_image, depth_image).cuda()
-                
+                image, accel, gyro = self.load_(self.cur)
 
                 with self.lock:
                     self.buffer[self.cur] = (image, accel, gyro,  self.cur)
@@ -466,20 +460,12 @@ class Frame_server:
         
         #print(time.time()-a)
         if key in self.buffer:
-
             with self.lock:
                 return self.buffer[key]
 
         else:
             print("cache wurde verfehlt")
-            accel, gyro = None, None
-            if self.imu:
-                accel =0.01 * np.load(self.dirs["accel"] / f"{self.cur}.npy")
-                gyro = 0.01 *np.load(self.dirs["gyro"] / f"{self.cur}.npy")
-
-            color_image = o3d.t.io.read_image(self.dirs["color"] / f"image{self.cur}.png")
-            depth_image = o3d.t.io.read_image(self.dirs["depth"] / f"image{self.cur}.png")
-            image = o3d.t.geometry.RGBDImage(color_image, depth_image)
+            image, accel, gyro = self.load_(self.cur)
 
             return image, accel, gyro,  self.cur
 
@@ -489,11 +475,11 @@ if __name__ == "__main__":
     with open("config.json", "rb") as file:
         config = json.load(file)
 
-    recorder = RSrecorder('data/test')
-    recorder.capture()
+    #recorder = RSrecorder('data/test')
+    #recorder.capture()
 
-    #io = File_io("data/images")
-    #io.unpack("data/raw_data/RS/VGA/20250414_120152/recording.bag", config)
+    io = File_io("data/images")
+    io.unpack("data/raw_data/RS/VGA/20250414_120152/recording.bag", config)
 
     #t = File_io("data/test")
     #t.unpack("data/test", config)
