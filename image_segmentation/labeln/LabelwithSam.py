@@ -10,13 +10,15 @@ import torch.nn.functional as F
 
 import tkinter as tk
 from tkinter import filedialog
-"""from detectron2.engine import DefaultPredictor
+
+from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
-from detectron2.data import MetadataCatalog"""
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+from detectron2.data import MetadataCatalog
 
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+import matplotlib.pyplot as plt
 
 def convert_mask_to_sam_logits(mask_binary, target_size=(256, 256), fg_value=10.0, bg_value=-10.0):
     """
@@ -45,11 +47,48 @@ def convert_mask_to_sam_logits(mask_binary, target_size=(256, 256), fg_value=10.
 
     return mask_logits[0,0]
 
+#helper class for tkinter
+class LWSContext():
+
+    def __init__(self):
+        
+        sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
+        sam.to("cuda")
+        self.sam = SamPredictor(sam)
+
+        self.masks = []
+        self.zoom_factor = 1.0
+        self.classes =  {0:{"name": "object", "color": (255, 0, 0, 100)},
+                        1: {"name": "cow", "color": (255,192,203, 150)}, 
+                        2:{"name":"heu", "color": (255, 255, 0, 100)}}
+
+        self.ended = False
+    
+    def get_masks(self):
+        
+        return [{"mask": mask["mask"], "class" : self.classes[mask["class"]]["name"]} for mask in self.masks]
+
+    def set_image(self, Image : Image.Image):
+
+        self.image = Image
+    
+    def set_mask(self, mask):
+        mask["selected"] = False
+        mask["logits"] = convert_mask_to_sam_logits(mask["mask"])
+
+        self.masks.append(mask)
+    
+    def clear_masks(self):
+
+        self.masks = []
+        
 class LabelwithSam:
 
-    def __init__(self, sam, image):
+    def __init__(self, ctx: LWSContext):
 
         self.root =  tk.Tk() 
+        self.ctx = ctx
+        self.root.state('zoomed')
 
         #--------------------------------------
         #----------Setup Window Layout --------
@@ -70,22 +109,18 @@ class LabelwithSam:
         #--------------------------------------
 
         #self.sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
-        self.sam = sam_model_registry["vit_b"](checkpoint="data/sam_vit_b.pth")
+        #self.sam = sam_model_registry["vit_b"](checkpoint="data/sam_vit_b.pth")
         #self.sam = sam_model_registry["vit_l"](checkpoint="data/sam_vit_l.pth")
-        self.sam.to("cuda")
-        self.sam = SamPredictor(self.sam)
+        self.sam = ctx.sam
 
-        self.masks = [] 
+        self.masks = ctx.masks
         self.points = []
-        self.img = Image.open(image)
+        self.img = ctx.image
 
         self.p_flag = True
         self.vis = True
 
-
-        self.classes = {0:{"name": "object", "color": (255, 0, 0, 100)},
-                        1: {"name": "cow", "color": (255,192,203, 100)}, 
-                        2:{"name":"heu", "color": (255, 255, 0, 100)}}
+        self.classes = ctx.classes
 
         #--------------------------------------
         #-----------Point Keybinds-------------
@@ -114,7 +149,7 @@ class LabelwithSam:
             self.root.bind(str(i), self.on_number)
 
         #zooming 
-        self.zoom_factor = 1.0
+        self.zoom_factor = ctx.zoom_factor
         self.zoom_step = 0.1  # step for each scroll
         self.min_zoom = 0.1
         self.max_zoom = 5.0
@@ -131,6 +166,11 @@ class LabelwithSam:
         #next Image button
         next_btn = tk.Button(control_frame, text="Finish", command=self.finish_image)
         next_btn.pack(side="left", pady=2)
+        end_btn = tk.Button(control_frame, text="End", command=self.end)
+        end_btn.pack(side="left", pady=5)
+
+        """init_btn = tk.Button(control_frame, text="Segment", command=self.init_segment)
+        init_btn.pack(side="left", pady=2)"""
 
         #self.init_segment()
         
@@ -151,10 +191,25 @@ class LabelwithSam:
         predictor = DefaultPredictor(cfg)
         outputs = predictor(np.array(self.img))
 
+        self.sam.set_image(np.array(self.img))
+
         for mask in outputs["instances"].pred_masks.cpu().numpy():
-            logit = convert_mask_to_sam_logits(mask)
-            self.masks.append({"mask":mask, "selected": False, "logits": logit})
-    
+            coords = np.column_stack(np.nonzero(mask))
+
+            k = 5
+            sampled_coords = coords[np.random.choice(len(coords), size=k, replace=False)]
+            labels = np.ones(k)
+
+            sam_masks, scores, logits = self.sam.predict(
+                    point_coords=sampled_coords,
+                    point_labels = labels,
+                    multimask_output=False,
+            )
+            
+            self.masks.append({"mask":sam_masks[0], "selected": False, "logits": logits[np.argmax(scores), :, :], "class": 1})
+        
+        self.render()
+
     #--------------------------------------
     #gui functionality
     #--------------------------------------
@@ -250,13 +305,16 @@ class LabelwithSam:
 
         self.root.quit()
         self.root.destroy()
+
+    def end(self):
+        self.ctx.ended = True
+        self.root.destroy()
+
+    def get_context(self):
         
-    def get_mask(self):
-        
-        return [
-            {"mask": mask["mask"], 
-            "class" : self.classes[mask["class"]]["name"]} 
-            for mask in self.masks]
+        self.ctx.zoom_factor = self.zoom_factor
+        self.ctx.masks = self.masks
+        return self.ctx
 
     def generate_mask(self, event):
         
@@ -362,13 +420,11 @@ class LabelwithSam:
     
 if __name__ == "__main__":
 
-    #self.sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
-    sam = sam_model_registry["vit_b"](checkpoint="data/sam_vit_b.pth")
-    #self.sam = sam_model_registry["vit_l"](checkpoint="data/sam_vit_l.pth")
-    sam.to("cuda")
+    ctx = LWSContext()
 
-    for image in Path("data/images/color").iterdir():
-        label = LabelwithSam(sam, image)
+    for image in Path("data/data_set/run4").iterdir():
+        ctx.set_image(Image.open(image))
+        label = LabelwithSam(ctx)
         masks = label.get_mask()
         del label
 
