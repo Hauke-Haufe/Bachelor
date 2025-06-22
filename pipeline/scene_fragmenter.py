@@ -18,16 +18,6 @@ from config import FRAGMENT_PATH, INTRINSICS_PATH
 import matplotlib.pyplot as plt
 
 
-def test(posegraph):
-    
-    ax = plt.figure().add_subplot(projection = '3d')
-    for i in range(len(posegraph.nodes)):
-
-        pose = posegraph.nodes[i].pose
-        p = pose[0:3, 3]
-        ax.scatter(p[0], p[1], p[2])
-    plt.show()
-
 class model_tracking:
 
     def run_system(self, fragment_id, sid, eid, config, intrinsics, path, model = None):
