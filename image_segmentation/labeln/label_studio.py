@@ -677,11 +677,12 @@ def save_json(root):
     with open(root /"progress.json", "w") as f:
         json.dump(runs, f)
 
+
 if __name__ == "__main__":
     
     save_json("data/data_set")
     project = label_project()
-    project.revise_with_sam(4,[1337])
+    project.label_with_sam(4)
 
     #create_plygon_tasks("data/data_set", "run6")
     #create_masks("data/data_set/run3/result.json", "run3")
