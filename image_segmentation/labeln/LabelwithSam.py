@@ -143,7 +143,7 @@ class LabelwithSam:
         #delets selected masks
         self.root.bind("<Control-KeyPress-d>", self.delete_selected_masks)
         # generate mask from seleted prompts 
-        self.root.bind("<KeyPress-g>", self.generate_mask)
+        self.root.bind("<KeyPress-s>", self.generate_mask)
         
         for i, _ in self.classes.items():
             self.root.bind(str(i), self.on_number)
