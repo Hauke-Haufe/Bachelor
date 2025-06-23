@@ -272,6 +272,7 @@ class label_project:
         else:
             raise RuntimeError(f"{type} project doesent exists for run {run}")
 
+    #nicht getestet
     def reset_tasks(self, run, type):
 
         run = str(run)
@@ -335,6 +336,7 @@ class label_project:
 
             print(f"Backup von {type}_task run {run} erstellt")
     
+    #nicht getestet
     def project_exits(self, run, type):
 
         if not(type == 'polygon' or type == 'brush'):
@@ -498,6 +500,17 @@ class label_project:
     #assumes only one Annotation was made
     def export_final_masks(self, run: int, destination_folder):
 
+        if os.path.exists( destination_folder):
+            if os.path.isfile( destination_folder) or os.path.islink( destination_folder):
+                os.remove( destination_folder)
+            elif os.path.isdir( destination_folder):
+                shutil.rmtree( destination_folder)
+        
+        
+        Path(destination_folder).mkdir()
+        (Path(destination_folder) / "images").mkdir()
+        (Path(destination_folder) / "masks").mkdir()
+
         run = str(run)
         ls = Client(url=self.host, api_key=self.key)
 
@@ -508,7 +521,7 @@ class label_project:
         
         tasks = project.get_tasks()
         labels = list(self.classes.keys())
-        sorted_labels = sorted(labels, key=lambda l: self.classes[l]["prio"], reversed = True)
+        sorted_labels = sorted(labels, key=lambda l: self.classes[l]["prio"], reverse = False)
 
         for task in tqdm(tasks):
             
@@ -527,18 +540,19 @@ class label_project:
                         
                         label = result["value"]["brushlabels"][0]
                         mask_by_clas_dict[label] = np.logical_or(mask, mask_by_clas_dict[label])
+                       
+
 
             combined_mask = np.zeros((height, width), dtype = np.uint8)
-
+            
             for label in sorted_labels:
-                combined_mask[mask_by_clas_dict[label] == 255] = self.classes[label]["label"]
-
+                combined_mask[mask_by_clas_dict[label].astype(bool)] = self.classes[label]["label"]
 
             file_path = Path(task["data"]["image"].split("=")[-1])
             filename =  file_path.parts[-1]
 
             Image.fromarray(combined_mask).save(os.path.join(os.path.abspath(destination_folder), "masks",  filename))
-            shutil.copy(file_path, os.path.join(destination_folder, "images", filename))
+            shutil.copy(self.label_studio_root / file_path, os.path.join(destination_folder, "images", filename))
 
     #--------------------------------------
     #         LWS Workflow
@@ -607,7 +621,8 @@ class label_project:
                 model_version=None,
                 result= results
                 )
-                
+
+    #doesnt work right           
     def revise_with_sam(self,run, ids):
 
         run = str(run)
@@ -618,10 +633,10 @@ class label_project:
         else:
             brush_project = ls.get_project(self.runs[run]["brush_project"])
 
-
+        ctx = LWSContext()
         for id in ids:
             task = brush_project.get_task(id)
-            ctx = LWSContext()
+            
             img = Image.open(self.lpath_to_path(task["data"]["image"]))         
             ctx.set_image(img)
 
@@ -638,6 +653,10 @@ class label_project:
             LWS = LabelwithSam(ctx)
 
             ctx = LWS.get_context()
+            
+            if ctx.ended:
+                return
+
             results = self.get_result_from_LWSContext(ctx)
             brush_project.create_prediction(
             task_id= id,
@@ -680,13 +699,8 @@ def save_json(root):
 
 if __name__ == "__main__":
     
-    save_json("data/data_set")
     project = label_project()
-    project.label_with_sam(4)
+    project.export_final_masks(6, "dataset/runs/run6" )
 
-    #create_plygon_tasks("data/data_set", "run6")
-    #create_masks("data/data_set/run3/result.json", "run3")
-    #import_masks_task(14, "run6")
-    #make_final_mask("data/data_set/run3/refined","data/data_set/run3", "data/data_set/run3/project-13-at-2025-05-27-17-04-c8737056.json", "dataset/runs/run3")
 
     
