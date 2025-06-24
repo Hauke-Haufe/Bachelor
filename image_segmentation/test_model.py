@@ -10,12 +10,12 @@ from cross_validation import Options
 from PIL import Image
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
-
+from pathlib import Path
 
 def load_model():  
 
     opts = Options()
-    opts.ckpt ="dataset/test/3_16_0.30000001192092896/checkpoints/best_deeplabv3plus_resnet50_Cow_segmentation_os16.pth"
+    opts.ckpt =Path("dataseT/folds/0/bt=13_str=16_cw=0.15_lr=0.001_wd=0.001/best.pth")
     model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
     checkpoint = torch.load(opts.ckpt, map_location=torch.device('cpu'), weights_only=False)
     model.load_state_dict(checkpoint["model_state"])
@@ -24,25 +24,21 @@ def load_model():
 
     return model
 
+run_path = "data/data_set/run5"
+
 opts = Options()
-
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = load_model()
 
-model.eval()
-scripted_model = torch.jit.script(model)
-scripted_model.save("data/model_scripted.pt")
-
 model.train()
-images = [file for file in  os.listdir("data/data_set/run3") if file.endswith(".png")]
+images = [file for file in  os.listdir(run_path) if file.endswith(".png")]
 width, height =640, 480
 transform = transforms.Compose([transforms.ToTensor()])
 
 with torch.no_grad():
     for image in images:
         
-        img = Image.open(os.path.join("data/data_set/run3", image)).convert('RGB')
+        img = Image.open(os.path.join(run_path, image)).convert('RGB')
 
         image = transform(img).unsqueeze(0)
         e = torch.concat((transform(img).unsqueeze(0), transform(img).unsqueeze(0)))

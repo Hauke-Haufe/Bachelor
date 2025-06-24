@@ -17,6 +17,8 @@ from my_dataset import Mydataset
 import matplotlib.pyplot as plt
 import matplotlib
 from pathlib import Path
+import json
+import time
 
 
 #todo p[ath in validate 
@@ -31,8 +33,8 @@ def get_dataset(path):
     with open(Path(parent_paths) / "eval.txt", "r") as f:
         eval_frames = f.read().splitlines()
 
-    train_dst  = Mydataset(train_frames)
-    val_dst  = Mydataset(eval_frames)
+    train_dst  = Mydataset(train_frames,preload = True)
+    val_dst  = Mydataset(eval_frames, preload=True)
 
     return train_dst, val_dst
 
@@ -43,7 +45,6 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
     if opts.save_val_results:
         result_path = path / "results"
         result_path.mkdir(parents=True, exist_ok=True)
-        #denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])
         img_id = 0
 
     with torch.no_grad():
@@ -57,13 +58,10 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
             targets = labels.cpu().numpy()
 
             metrics.update(targets, preds)
-            if ret_samples_ids is not None and i in ret_samples_ids:  # get vis samples
-                ret_samples.append(
-                    (images[0].detach().cpu().numpy(), targets[0], preds[0]))
 
             if opts.save_val_results:
                 for i in range(len(images)):
-                    image = images[i].detach().cpu().numpy()
+                    image = images[i].detach().cpu().numpy().transpose(1, 2, 0).astype(np.uint8)
                     target = targets[i]
                     pred = preds[i]
 
@@ -71,9 +69,9 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
                     target = loader.dataset.decode_target(target).astype(np.uint8)
                     pred = loader.dataset.decode_target(pred).astype(np.uint8)
 
-                    Image.fromarray(image,  mode='RGB').save(result_path /f"{img_id}_image.png")
-                    Image.fromarray(np.squeeze(target)).save(result_path /f"{img_id}_target.png")
-                    Image.fromarray(pred).save(result_path /f"{img_id}_pred.png")
+                    #Image.fromarray(image,  mode='RGB').save(result_path /f"{img_id}_image.png")
+                    #Image.fromarray(np.squeeze(target)).save(result_path /f"{img_id}_target.png")
+                    #Image.fromarray(pred).save(result_path /f"{img_id}_pred.png")
 
                     fig = plt.figure()
                     plt.imshow(image)
@@ -108,17 +106,23 @@ def train(opts, fold_path):
     #get the Dataset
     train_dst, val_dst = get_dataset(fold_path)
     train_loader = data.DataLoader(
-        train_dst, batch_size=opts.batch_size, shuffle=True, num_workers=2,
-        drop_last=True)  # drop_last=True to ignore single-image batches.
+        train_dst, batch_size=opts.batch_size, shuffle=False,
+        drop_last=True, pin_memory=True)  # drop_last=True to ignore single-image batches.
     val_loader = data.DataLoader(
-        val_dst, batch_size=opts.val_batch_size, shuffle=True, num_workers=2)
+        val_dst, batch_size=opts.val_batch_size, shuffle=False, pin_memory=True)
 
     # get Model
     model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
     utils.set_bn_momentum(model.backbone, momentum=0.01)
-
-    for param in model.backbone.parameters():
-        param.requires_grad = False
+    
+    layers_to_freeze = ["conv1", "layer1", "layer2", "layer3"]
+    for name, module in model.backbone.named_children():
+        if name in layers_to_freeze:
+            for param in module.parameters():
+                param.requires_grad = False
+    
+    """for param in model.backbone.parameters():
+        param.requires_grad = False"""
 
     # Set up metrics
     metrics = StreamSegMetrics(opts.num_classes)
@@ -153,8 +157,6 @@ def train(opts, fold_path):
         }, path)
         print("Model saved as %s" % path)
 
-    checkpoint_path = Path(fold_path)/ "checkpoints"
-    checkpoint_path.mkdir(parents=True, exist_ok=True)
     # Restore
     best_score = 0.0
     cur_itrs = 0
@@ -173,73 +175,99 @@ def train(opts, fold_path):
             best_score = checkpoint['best_score']
             print("Training state restored from %s" % opts.ckpt)
         print("Model restored from %s" % opts.ckpt)
-        del checkpoint  # free memory
+        del checkpoint  
+
+        with open(fold_path/"metrics.json", "r") as f:
+            t_metrics = json.load(f)   
+        
     else:
         print("[!] Retrain")
         model = nn.DataParallel(model)
         model.to(device)
 
-    # ==========   Train Loop   ==========#
-    vis_sample_id = np.random.randint(0, len(val_loader), opts.vis_num_samples,
-                                        np.int32) if opts.enable_vis else None  # sample idxs for visualization
-    denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # denormalization for ori images
+        t_metrics = {"train": [], "validation": []}
+        with open(fold_path/"metrics.json", "w") as f:
+            json.dump(t_metrics, f)
 
     interval_loss = 0
     while True:  # cur_itrs < opts.total_itrs:
         # =====  Train  =====
         model.train()
         cur_epochs += 1
-        for (images, labels) in train_loader:
 
+        for (images, labels) in train_loader:
+                
             cur_itrs += 1
 
             images = images.to(device, dtype=torch.float32)
             labels = labels.to(device, dtype=torch.long)
 
+            
             optimizer.zero_grad()
             outputs = model(images)
 
             loss = criterion(outputs, labels.squeeze(1))
+
             loss.backward()
             optimizer.step()
 
-            np_loss = loss.detach().cpu().numpy()
-            interval_loss += np_loss
+            interval_loss += loss.item()
 
             if (cur_itrs) % 10 == 0:
 
                 interval_loss = interval_loss / 10
                 print("Epoch %d, Itrs %d/%d, Loss=%f" %
                         (cur_epochs, cur_itrs, opts.total_itrs, interval_loss))
-                interval_loss = 0.0
                 
-                #preds =  outputs.detach().max(dim=1)[1].cpu().numpy()
-                #plt.imshow(preds[0])
-                #plt.show()
+                t_metrics["train"].append( {"epoch": cur_epochs, 
+                                            "itr": cur_itrs, 
+                                            "loss": interval_loss})
+                
+                with open(fold_path /"metrics.json", "w") as f:
+                    json.dump(t_metrics, f, indent= 4)
+
+                interval_loss = 0.0
 
             if (cur_itrs) % opts.val_interval == 0:
 
-                save_ckpt(checkpoint_path /  f'latest_{opts.model}_{opts.dataset}_os{opts.output_stride}.pth')
+                save_ckpt(fold_path /  f'latest.pth')
                 print("validation...")
                 model.eval()
-                val_score, ret_samples = validate(opts=opts, model=model, loader=val_loader, 
-                    device=device, metrics=metrics, path=fold_path,
-                    ret_samples_ids=vis_sample_id)
+                t = time.time()
+                val_score, _ = validate(opts=opts, model=model, loader=val_loader, 
+                    device=device, metrics=metrics, path=fold_path)
                 print(metrics.to_str(val_score))
+                print(f"validation time: {time.time() -t}")
+
+                t_metrics["validation"].append({
+                    "epoch": cur_epochs, 
+                    "itr": cur_itrs,
+                    "Overall Acc": val_score["Overall Acc"],
+                    "Mean Acc":val_score["Mean Acc"],
+                    "FreqW Acc":val_score["FreqW Acc"],
+                    "Mean IoU":val_score["Mean IoU"],
+                    "Class IoU": val_score["Class IoU"],
+                })
+
+                with open(fold_path /"metrics.json", "w") as f:
+                    json.dump(t_metrics, f,  indent= 4)
 
                 # save best model
                 if val_score['Mean IoU'] > best_score: 
-                     
-                    best_score = val_score['Mean IoU']
-                    save_ckpt(checkpoint_path /  f'best_{opts.model}_{opts.dataset}_os{opts.output_stride}.pth')
                     
+                    best_score = val_score['Mean IoU']
+                    save_ckpt(fold_path /  f'best.pth')
+                
+                if best_score - val_score['Mean IoU'] > opts.max_decrease:
+                    print("model Perfomence decrease too much")
+                    return
+
                 model.train()
+
             scheduler.step()
 
             if cur_itrs >= opts.total_itrs:
                 return
 
 if __name__ == "__main__":
-    #opts = Options()
-    #train(opts, )
     pass
