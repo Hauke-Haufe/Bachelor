@@ -2,11 +2,14 @@ import random
 import os 
 from pathlib import Path
 import torch
-import copy
 import itertools
+
 import json
+import yaml
+
 from train import train
 import lib.Deeplab.network as network
+
 
 class Options():
 
@@ -20,18 +23,18 @@ class Options():
         self.output_stride = 8
 
         self.dataset = "Cow_segmentation"
-        self.save_val_results = True
+        self.save_val_results = False # True
 
         #constants
-        self.val_interval = 50
+        self.val_interval = 20
         self.total_itrs = 2000
         self.val_batch_size = 10
         self.loss_type = 'cross_entropy'
+        self.max_decrease = 0.3
 
         #hyperparameter
         self.batch_size = 15
         self.class_weights = torch.tensor([0.2, 1.0, 1.0], device="cuda")
-
         self.lr = 0.01
         self.weight_decay = 0.01
         self.lr_policy = "step"
@@ -44,72 +47,106 @@ class Options():
         self.random_seed = random.randint(0,1000000)
 
         #continue traning
-        self.ckpt= None #"data/checkpoints/best_deeplabv3plus_mobilenet_Cow_segmentation_os8.pth" #"data\checkpoints\latest_deeplabv3plus_resnet50_Cow_segmentation_os8.pth" 
+        self.ckpt= None 
         self.continue_training = False
 
-def create_folds(k_folds):
-
+#creates k folds with val train split
+def create_folds(k_folds, option):
     run_path = Path("dataset/runs")
-    folds_path = Path("dataset/folds")
-   
-    folds = []
 
-    for i in range(k_folds):
-        train_paths = []
-        eval_paths = []
-
-       
-        fold_path = folds_path / f"{i}"
-        fold_path.mkdir(parents=True, exist_ok=True)
-        for run in run_path.iterdir():
-            
-            frame_path = (run/ "images")
-            frames = os.listdir(frame_path)
-            n = len(frames)
-            chunk_size = int(n / k_folds)
-            # Get validation indices for this fold
-            val_start = i * chunk_size
-            val_end = val_start + chunk_size if i < k_folds - 1 else n 
-            val_frames = frames[val_start:val_end]
-            train_frames =frames[:val_start] +frames[val_end:]
-
-            train_paths.extend([run /"images"/ train_frame for train_frame in train_frames])
-            eval_paths.extend([ run /"images"/ val_frame for val_frame in val_frames])
+    #data needs to be tempolraly ordered
+    if option == "folds_in_runs":
         
-        with open(fold_path / "train.txt", "w") as f:
-            for path in train_paths:
-                f.write(f"{path}\n")
+        folds_path = Path(f"dataset/{option}")
+    
+        folds = []
+        for i in range(k_folds):
+            train_paths = []
+            eval_paths = []
 
-        with open(fold_path / "eval.txt" , "w") as f:
-            for path in eval_paths:
-                f.write(f"{path}\n")
+        
+            fold_path = folds_path / f"{i}"
+            fold_path.mkdir(parents=True, exist_ok=True)
+            for run in run_path.iterdir():
+                
+                frame_path = (run/ "images")
+                frames = os.listdir(frame_path)
+                n = len(frames)
+                chunk_size = int(n / k_folds)
+                # Get validation indices for this fold
+                val_start = i * chunk_size
+                val_end = val_start + chunk_size if i < k_folds - 1 else n 
 
-    return folds
+                val_frames = frames[val_start:val_end]
+                val_frames = frames[int(0.3 * len(val_frames)):]
 
+                train_frames =frames[:val_start] +frames[val_end:]
+                train_paths.extend([run /"images"/ train_frame for train_frame in train_frames])
+                eval_paths.extend([ run /"images"/ val_frame for val_frame in val_frames])
+            
+            with open(fold_path / "train.txt", "w") as f:
+                for path in train_paths:
+                    f.write(f"{path}\n")
+
+            with open(fold_path / "eval.txt" , "w") as f:
+                for path in eval_paths:
+                    f.write(f"{path}\n")
+
+    #safest version
+    elif option == 'run_as_fold':
+
+        runs = os.listdir(run_path)
+        folds_path = Path(f"dataset/{option}")
+
+        for i in range(len(runs)):
+            train_runs = []
+            eval_runs = []
+
+            train_paths = []
+            eval_path = []
+
+            fold_path = folds_path / f"{i}"
+
+            for j in range(len(runs)):
+
+                if j==i:
+                    eval_runs.append(runs[j])
+                else:
+                    train_runs.append(runs[j])
+
+            for run in train_runs:
+                print("todo")
+        
+    else:
+        raise RuntimeError("not a valid Option")
+        
 def cross_validation(folds_path):
-
-    batch_vals = [3, 7, 13]
-    stride = [8,16]
-    background_weighting = [0.05, 0.15, 0.3, 0.5]
-
     
-    total_com = len(batch_vals)*len(stride)*len(background_weighting)
+    param_grid = {
+        "batch_size" : [3, 7, 13],
+        "output_stride" : [8,16], 
+        "background_weighting" :[0.05, 0.15, 0.3, 0.5], 
+        "lerning_rate" : [0.001, 0.01, 0.005, 0.05],
+        "weight_decay" : [0.05, 0.02, 0.01, 0.005,0.002,  0.001],
+        "loss": ["focal_loss", "cross_entropy"]
+    }
+
+    keys = param_grid.keys()
+    values = param_grid.values()
+
+    grid = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    total_com = len(grid)
     
-    to_remove_total = 23
+    to_remove_total = 30
 
     folds_path = Path(folds_path)
     for path in folds_path.iterdir():
          
         if not (path/ "grid.json" ).is_file():
 
-            grid = list(itertools.product(*[batch_vals, stride, background_weighting]))
-            grid = [list(item) for item in grid]
-
-
             with open(path/  "grid.json", "w") as file:
                 json.dump(grid, file , indent= 4)
         
-
         with open(path/ "grid.json", "r") as file:
             grid = json.load(file)
         
@@ -117,21 +154,14 @@ def cross_validation(folds_path):
         num_picks = max(0, to_remove_total - already_removed)
         hyperparameter_optimization(grid, num_picks, path)
 
-def hyperparameter_optimization(grid, num_picks, fold_path):
+def run_test(opts, path):
 
-    for i in range(num_picks):
-        opts = Options()
+    path = Path(path)
+    config_path = path/ f"bt={opts.batch_size}_str={opts.output_stride}_cw={round(float(opts.class_weights[0]), 4)}_lr={round(opts.step_size, 4)}_wd={round(opts.weight_decay, 4)}_l={opts.loss_type}"
 
-        index = random.randrange(len(grid))
-        hyperparameters = grid[index]
-        opts.batch_size = hyperparameters[0]
-        opts.output_stride = hyperparameters[1]
-        opts.class_weights[0] = hyperparameters[2]
+    if config_path.is_dir() and (path / f'latest.pth').is_file():
 
-        config_path = fold_path/ f"{opts.batch_size}_{opts.output_stride}_{opts.class_weights[0]}"
-        if config_path.is_dir() and (fold_path / f'latest_{opts.model}_{opts.dataset}_os{opts.output_stride}.pth').is_file():
-
-            checkpoint_path = fold_path / f'latest_{opts.model}_{opts.dataset}_os{opts.output_stride}.pth'
+            checkpoint_path = path / f'latest.pth'
             checkpoint = torch.load(checkpoint_path , map_location=torch.device('cpu'), weights_only=False)
 
             if checkpoint["cur_itrs"] <= opts.total_itrs:
@@ -139,68 +169,75 @@ def hyperparameter_optimization(grid, num_picks, fold_path):
                 opts.continue_training = True
                 train(opts, config_path)
 
-        else:
-            (config_path).mkdir(parents=True, exist_ok=True)
-            train(opts, config_path)
+    else:
+        (config_path).mkdir(parents=True, exist_ok=True)
+        with open(config_path /"config.yaml", "w") as f:
+            yaml.safe_dump({
+                "batchsize": opts.batch_size,
+                "output_stride": opts.output_stride,
+                "background_weighting": round(float(opts.class_weights[0]), 4),
+                "learning_rate": round(opts.step_size, 4), 
+                "weight_decay": round(opts.weight_decay, 4), 
+                "loss_type": opts.loss_type
+            }, f)
+        train(opts, config_path)
+
+    if (path/"index.json").is_file():
+
+        with open(path/"index.json", "r") as f:
+            index = json.load(f)
+        
+        index.append(str(config_path))
+
+        with open(path/"index.json", "w") as f:
+            json.dump(index, f, indent=4)
+
+    else:
+
+        index = [str(config_path)]
+        with open(path/"index.json", "w") as f:
+            json.dump(index, f, indent=4)
+
+
+
+#random search
+def hyperparameter_optimization(grid, num_picks, fold_path):
+
+    for i in range(num_picks):
+        opts = Options()
+
+        index = random.randrange(len(grid))
+        hyperparameters = grid[index]
+        opts.batch_size =  hyperparameters["batch_size"]
+        opts.output_stride =hyperparameters["output_stride"]
+        opts.class_weights[0] = hyperparameters[ "background_weighting"]
+        opts.step_size = hyperparameters["lerning_rate"]
+        opts.weight_decay = hyperparameters["weight_decay"]
+        opts.loss_type = hyperparameters["loss"]
+
+        run_test(opts, fold_path)
 
         grid.pop(index)
-        
         with open(fold_path/  "grid.json", "w") as file:
             json.dump(grid, file , indent= 4)
     
-    print()
-
 def test():
     opts = Options()
-    opts.batch_size = 3
+    opts.batch_size = 13
     opts.output_stride = 16
-    opts.class_weights[0] = 0.3
-    opts.class_weights[2] = 1.5
+    opts.class_weights[0] = 0.4
+    opts.class_weights[2] = 1.2
     opts.total_itrs = 10000
-    opts.val_interval = 100
+    opts.val_interval = 20
     opts.val_batch_size = 10
-    opts.loss_type = "focal_loss"
+    opts.loss_type = "cross_entropy"
 
-    path = Path("dataset")/ "test"/  f"{opts.batch_size}_{opts.output_stride}_{opts.class_weights[0]}"
+    run_test(opts, "dataset/test")
 
-    train(opts, path)
-
-def result():
-
-    fold_paths = Path("dataset/folds")
-    results = {}
-
-    for fold in fold_paths.iterdir():
-
-        for config in fold.iterdir():
-            checkpoint_path = config / 'checkpoints'
-
-            if (checkpoint_path).is_dir():
-                result_path = [file for file in os.listdir( checkpoint_path) if file.split("_")[0] == "best"]
-                if len(result_path) == 1:
-                    model_path = checkpoint_path/ result_path[0]
-                    result =  torch.load(model_path, map_location=torch.device('cpu'), weights_only=False)
-                    hyp = config.parts[-1]
-                    results[hyp] = (result["best_score"], result["cur_itrs"], fold.parts[-1], model_path)
-
-    sorted_results = sorted(results.items(), key = lambda item: item[1][0], reverse = True)
-    print(sorted_results)
-    """    best = sorted_results[0]
-    stride = best[0].split("_")[-1]
-
-    opts = Options()
-    opts.output_stride = stride
-    model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
-    checkpoint = torch.load( best[1][3], map_location=torch.device('cpu'), weights_only=False)
-
-    model.load_state_dict(checkpoint["model_state"])
-    model.eval()
-    scripted_model = torch.jit.script(model)
-    scripted_model.save("data/model_scripted.pt")"""
-    
-
+   
 if __name__ == "__main__":
+
     #create_folds(5)
     #cross_validation("dataset/folds")
-    #result()
+
     test()

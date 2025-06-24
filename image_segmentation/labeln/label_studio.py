@@ -700,7 +700,7 @@ def save_json(root):
 if __name__ == "__main__":
     
     project = label_project()
-    project.export_final_masks(6, "dataset/runs/run6" )
-
+    project.label_with_sam(4)
+        
 
     

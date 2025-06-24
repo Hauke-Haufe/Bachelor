@@ -47,7 +47,7 @@ def extract_rs(path, out_path =  "data/extracted" ):
                     #timestamps.append(timestamp)
                     bgr_image = cv2.cvtColor(np.asanyarray(color_frame.get_data()), cv2.COLOR_RGB2BGR)
 
-                    cv2.imwrite(out_path + "/" + f"{timestamp}.png", bgr_image)
+                    cv2.imwrite(out_path + "/" + f"frame{i}.png", bgr_image)
                     
                     if i == 0:
                         prev_timestamp = timestamp

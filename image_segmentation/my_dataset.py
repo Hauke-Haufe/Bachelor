@@ -5,6 +5,7 @@ from PIL import Image
 from torchvision.transforms import v2
 from pathlib import Path
 import matplotlib.pyplot as plt
+import time
 
 
 def voc_cmap(N=256, normalized=False):
@@ -30,41 +31,39 @@ def voc_cmap(N=256, normalized=False):
 class Mydataset(data.Dataset):
     cmap = voc_cmap()
 
-    def __init__(self, frames_path, eval = False):
+    def __init__(self, frames_path, preload = True):
         
 
         self.images = frames_path
         self.masks = []
-        
-        if  eval:
-            self.debug = True
-        else:
-            self.debug = False
+        self.preload = preload
 
         for image in self.images:
             image_path = Path(image)
             *parent_paths, _, filename = image_path.parts
             self.masks.append(Path(*parent_paths)/  "masks"/ filename)
 
+        if preload:
+            self.preloaded_images = []
+            self.preloaded_masks = []
+
+            for i in range(len(self.images)):
+                self.preloaded_images.append(Image.open(self.images[i]).convert('RGB'))
+                self.preloaded_masks.append( Image.open(self.masks[i]))
+
+
         assert (len(self.images) == len(self.masks))
     
     def __getitem__(self, index):
 
-        image_path = self.images[index]
-        masks_path = self.masks[index]
-        img = Image.open(self.images[index]).convert('RGB')
 
-        """image = np.array(img.getdata()).reshape(img.size[1],img.size[0], 3)
-        plt.imshow(image)
-        plt.show()"""
-
-        
-
-        target = Image.open(self.masks[index])
-        if self.debug:
-            plt.imshow( np.array(target.getdata()).reshape(img.size[1],img.size[0], 1))
-            plt.show()
-
+        if self.preload:
+            img = self.preloaded_images[index]
+            target = self.preloaded_masks[index]
+        else:
+            img = Image.open(self.images[index]).convert('RGB')
+            target = Image.open(self.masks[index])
+       
         width, height = img.size
         transform = v2.Compose([
             v2.RandomHorizontalFlip(p=0.5), 
@@ -73,19 +72,8 @@ class Mydataset(data.Dataset):
             v2.Resize((int(0.6 * height), int(0.6 * width))),
             #v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
             v2.ToImage(),
-           ])
-        
+           ])        
         img, target = transform(img, target)
-        
-        if self.debug:
-            image = img.detach().cpu().numpy()
-            image = image.transpose(1, 2, 0).astype(np.uint8)
-            #plt.imshow(image)
-            #plt.show()
-            trg = target.detach().cpu().numpy()
-            plt.imshow(trg.transpose(1,2,0))
-            plt.show()
-
 
         return img, target
 
