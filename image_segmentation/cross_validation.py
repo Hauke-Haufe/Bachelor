@@ -143,7 +143,7 @@ class Crossvalidation:
         else:
             raise RuntimeError("not a valid Option")
             
-    def cross_validation(self, folds_path):
+    def cross_validation(self):
     
         keys = self.param_grid.keys()
         values = self.param_grid.values()
@@ -153,7 +153,7 @@ class Crossvalidation:
         
         to_remove_total = 30
 
-        folds_path = Path(folds_path)
+        folds_path = self.root / folds_path
         for path in folds_path.iterdir():
             
             if not (path/ "grid.json" ).is_file():
@@ -258,7 +258,6 @@ def test_config():
 
     cv.run_test(opts, "dataset/test")
 
-   
 if __name__ == "__main__":
 
     cv = Crossvalidation("dataset")
