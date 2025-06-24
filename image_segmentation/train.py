@@ -233,11 +233,11 @@ def train(opts, fold_path):
                 save_ckpt(fold_path /  f'latest.pth')
                 print("validation...")
                 model.eval()
-                t = time.time()
+                
                 val_score, _ = validate(opts=opts, model=model, loader=val_loader, 
                     device=device, metrics=metrics, path=fold_path)
                 print(metrics.to_str(val_score))
-                print(f"validation time: {time.time() -t}")
+
 
                 t_metrics["validation"].append({
                     "epoch": cur_epochs, 
