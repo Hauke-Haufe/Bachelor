@@ -384,7 +384,7 @@ class Frame_get:
     def __getitem__(self, key):
         return self.images[key], None, None, None
 
-class Frame_server:
+class Framestreamer:
 
     def __init__(self, root_dir: Path, sid, eid, config):
         
@@ -409,7 +409,7 @@ class Frame_server:
 
 
         for i in range(self.max_size):
-            image, accel, gyro = self.load_(i)
+            image, accel, gyro = self.load_(self.cur)
 
             with self.lock:
                 self.buffer[self.cur] = (image, accel, gyro,  self.cur)
@@ -454,15 +454,13 @@ class Frame_server:
 
     def __getitem__(self, key):
         
-        a = time.time()
         while len(self.buffer) < self.cur- key -10:
             pass
         
-        #print(time.time()-a)
         if key in self.buffer:
             with self.lock:
                 return self.buffer[key]
-
+            
         else:
             print("cache wurde verfehlt")
             image, accel, gyro = self.load_(self.cur)
