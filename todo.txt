@@ -4,12 +4,14 @@ ideas:
 
 Akut:
 -python würfelt Laufzeit
-
+-multihreaded odometry in processes
 
 Aufwand: (hoch)
 -custumize odometry mask wieghted (modify Hybridodometry cuda)
 -custimize icp mask wieghted (modify multiscale odometry)
 -realsense recording logic
+
+-c++ scene fragmenter schreiben und cuda streams mangagen
 
 nice_to_know:
 -nutzt right handed Koordinatensystem (y_down)

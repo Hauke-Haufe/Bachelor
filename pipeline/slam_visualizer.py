@@ -1,6 +1,7 @@
 import open3d.visualization as vis
 import open3d as o3d
 import numpy as np
+import os
 
 
 def plot_graph(pcd, posegraphs, traj_only, without_frames):
@@ -27,8 +28,7 @@ def plot_graph(pcd, posegraphs, traj_only, without_frames):
                 
                 traj_colors.append([0,0,1])
                 
-            else:
-               
+            else: 
                 traj_colors.append([1,0,0])
 
         lineset = o3d.geometry.LineSet()
@@ -65,12 +65,13 @@ def test_graph(graph):
         prev = curr
 if __name__ == "__main__":
     
-    pcd = o3d.io.read_point_cloud("data/fragments/0.pcd")
+    fragments = [file for file in os.listdir("data/fragments") if file.endswith(".pcd")]
 
-    pre = o3d.io.read_pose_graph("data/fragments/gtsampre_0.json")
-    posegraph = o3d.io.read_pose_graph("data/fragments/gtsam0.json")
-    #posegraph1 = o3d.io.read_pose_graph("data/fragments/open3d0.json")
-    graphs = [ pre, posegraph]#, posegraph]
-    test_graph(posegraph)
-    #test_graph(pre)
-    plot_graph(pcd, graphs, False, True)
+    for i in range(len(fragments)):
+        pcd = o3d.io.read_point_cloud(f"data/fragments/{i}.pcd")
+        pre = o3d.io.read_pose_graph(f"data/fragments/gtsampre_{i}.json")
+        opt = o3d.io.read_pose_graph(f"data/fragments/gtsam{i}.json")
+
+        graphs = [ pre, opt]
+
+        plot_graph(pcd, graphs, False, False)
