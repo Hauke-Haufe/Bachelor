@@ -12,11 +12,34 @@ import torch.multiprocessing as mp
 import torch.utils.dlpack
 
 from posegraph import Posegraph
-from sensor_io import Frame_server, Frame_get
+from sensor_io import Framestreamer
 from config import FRAGMENT_PATH, INTRINSICS_PATH 
+from scipy.spatial.transform import Rotation as R
 
 import matplotlib.pyplot as plt
 
+def is_large_motion(transform, t_threshold, r_threshold):
+
+    big = False
+    t = transform[:3,3]
+    translation_norm = np.linalg.norm(t)
+
+    
+    R_mat = transform[:3,:3]
+    rot = R.from_matrix(R_mat)
+    angle_rad = rot.magnitude()
+    rotation_deg = np.degrees(angle_rad)
+
+    if rotation_deg > r_threshold:
+        big = True
+        print("big rotation")
+    
+    if translation_norm> t_threshold:
+        big = True
+        print("big translation")
+    
+
+    return big
 
 class model_tracking:
 
@@ -115,21 +138,21 @@ class loop_closure:
 
             return False, None, None
 
-    def create_posegraph_(self, sid, eid,  config, instrinsics, path, images):
+    def create_posegraph_(self, sid, eid,  config, instrinsics, images):
 
         pose_graph = Posegraph(np.identity(4), config["posegraph_backend"], config["imu"])
         odometry = np.identity(4)
 
         for source_id in range(sid, eid):
             
-            source_image ,_, _,_ = images[ source_id]
+            source_image ,_, _,_ = images[source_id]
             images.step_frame()
 
             for target_id in range(source_id +1, eid , config["key_framefreq"]):
                 
                 if target_id-source_id < max(2,config["key_framefreq"] * config["num_keyframes"]):
                     
-                    target_image, target_accel, target_gyro, _= images[target_id]
+                    target_image, target_accel, target_gyro, tc= images[target_id]
 
                     if target_id == source_id +1:
                         loop_closure = False
@@ -150,10 +173,12 @@ class loop_closure:
                         trans = icp.transformation
 
                         if target_id == source_id +1:
+                            if is_large_motion(trans.numpy(), 0.05, 15):
+                                print(f"on: {source_id}")
                             odometry = np.dot(trans.numpy(), odometry)
                             pose_graph.add_note(source_id-sid +1, np.linalg.inv(odometry))
                         if not loop_closure and config["imu"]:
-                            pose_graph.add_imu_edge(target_accel, target_gyro, source_id, target_id)
+                            pose_graph.add_imu_edge(target_accel, target_gyro, source_id -sid, target_id -sid)
 
                         pose_graph.add_odometry_edge(trans.numpy(), info, source_id - sid, target_id -sid, loop_closure)
 
@@ -212,8 +237,8 @@ class loop_closure:
 
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
 
-        image_loader = Frame_server(Path(path), sid, eid, config)
-        pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, path, image_loader)
+        image_loader = Framestreamer(Path(path), sid, eid, config)
+        pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, image_loader)
 
         b = config["posegraph_backend"]
         p = pose_graph.convert_to_open3d()
@@ -234,7 +259,7 @@ class loop_closure:
                 
         pose_graph_opt = pose_graph.optimize()
         o3d.io.write_pose_graph(os.path.join(FRAGMENT_PATH, f"{b}{fragment_id}.json"), pose_graph_opt)
-        #test(pose_graph_opt)
+
         with self._lock:
             if len(pose_graph_opt.nodes) >10:
                 vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
@@ -282,7 +307,7 @@ class Scene_fragmenter:
         num_images = min(num_images_c, num_images_d, config["max_images"])    
 
         ids = []
-        sid, eid = 0, config["frames_per_frag"]
+        sid, eid = 0,  config["frames_per_frag"]
         ids.append([sid, eid])
 
         while eid- config["frag_overlap"] +config["frames_per_frag"]   < num_images:

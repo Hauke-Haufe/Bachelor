@@ -8,11 +8,11 @@
     "max_iteration": 50,
 
     "fps": 30,
-    "max_images": 500,
-    "frames_per_frag": 500,
-    "frag_overlap": 100,
+    "max_images": 1000,
+    "frames_per_frag": 700,
+    "frag_overlap": 0,
 
-    "key_framefreq": 7,
+    "key_framefreq": 3,
     "num_keyframes": 2,
 
     "fragmenter_backend": "model_tracking",
