@@ -135,12 +135,12 @@ class GTSAMPosegraph:
 
     def add_odometry_edge(self, odometry,info, i, j, uncertain):
         
-        loop_coef = 1
+        coef = 1
         if uncertain:
-            loop_coef = 100
+            coef = 100
 
         odom_cov = np.linalg.inv(info + 1e-6*np.eye(6))
-        odom_noise = gtsam.noiseModel.Gaussian.Covariance(loop_coef*odom_cov)
+        odom_noise = gtsam.noiseModel.Gaussian.Covariance(coef*odom_cov)
         robust_noise = gtsam.noiseModel.Robust.Create(gtsam.noiseModel.mEstimator.Huber(1.0), odom_noise)
         odometry = gtsam.Pose3(np.linalg.inv(odometry))
         self.graph.add(gtsam.BetweenFactorPose3(symbol('x', i), symbol('x', j), odometry,robust_noise))
@@ -183,15 +183,11 @@ class GTSAMPosegraph:
     
     def optimize(self):
 
-        def symbolChr(key):
-            return (key >> 56) & 0xFF
-
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosity("TERMINATION")
         params.setMaxIterations(500)
         params.setRelativeErrorTol(1e-10)
         params.setAbsoluteErrorTol(1e-10)
-        params.setlambdaInitial(1)
 
         optimizer = gtsam.LevenbergMarquardtOptimizer(self.graph, self.initial, params)
         t = time.time()
@@ -265,7 +261,6 @@ class GTSAMPosegraph:
     def convert_to_open3d(self):
 
         return self.convert_values_to_open3d(self.initial)
-
 
     def save(self, path):
 

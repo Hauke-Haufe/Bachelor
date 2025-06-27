@@ -13,7 +13,7 @@ import torch.utils.dlpack
 
 from posegraph import Posegraph
 from sensor_io import Framestreamer
-from config import FRAGMENT_PATH, INTRINSICS_PATH 
+from config import FRAGMENT_PATH
 from scipy.spatial.transform import Rotation as R
 
 import matplotlib.pyplot as plt
@@ -173,10 +173,8 @@ class loop_closure:
                         trans = icp.transformation
 
                         if target_id == source_id +1:
-                            if is_large_motion(trans.numpy(), 0.05, 15):
-                                print(f"on: {source_id}")
                             odometry = np.dot(trans.numpy(), odometry)
-                            pose_graph.add_note(source_id-sid +1, np.linalg.inv(odometry))
+                            pose_graph.add_note(target_id-sid , np.linalg.inv(odometry))
                         if not loop_closure and config["imu"]:
                             pose_graph.add_imu_edge(target_accel, target_gyro, source_id -sid, target_id -sid)
 
@@ -209,6 +207,8 @@ class loop_closure:
                 device = o3d.core.Device("CUDA:0")
             )
 
+        p_pose = np.eye(4)
+
         for i in range(len(pose_graph.nodes)):
 
             depth_image = o3d.t.io.read_image(f"{path}/depth/image{sid + i}.png").cuda()
@@ -232,17 +232,16 @@ class loop_closure:
                 vgb.integrate(frustum_block_coords, depth_image, color_image,
                     mask, intrinsics, intrinsics, 
                     np.linalg.inv(pose))
-                
+            
+            p_pose =pose
+
         return vgb
 
     def run_system(self,fragment_id, sid, eid,  config, intrinsics, path, model = None):
-
+        
+        self.n_sid = sid
         image_loader = Framestreamer(Path(path), sid, eid, config)
         pose_graph = self.create_posegraph_(sid, eid,  config, intrinsics, image_loader)
-
-        b = config["posegraph_backend"]
-        p = pose_graph.convert_to_open3d()
-        o3d.io.write_pose_graph(os.path.join(FRAGMENT_PATH, f"{b}pre_{fragment_id}.json"), p)
 
         while self.tl_flag:
 
@@ -252,19 +251,21 @@ class loop_closure:
                 pose_graph_opt = pose_graph.optimize()
                 vgb = self.integrate_(path, self.n_sid ,pose_graph_opt, intrinsics, model)
                 pointcloud = vgb.extract_point_cloud()
-                o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}_{self.n_sid}.pcd"), pointcloud)
+                o3d.t.io.write_point_cloud(os.path.join(config["fragment_path"], f"{fragment_id}_{self.n_sid}.pcd"), pointcloud)
+                o3d.io.write_pose_graph(os.path.join(config["fragment_path"], f"{fragment_id}_{self.n_sid}.json"), pose_graph_opt)
+
             
             self.n_sid = sid + self.tl_frame +1
             pose_graph = self.create_posegraph_(self.n_sid, eid, config, intrinsics, path, image_loader)
                 
         pose_graph_opt = pose_graph.optimize()
-        o3d.io.write_pose_graph(os.path.join(FRAGMENT_PATH, f"{b}{fragment_id}.json"), pose_graph_opt)
+        o3d.io.write_pose_graph(os.path.join(config["fragment_path"], f"{fragment_id}.json"), pose_graph_opt)
 
         with self._lock:
             if len(pose_graph_opt.nodes) >10:
                 vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
                 pointcloud = vgb.extract_point_cloud()
-                o3d.t.io.write_point_cloud(os.path.join(FRAGMENT_PATH, f"{fragment_id}.pcd"), pointcloud)
+                o3d.t.io.write_point_cloud(os.path.join(config["fragment_path"], f"{fragment_id}.pcd"), pointcloud)
 
 class Scene_fragmenter:
 
@@ -273,57 +274,56 @@ class Scene_fragmenter:
 
         pass
 
-    def __init__(self, backend, semantic = False):
+    def __init__(self, config):
         
-        if semantic:
+        self.config =config
+
+        if config["semantic"]:
             self.model = self.load_model_()
         else:
             self.model = None
 
-        if backend == "model_tracking": 
+        if config["fragmenter_backend"] == "model_tracking": 
             self.backend = model_tracking()
 
-        elif backend == "loop_closure":
+        elif config["fragmenter_backend"] == "loop_closure":
             self.lock = multiprocessing.Manager().Lock()
             self.backend = loop_closure(self.lock)
 
         else:
-            raise Exception("None Valid backend")
+            raise Exception("No Valid backend")
 
-    @staticmethod
-    def _prepare_task(path):
+    
+    def _prepare_task(self):
 
-        for file in os.listdir(FRAGMENT_PATH):
-            file_path = os.path.join(FRAGMENT_PATH,file)
+        for file in os.listdir(self.config["fragment_path"]):
+            file_path = os.path.join(self.config["fragment_path"],file)
             if os.path.isfile(file_path):
                 os.remove(file_path)
 
-        with open("config.json", "rb") as file:
-            config = json.load(file)
-        intrinsics = o3d.io.read_pinhole_camera_intrinsic(os.path.join(INTRINSICS_PATH, "intrinsics.json"))
+        intrinsics = o3d.io.read_pinhole_camera_intrinsic(os.path.join(self.config["intrinsic_path"], "intrinsics.json"))
 
-        num_images_c = len([file for file in os.listdir(os.path.join(path, "color")) if file.endswith(".png")])
-        num_images_d = len([file for file in os.listdir(os.path.join(path, "depth")) if file.endswith(".png")])
+        num_images_c = len([file for file in os.listdir(os.path.join(self.config["image_path"], "color")) if file.endswith(".png")])
+        num_images_d = len([file for file in os.listdir(os.path.join(self.config["image_path"], "depth")) if file.endswith(".png")])
         num_images = min(num_images_c, num_images_d, config["max_images"])    
 
         ids = []
-        sid, eid = 0,  config["frames_per_frag"]
+        sid, eid = 0,  self.config["frames_per_frag"]
         ids.append([sid, eid])
 
-        while eid- config["frag_overlap"] +config["frames_per_frag"]   < num_images:
-            sid = eid - config["frag_overlap"]
-            eid = sid + config["frames_per_frag"]
+        while eid-  self.config["frag_overlap"] +self.config["frames_per_frag"]   < num_images:
+            sid = eid - self.config["frag_overlap"]
+            eid = sid + self.config["frames_per_frag"]
             ids.append([sid, eid])
             
         n_fragments = len(ids)
         print(intrinsics)
 
-        return ids, n_fragments, intrinsics, config
+        return ids, n_fragments, intrinsics
     
-    #Danger race condition at file loading
-    def make_fragments(self, path ,parallel = False):
+    def make_fragments(self):
 
-        ids, n_fragments, intrinsics, config = self._prepare_task(path)
+        ids, n_fragments, intrinsics = self._prepare_task()
 
         #achtung hier kann gern mal gpu Ueberfordert werden
         max_workers = 2 #min(max(1, multiprocessing.cpu_count()-1), n_fragments)
@@ -331,7 +331,7 @@ class Scene_fragmenter:
         mp_context = multiprocessing.get_context('spawn')
         intrinsics_matrix = o3d.core.Tensor(intrinsics.intrinsic_matrix)
 
-        if parallel:
+        if self.config["parallel_fragments"]:
             if self.model == None:
                     
                 with mp_context.Pool(processes=max_workers) as pool:
@@ -339,7 +339,7 @@ class Scene_fragmenter:
                             ids[fragment_id][0], 
                             ids[fragment_id][1], config, 
                             intrinsics_matrix,
-                            path) for fragment_id in range(n_fragments)]
+                            self.config["image_path"]) for fragment_id in range(n_fragments)]
                     pool.starmap(self.backend.run_system, args)
             
             else:
@@ -354,7 +354,7 @@ class Scene_fragmenter:
                                             ids[fragment_id][1], 
                                             config, 
                                             intrinsics_matrix,
-                                            path,
+                                            self.config["image_path"],
                                             self.model))
                 for p in processes:
                     p.join()
@@ -368,13 +368,16 @@ class Scene_fragmenter:
                                         ids[fragment_id][1], 
                                         config.copy(), 
                                         intrinsics_matrix, 
-                                        path, self.model)
+                                        self.config["image_path"], self.model)
 
 if __name__ == "__main__":
 
+    with open("config.json", "rb") as file:
+            config = json.load(file)
+
     start = time.time()
-    odo =  Scene_fragmenter("loop_closure")
-    odo.make_fragments("data/images", True)
+    odo =  Scene_fragmenter(config)
+    odo.make_fragments()
     print(time.time()-start)
 
     pcd = []
