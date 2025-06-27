@@ -9,13 +9,20 @@
 
     "fps": 30,
     "max_images": 1000,
-    "frames_per_frag": 700,
-    "frag_overlap": 0,
+    "frames_per_frag": 150,
+    "frag_overlap": 50,
+    "parallel_fragments": true,
 
-    "key_framefreq": 3,
+    "key_framefreq": 5,
     "num_keyframes": 2,
 
-    "fragmenter_backend": "model_tracking",
+    "fragmenter_backend": "loop_closure",
     "posegraph_backend": "gtsam",
-    "imu": true
+    "imu": true,
+    "semantic": false,
+
+    "scene_path": "data",
+    "fragment_path": "data/fragments",
+    "intrinsic_path": "data/intrinsics",
+    "image_path": "data/images"
 }

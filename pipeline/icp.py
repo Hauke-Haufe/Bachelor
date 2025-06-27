@@ -4,7 +4,7 @@ import json
 import os
 from config import *
 import time
-
+import numpy as np
 
 class icp:
 
@@ -12,9 +12,9 @@ class icp:
     def _multiscale_registration(source, target, init_transform):
         
         criteria_list = [
-            o3r.ICPConvergenceCriteria(0.0001, 0.0001, 20 ),
-            o3r.ICPConvergenceCriteria(0.00001, 0.00001, 15),
-            o3r.ICPConvergenceCriteria(0.000001, 0.000001, 10)
+            o3r.ICPConvergenceCriteria(0.0001, 0.0001, 100 ),
+            o3r.ICPConvergenceCriteria(0.00001, 0.00001, 100),
+            o3r.ICPConvergenceCriteria(0.000001, 0.000001, 100)
         ]
         
         max_correspondence_distances = o3d.utility.DoubleVector([0.3, 0.14, 0.07])
@@ -30,7 +30,7 @@ class icp:
                                     init_transform, 
                                     estimation)
         
-        o3d.visualization.draw([source.transform(result.transformation), target])
+        #o3d.visualization.draw([source.transform(result.transformation), target])
 
         return result.transformation
 
@@ -52,7 +52,7 @@ class icp:
             ], o3d.pipelines.registration.RANSACConvergenceCriteria(500000, 0.9999)
         )
 
-        o3d.visualization.draw([source, target.transform(result.transformation)])
+        #o3d.visualization.draw([source, target.transform(result.transformation)])
 
         return result.transformation
 
@@ -63,42 +63,33 @@ class icp:
             config = json.load(file)
 
         radius_feature = config["voxel_size"] * 6
-        num_fragments = len(os.listdir(FRAGMENT_PATH))
-
-        pcds, fpfhs = [], []
-        for fragment in os.listdir(FRAGMENT_PATH):
+        fragments = len([f for f in os.listdir(FRAGMENT_PATH)  if f.endswith(".pcd")])
+        
+        pcds, inits = [], []
+        for fragment in fragments:
             pcd = o3d.t.io.read_point_cloud(os.path.join(FRAGMENT_PATH, fragment))
-            start = time.time()
-            fpfh =o3r.compute_fpfh_feature(
-                pcd.voxel_down_sample(0.02).cuda() , 
-                radius= radius_feature, 
-                max_nn = 100)
-            
-            print(f"fpfh time: {time.time()-start}")
             pcds.append(pcd)
-            f = o3d.pipelines.registration.Feature()
-            f.data = fpfh.cpu().numpy()
-            fpfhs.append(f)
 
+        graphs = [f for f in os.listdir(FRAGMENT_PATH)  if f.endswith(".json")]
+        for g in graphs:
+            graph = o3d.io.read_pose_graph(os.path.join(FRAGMENT_PATH, g))
+            inits.append(graph.nodes[].pose)
 
         merged_pcd = pcds[0]
-        for i in range(1,num_fragments):
+        for i in range(1,len(fragments)):
 
             start = time.time()
-            coarse = self._global_registration(pcds[i-1].to_legacy(), 
-                                               pcds[i].to_legacy(), 
-                                               fpfhs[i-1], 
-                                               fpfhs[i],
-                                               config)
             
             print(f"Ransac time: {time.time()-start}")
 
             fine = self._multiscale_registration(pcds[i-1].cuda(),
-                                                 pcds[i].cuda(),
-                                                 coarse)
+                                                 pcds[i].cuda(), 
+                                                 np.linalg.inv(inits[i]))
             
-            merged_pcd.transform(fine)
-            merged_pcd += pcds[i]
+            p = pcds[i-1].transform(fine)
+            o3d.visualization.draw([pcds[i-1].transform(fine.numpy()), pcds[i]])
+
+            merged_pcd += p
         
         o3d.visualization.draw(merged_pcd)
         o3d.t.io.write_point_cloud(os.path.join(SCENE_PATH, "scene.pcd"), merged_pcd)

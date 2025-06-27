@@ -74,4 +74,4 @@ if __name__ == "__main__":
 
         graphs = [ pre, opt]
 
-        plot_graph(pcd, graphs, False, False)
+        plot_graph(pcd, graphs, False, True)
