@@ -15,7 +15,7 @@ from pathlib import Path
 def load_model():  
 
     opts = Options()
-    opts.ckpt =Path("dataseT/folds/0/bt=13_str=16_cw=0.15_lr=0.001_wd=0.001/best.pth")
+    opts.ckpt =Path("dataset/folds/0/bt=7_str=16_cw=0.3_lr=0.01_wd=0.01_l=cross_entropy/best.pth")
     model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
     checkpoint = torch.load(opts.ckpt, map_location=torch.device('cpu'), weights_only=False)
     model.load_state_dict(checkpoint["model_state"])

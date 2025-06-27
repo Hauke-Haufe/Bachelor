@@ -60,7 +60,8 @@ class LWSContext():
         self.zoom_factor = 1.0
         self.classes =  {0:{"name": "object", "color": (255, 0, 0, 100)},
                         1: {"name": "cow", "color": (255,192,203, 150)}, 
-                        2:{"name":"heu", "color": (255, 255, 0, 100)}}
+                        2:{"name":"heu", "color": (255, 255, 0, 100)},
+                        3:{"name": "cow_head", "color": (160,32,240, 50)}}
 
         self.ended = False
     
@@ -118,6 +119,7 @@ class LabelwithSam:
         self.img = ctx.image
 
         self.p_flag = True
+        self.focus_flag = False
         self.vis = True
 
         self.classes = ctx.classes
@@ -162,6 +164,7 @@ class LabelwithSam:
 
         #toggle vis Elements
         self.root.bind("<KeyPress-v>", self.toggle_vis)
+        self.root.bind("<KeyPress-f>", self.toggle_focus_mode)
 
         #next Image button
         next_btn = tk.Button(control_frame, text="Finish", command=self.finish_image)
@@ -269,6 +272,10 @@ class LabelwithSam:
     def change_input_mode(self, event):
         self.p_flag = not self.p_flag
 
+    def toggle_focus_mode(self, event):
+        self.focus_flag = not self.focus_flag
+        self.render()
+
     def clear_all_points(self, event):
         self.points.clear()
 
@@ -374,6 +381,7 @@ class LabelwithSam:
                     int(self.img.height * self.zoom_factor))
 
         if self.vis:
+
             img_overlay = self.img.convert("RGBA")
             self.tk_img = ImageTk.PhotoImage(self.img, master = self.root)
 
@@ -387,7 +395,10 @@ class LabelwithSam:
                 if mask["selected"]:
                     overlay_color = (0, 255, 0, 100)
                 else:
-                    overlay_color = self.classes[mask["class"]]["color"]
+                    if not self.focus_flag:
+                        overlay_color = self.classes[mask["class"]]["color"]
+                    else:
+                        overlay_color = (0,0,0,0)
 
                 # Convert the binary mask to a uint8 image with RGBA color where mask==1
                 # mask must be shape (H, W)
