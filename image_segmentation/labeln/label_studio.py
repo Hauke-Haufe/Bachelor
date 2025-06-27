@@ -108,6 +108,48 @@ class label_project:
 
     def __init__(self, root_path = "data/data_set"):
         
+        """
+        Initialize the LabelStudioRunManager instance.
+
+        This constructor loads project progress, configuration, and environment
+        variables necessary to work with Label Studio for labeling camera runs
+        with polygon and brush projects. If no prior progress file is found,
+        the user is prompted to input configuration interactively.
+
+        Args:
+            root_path (Union[str, Path]):
+                The filesystem path to the root directory containing
+                progress files (e.g., 'progress.json') and where backup
+                data will be stored.
+
+        Attributes:
+            root (Path):
+                The resolved path to the project root directory.
+            runs (dict):
+                A dictionary containing metadata about individual camera runs.
+            key (str):
+                The Label Studio API key.
+            host (str):
+                The URL of the Label Studio server.
+            configs (dict):
+                A dictionary containing configuration data for 'brush' and 'polygon' labeling projects.
+            label_studio_root (Path):
+                Path derived from the LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT environment variable.
+            backup_path (Path):
+                Directory path where backup files will be stored.
+            classes (dict):
+                Mapping of semantic classes to their labels and priority values.
+
+        Notes:
+            - If the 'progress.json' file exists in the root directory,
+              it will be loaded automatically.
+            - If 'progress.json' does not exist, the user will be prompted
+              to enter the API key and server URL interactively.
+            - The method `save_config()` is called to persist any loaded or
+              newly created configuration.
+            - This constructor ensures that the environment is properly set up
+              for local file serving in Label Studio."""
+
         self.root = Path(root_path)
         if (self.root / "progress.json").is_file():
             with open(self.root / "progress.json") as f:
@@ -152,7 +194,7 @@ class label_project:
         self.backup_path = self.root / "backup"
         self.backup_path.mkdir(parents=True, exist_ok=True)
 
-        self.classes = {"heu": {"label":2, "prio": 0}, "cow": {"label":1, "prio": 1}}
+        self.classes = {"heu": {"label":2, "prio": 0}, "cow": {"label":1, "prio": 1}, "cow_head": {"label": 3, "prio": 2}}
 
     #--------------------------------------
     #   util functions
@@ -179,9 +221,26 @@ class label_project:
     #--------------------------------------
     #   Projectmanger functions
     #--------------------------------------
-    #adds a run to the project with the images without any labelstudio project beeing created
+
     def add_run(self, image_folder: str):
-        
+        """
+        Add a new labeling run by importing a folder of PNG images.
+
+        This method assigns a unique incremental key to the new run,
+        creates a dedicated directory under the project root to store
+        the run's images, copies all PNG files from the specified folder,
+        and updates the internal run configuration.
+
+        Args:
+            image_folder (str):
+                Path to the directory containing PNG images to be added as a new run.
+
+        Side Effects:
+            - Creates a new directory under self.root named 'runN', where N is the next available integer key.
+            - Copies all '.png' files from the input folder into the new run directory.
+            - Updates self.runs to include the new run entry with the list of copied image paths.
+            - Persists the updated configuration by calling self.save_config()."""
+
         image_folder = Path(image_folder)
 
         found = False
@@ -207,6 +266,28 @@ class label_project:
         self.save_config()
 
     def add_project(self, run, type, i_import = True):
+        
+        """
+        Create a new labeling project (polygon or brush) in Label Studio and optionally import image tasks.
+
+        This method creates a new Label Studio project of the specified type for the given run,
+        associates the project ID with the run metadata, and optionally imports all run images
+        as annotation tasks.
+
+        Args:
+            run (str):
+                The identifier of the run (must be a key in self.runs).
+            type (str):
+                The project type to create. Must be either 'polygon' or 'brush'.
+            i_import (bool, optional):
+                If True (default), automatically import all images in the run into the new project.
+
+        Side Effects:
+            - Creates a new Label Studio project via the Label Studio API.
+            - Updates self.runs[run] to store the new project ID.
+            - Optionally imports image tasks into Label Studio.
+        """
+
 
         if not(type == 'polygon' or type == 'brush'):
             raise RuntimeError("not a valid task only polygon and brush available")
@@ -526,7 +607,7 @@ class label_project:
         for task in tqdm(tasks):
             
             if len(task["annotations"]) > 0:
-                if len(task["annotations"][0]["result"]) >0:
+                if len(task["annotations"][-1]["result"]) >0:
                     mask_by_clas_dict = {}
                     height = task["annotations"][0]["result"][0]["original_height"]
                     width = task["annotations"][0]["result"][0]["original_width"]
@@ -534,7 +615,7 @@ class label_project:
                     for label, _ in self.classes.items():
                         mask_by_clas_dict[label] = np.zeros((height, width))
 
-                    for result in task["annotations"][0]["result"]:
+                    for result in task["annotations"][-1]["result"]:
                         mask = brush.decode_rle(result["value"]["rle"]).reshape((height, width, 4))[:, :, 3]
                         
                         
@@ -584,6 +665,7 @@ class label_project:
         
         return results
 
+    #meant for label unlabeles data
     def label_with_sam(self, run):
 
         run = str(run)
@@ -622,8 +704,8 @@ class label_project:
                 result= results
                 )
 
-    #doesnt work right           
-    def revise_with_sam(self,run, ids):
+    #works on predictions     
+    def revise_with_sam(self,run, predic, ids = None):
 
         run = str(run)
         ls = Client(url=self.host, api_key=self.key)
@@ -633,17 +715,27 @@ class label_project:
         else:
             brush_project = ls.get_project(self.runs[run]["brush_project"])
 
+        if ids is None:
+            tasks = brush_project.get_tasks()
+            ids = [task["id"] for task in tasks]
+
         ctx = LWSContext()
         for id in ids:
+            ctx.clear_masks()
             task = brush_project.get_task(id)
             
             img = Image.open(self.lpath_to_path(task["data"]["image"]))         
             ctx.set_image(img)
 
-            predictions = task["predictions"]
-            width, height = img.size
+            if predic:
+                data = task["predictions"]
+            else:
+                data = task["annotations"]
 
-            for prediction in predictions:
+            if len(data) > 0:
+                prediction = data[-1]
+                width, height = img.size
+
                 for result in prediction["result"]:
                     mask = {"mask": brush.decode_rle(result["value"]["rle"]).reshape((height, width, 4))[:, :, 3], 
                             "class": self.classes[result["value"]["brushlabels"][0]]["label"]}
@@ -651,21 +743,25 @@ class label_project:
                     ctx.set_mask( mask)
             
             LWS = LabelwithSam(ctx)
-
             ctx = LWS.get_context()
             
             if ctx.ended:
                 return
 
             results = self.get_result_from_LWSContext(ctx)
-            brush_project.create_prediction(
-            task_id= id,
-            model_version=None,
-            result= results
-            )
+            if predic:
+                brush_project.create_prediction(
+                task_id= id,
+                model_version=None,
+                result= results
+                )
+            else:
+                brush_project.create_annotation(
+                task_id= id,
+                result= results
+                )
 
         
-
 def save_json(root):
 
     root = Path(root)
@@ -700,7 +796,7 @@ def save_json(root):
 if __name__ == "__main__":
     
     project = label_project()
-    project.label_with_sam(4)
+    project.revise_with_sam(3, False)
         
 
     

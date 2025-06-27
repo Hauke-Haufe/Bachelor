@@ -110,6 +110,11 @@ if __name__ == "__main__":
     eval = Evalutation("dataset/folds")
     #eval.evaluate_configs("dataset/folds/0")
     best = eval.determine_best_test("dataset/folds/0")
+    best = eval.determine_best_test("dataset/folds/1")
+    best = eval.determine_best_test("dataset/folds/2")
+    best = eval.determine_best_test("dataset/folds/3")
+
+    print(best)
 
 
         

@@ -153,7 +153,8 @@ class Crossvalidation:
         
         to_remove_total = 30
 
-        folds_path = self.root / folds_path
+        folds_path = self.root / "folds"
+        ""
         for path in folds_path.iterdir():
             
             if not (path/ "grid.json" ).is_file():
@@ -261,3 +262,4 @@ def test_config():
 if __name__ == "__main__":
 
     cv = Crossvalidation("dataset")
+    cv.cross_validation()
