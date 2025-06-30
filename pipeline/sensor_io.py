@@ -293,11 +293,12 @@ class File_io():
         self.clean_dirs_()
 
         reader = o3d.t.io.RSBagReader()
-        reader.open(bag_path)
+        reader.open(str(bag_path))
         self.stream_lenght = reader.metadata.stream_length_usec / 1000000
         self.fps = reader.metadata.fps
-        self.intrisics = reader.metadata.intrinsics
         reader.close()
+
+        self.fps = 30
 
         self.bag_path = bag_path
         self.freq = int(self.fps /config["fps"])
@@ -477,7 +478,7 @@ if __name__ == "__main__":
     #recorder.capture()
 
     io = File_io("data/images")
-    io.unpack("data/raw_data/RS/VGA/20250414_120152/recording.bag", config)
+    io.unpack("data/20250414_120152/recording.bag", config)
 
     #t = File_io("data/test")
     #t.unpack("data/test", config)

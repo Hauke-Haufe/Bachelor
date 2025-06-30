@@ -4,11 +4,6 @@ using namespace open3d;
 
 std::string Path = "/home/nb-messen-07/Desktop/SpatialMapping/data/images";
 
-
-
-
-
-
 void visualizeImaget(t::geometry::RGBDImage image){
 
     auto legacy_image = image.ToLegacy();

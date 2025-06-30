@@ -5,7 +5,7 @@ from tqdm import tqdm
 import shutil
 import datetime
 
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+
 from label_studio_sdk import Client
 import label_studio_converter.brush as brush
 
@@ -444,6 +444,8 @@ class label_project:
 
     #creates a new Labelstudio project and uses Automaticsegmenter from Sam to create polygon segmentations
     def create_polygon_task(self, run: int):
+        
+        from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
         run = str(run)
         ls = Client(url=self.host, api_key=self.key)
@@ -796,7 +798,7 @@ def save_json(root):
 if __name__ == "__main__":
     
     project = label_project()
-    project.revise_with_sam(3, False)
+    project.add_run("data/images/color")
         
 
     

@@ -205,7 +205,7 @@ void ComputeOdometryResultIntensityCPU(
 
 //------------------------------------------------------------
 //implmented with bool label
-void ComputeOdometryResultHybridCPU(const core::Tensor& source_depth,
+void ComputeMaskOdometryResultHybridCPU(const core::Tensor& source_depth,
                                     const core::Tensor& target_depth,
                                     const core::Tensor& source_intensity,
                                     const core::Tensor& target_intensity,
@@ -276,7 +276,7 @@ void ComputeOdometryResultHybridCPU(const core::Tensor& source_depth,
                     bool valid;
 
                     if (*v){
-                        bool valid = GetJacobianHybrid(
+                        valid = GetJacobianHybrid(
                             x, y, depth_outlier_trunc, source_depth_indexer,
                             target_depth_indexer, source_intensity_indexer,
                             target_intensity_indexer, target_depth_dx_indexer,
