@@ -301,7 +301,7 @@ __global__ void ComputeOdometryResultHybridCUDAKernel(
 
 //-------------------------------------------------------------------
 
-__global__ void ComputeOdometryResultHybridCUDAKernel(
+__global__ void ComputeMaskOdometryResultHybridCUDAKernel(
         NDArrayIndexer source_depth_indexer,
         NDArrayIndexer target_depth_indexer,
         NDArrayIndexer source_intensity_indexer,
@@ -376,7 +376,7 @@ __global__ void ComputeOdometryResultHybridCUDAKernel(
     }
 }
 
-void ComputeOdometryResultHybridCUDA(const core::Tensor& source_depth,
+void ComputeMaskOdometryResultHybridCUDA(const core::Tensor& source_depth,
                                      const core::Tensor& target_depth,
                                      const core::Tensor& source_intensity,
                                      const core::Tensor& target_intensity,
@@ -424,13 +424,13 @@ void ComputeOdometryResultHybridCUDA(const core::Tensor& source_depth,
 
     const dim3 blocks((cols * rows + kBlockSize - 1) / kBlockSize);
     const dim3 threads(kBlockSize);
-    ComputeOdometryResultHybridCUDAKernel<<<blocks, threads, 0,
+    ComputeMaskOdometryResultHybridCUDAKernel<<<blocks, threads, 0,
                                             core::cuda::GetStream()>>>(
             source_depth_indexer, target_depth_indexer,
             source_intensity_indexer, target_intensity_indexer,
             target_depth_dx_indexer, target_depth_dy_indexer,
             target_intensity_dx_indexer, target_intensity_dy_indexer,
-            source_vertex_indexer, ti, global_sum_ptr, rows, cols,
+            source_vertex_indexer, source_mask_indexer, ti, global_sum_ptr, rows, cols,
             depth_outlier_trunc, depth_huber_delta, intensity_huber_delta);
     core::cuda::Synchronize();
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);

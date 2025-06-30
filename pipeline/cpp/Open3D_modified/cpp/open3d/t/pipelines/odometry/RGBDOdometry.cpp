@@ -287,7 +287,7 @@ OdometryResult RGBDOdometryMultiScaleIntensity(
 
 //---------------------------------------------------------------------------------------------------------------
 //uint_8 IMage vlt hinzufuegen oder bool
-OdometryResult RGBDOdometryMultiScaleHybrid(
+OdometryResult RGBDMaskOdometryMultiScaleHybrid(
         const RGBDImage& source,
         const RGBDImage& target,
         const Image& source_mask,
@@ -369,11 +369,10 @@ OdometryResult RGBDOdometryMultiScaleHybrid(
         for (int64_t i = 0; i < n_levels; ++i) {
                 for (int iter = 0; iter < criteria[i].max_iteration_; ++iter) {
 
-                        auto delta_result = ComputeOdometryResultHybrid(
+                        auto delta_result = ComputeMaskOdometryResultHybrid(
                                 source_depth[i], target_depth[i], source_intensity[i],
                                 target_intensity[i], target_depth_dx[i], target_depth_dy[i],
-                                target_intensity_dx[i], target_intensity_dy[i],
-                                mask[i], 
+                                target_intensity_dx[i], target_intensity_dy[i], mask[i],
                                 source_vertex_maps[i], intrinsic_matrices[i],
                                 result.transformation_, params.depth_outlier_trunc_,
                                 params.depth_huber_delta_, params.intensity_huber_delta_);
@@ -567,7 +566,7 @@ OdometryResult ComputeOdometryResultIntensity(
                                           source_vertex_map.GetShape(1)));
 }
 
-OdometryResult ComputeOdometryResultHybrid(const Tensor& source_depth,
+OdometryResult ComputeMaskOdometryResultHybrid(const Tensor& source_depth,
                                            const Tensor& target_depth,
                                            const Tensor& source_intensity,
                                            const Tensor& target_intensity,
@@ -575,7 +574,7 @@ OdometryResult ComputeOdometryResultHybrid(const Tensor& source_depth,
                                            const Tensor& target_depth_dy,
                                            const Tensor& target_intensity_dx,
                                            const Tensor& target_intensity_dy,
-                                           const Tensor& target_mask, 
+                                           const Tensor& source_mask, 
                                            const Tensor& source_vertex_map,
                                            const Tensor& intrinsics,
                                            const Tensor& init_source_to_target,
@@ -588,10 +587,10 @@ OdometryResult ComputeOdometryResultHybrid(const Tensor& source_depth,
         Tensor se3_delta;
         float inlier_residual;
         int inlier_count;
-        kernel::odometry::ComputeOdometryResultHybrid(
+        kernel::odometry::ComputeMaskOdometryResultHybrid(
                 source_depth, target_depth, source_intensity, target_intensity,
                 target_depth_dx, target_depth_dy, target_intensity_dx,
-                target_intensity_dy, source_vertex_map, target_mask, intrinsics,
+                target_intensity_dy, source_vertex_map, source_mask, intrinsics,
                 init_source_to_target, se3_delta, inlier_residual, inlier_count,
                 depth_outlier_trunc, depth_huber_delta, intensity_huber_delta);
         // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.

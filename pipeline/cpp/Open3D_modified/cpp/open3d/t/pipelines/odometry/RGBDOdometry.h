@@ -155,6 +155,17 @@ OdometryResult RGBDOdometryMultiScale(
         const Method method = Method::Hybrid,
         const OdometryLossParams& params = OdometryLossParams());
 
+OdometryResult RGBDMaskOdometryMultiScaleHybrid(
+        const t::geometry::RGBDImage& source,
+        const t::geometry::RGBDImage& target,
+        const t::geometry::Image& source_mask,
+        const core::Tensor& intrinsics,
+        const core::Tensor& trans,
+        const float depth_scale,
+        const float depth_max,
+        const std::vector<OdometryConvergenceCriteria>& criteria,
+        const OdometryLossParams& params);
+
 /// \brief Estimates the 4x4 rigid transformation T from source to target, with
 /// inlier rmse and fitness.
 /// Performs one iteration of RGBD odometry using loss function
@@ -295,6 +306,22 @@ OdometryResult ComputeOdometryResultHybrid(
         const float depth_outlier_trunc,
         const float depth_huber_delta,
         const float intensity_huber_delta);
+
+OdometryResult ComputeMaskOdometryResultHybrid(const core::Tensor& source_depth,
+                                           const core::Tensor& target_depth,
+                                           const core::Tensor& source_intensity,
+                                           const core::Tensor& target_intensity,
+                                           const core::Tensor& target_depth_dx,
+                                           const core::Tensor& target_depth_dy,
+                                           const core::Tensor& target_intensity_dx,
+                                           const core::Tensor& target_intensity_dy,
+                                           const core::Tensor& source_mask, 
+                                           const core::Tensor& source_vertex_map,
+                                           const core::Tensor& intrinsics,
+                                           const core::Tensor& init_source_to_target,
+                                           const float depth_outlier_trunc,
+                                           const float depth_huber_delta,
+                                           const float intensity_huber_delta);
 
 /// Estimates 6x6 information matrix from a pair of depth images.
 /// The process is akin to information matrix creation for point clouds.

@@ -125,7 +125,7 @@ void ComputeOdometryResultIntensity(const core::Tensor &source_depth,
 
 
 //--------------------------------------------------------------
-void ComputeOdometryResultHybrid(const core::Tensor &source_depth,
+void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
                                  const core::Tensor &target_depth,
                                  const core::Tensor &source_intensity,
                                  const core::Tensor &target_intensity,
@@ -178,7 +178,7 @@ void ComputeOdometryResultHybrid(const core::Tensor &source_depth,
             init_source_to_target.To(host, core::Float64).Contiguous();
 
     if (device.IsCPU()) {
-        ComputeOdometryResultHybridCPU(
+        ComputeMaskOdometryResultHybridCPU(
                 source_depth, target_depth, source_intensity, target_intensity,
                 target_depth_dx, target_depth_dy, target_intensity_dx,
                 target_intensity_dy, source_vertex_map, source_mask, intrinsics_d, trans_d,
@@ -186,7 +186,7 @@ void ComputeOdometryResultHybrid(const core::Tensor &source_depth,
                 depth_huber_delta, intensity_huber_delta);
     } else if (device.IsCUDA()) {
         core::CUDAScopedDevice scoped_device(source_depth.GetDevice());
-        CUDA_CALL(ComputeOdometryResultHybridCUDA, source_depth, target_depth,
+        CUDA_CALL(ComputeMaskOdometryResultHybridCUDA, source_depth, target_depth,
                   source_intensity, target_intensity, target_depth_dx,
                   target_depth_dy, target_intensity_dx, target_intensity_dy,
                   source_vertex_map, source_mask, intrinsics_d, trans_d, delta,

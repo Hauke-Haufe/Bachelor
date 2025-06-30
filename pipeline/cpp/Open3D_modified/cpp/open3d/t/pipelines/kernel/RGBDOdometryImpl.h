@@ -45,7 +45,7 @@ void ComputeOdometryResultIntensityCPU(
         const float intensity_huber_delta);
 
 //-----------------------------------------------------------------
-void ComputeOdometryResultHybridCPU(const core::Tensor& source_depth,
+void ComputeMaskOdometryResultHybridCPU(const core::Tensor& source_depth,
                                     const core::Tensor& target_depth,
                                     const core::Tensor& source_intensity,
                                     const core::Tensor& target_intensity,
@@ -118,6 +118,25 @@ void ComputeOdometryResultIntensityCUDA(
         int& inlier_count,
         const float depth_outlier_trunc,
         const float intensity_huber_delta);
+
+void ComputeMaskOdometryResultHybridCUDA(const core::Tensor& source_depth,
+                                const core::Tensor& target_depth,
+                                const core::Tensor& source_intensity,
+                                const core::Tensor& target_intensity,
+                                const core::Tensor& target_depth_dx,
+                                const core::Tensor& target_depth_dy,
+                                const core::Tensor& target_intensity_dx,
+                                const core::Tensor& target_intensity_dy,
+                                const core::Tensor& source_vertex_map,
+                                const core::Tensor& source_mask,
+                                const core::Tensor& intrinsics,
+                                const core::Tensor& init_source_to_target,
+                                core::Tensor& delta,
+                                float& inlier_residual,
+                                int& inlier_count,
+                                const float depth_outlier_trunc,
+                                const float depth_huber_delta,
+                                const float intensity_huber_delta);
 
 void ComputeOdometryResultHybridCUDA(const core::Tensor& source_depth,
                                      const core::Tensor& target_depth,

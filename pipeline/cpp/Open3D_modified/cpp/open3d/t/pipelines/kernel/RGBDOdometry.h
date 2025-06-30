@@ -42,7 +42,7 @@ void ComputeOdometryResultIntensity(const core::Tensor &source_depth,
                                     const float depth_outlier_trunc,
                                     const float intensity_huber_delta);
 //--------------------------------------------------------------------------------
-void ComputeOdometryResultHybrid(const core::Tensor &source_depth,
+void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
                                  const core::Tensor &target_depth,
                                  const core::Tensor &source_intensity,
                                  const core::Tensor &target_intensity,
