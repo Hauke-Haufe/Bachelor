@@ -4,6 +4,7 @@ open3d_ispc_add_library(tpipelines OBJECT)
 
 target_sources(tpipelines PRIVATE
     odometry/RGBDOdometry.cpp
+    odometry/debug_util.cpp
 )
 
 target_sources(tpipelines PRIVATE
