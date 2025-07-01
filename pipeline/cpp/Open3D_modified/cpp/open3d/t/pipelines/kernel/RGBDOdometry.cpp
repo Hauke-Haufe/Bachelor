@@ -157,7 +157,6 @@ void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
     core::AssertTensorDtype(target_depth_dy, supported_dtype);
     core::AssertTensorDtype(target_intensity_dx, supported_dtype);
     core::AssertTensorDtype(target_intensity_dy, supported_dtype);
-    core::AssertTensorDtype(source_mask, supported_dtype);
 
     core::AssertTensorDevice(source_depth, device);
     core::AssertTensorDevice(target_depth, device);
