@@ -140,7 +140,7 @@ class loop_closure:
 
     def create_posegraph_(self, sid, eid,  config, instrinsics, images):
 
-        pose_graph = Posegraph(config["posegraph_backend"], sid, np.identity(4), config["imu"])
+        pose_graph = Posegraph(config["posegraph_backend"], np.identity(4), config["imu"])
         odometry = np.identity(4)
 
         for source_id in range(sid, eid):
@@ -152,7 +152,7 @@ class loop_closure:
                 
                 if target_id-source_id < max(2,config["key_framefreq"] * config["num_keyframes"]):
                     
-                    target_image, target_accel, target_gyro, tc= images[target_id]
+                    target_image, target_accel, target_gyro, _= images[target_id]
 
                     if target_id == source_id +1:
                         loop_closure = False
