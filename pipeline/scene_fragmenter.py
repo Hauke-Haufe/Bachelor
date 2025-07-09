@@ -140,7 +140,7 @@ class loop_closure:
 
     def create_posegraph_(self, sid, eid,  config, instrinsics, images):
 
-        pose_graph = Posegraph(np.identity(4), config["posegraph_backend"], config["imu"])
+        pose_graph = Posegraph(config["posegraph_backend"], sid, np.identity(4), config["imu"])
         odometry = np.identity(4)
 
         for source_id in range(sid, eid):
@@ -207,13 +207,11 @@ class loop_closure:
                 device = o3d.core.Device("CUDA:0")
             )
 
-        p_pose = np.eye(4)
-
-        for i in range(len(pose_graph.nodes)):
+        for i in range(len(pose_graph)):
 
             depth_image = o3d.t.io.read_image(f"{path}/depth/image{sid + i}.png").cuda()
             color_image = o3d.t.io.read_image(f"{path}/color/image{sid + i}.png").cuda()
-            pose = pose_graph.nodes[i].pose
+            pose = pose_graph[i]
 
             frustum_block_coords = vgb.compute_unique_block_coordinates(
                 depth_image,  intrinsics, 
@@ -232,8 +230,6 @@ class loop_closure:
                 vgb.integrate(frustum_block_coords, depth_image, color_image,
                     mask, intrinsics, intrinsics, 
                     np.linalg.inv(pose))
-            
-            p_pose =pose
 
         return vgb
 
@@ -247,23 +243,23 @@ class loop_closure:
 
             print(f"tracking lost at {self.tl_frame}")
 
-            if pose_graph.count_nodes() > 10:
-                pose_graph_opt = pose_graph.optimize()
-                vgb = self.integrate_(path, self.n_sid ,pose_graph_opt, intrinsics, model)
+            if len(pose_graph) > 10:
+                pose_graph.optimize()
+                vgb = self.integrate_(path, self.n_sid ,pose_graph, intrinsics, model)
                 pointcloud = vgb.extract_point_cloud()
                 o3d.t.io.write_point_cloud(os.path.join(config["fragment_path"], f"{fragment_id}_{self.n_sid}.pcd"), pointcloud)
-                o3d.io.write_pose_graph(os.path.join(config["fragment_path"], f"{fragment_id}_{self.n_sid}.json"), pose_graph_opt)
+                pose_graph.save(os.path.join(config["fragment_path"], f"{fragment_id}_{self.n_sid}.json"))
 
             
             self.n_sid = sid + self.tl_frame +1
             pose_graph = self.create_posegraph_(self.n_sid, eid, config, intrinsics, path, image_loader)
                 
-        pose_graph_opt = pose_graph.optimize()
-        o3d.io.write_pose_graph(os.path.join(config["fragment_path"], f"{fragment_id}.json"), pose_graph_opt)
+        pose_graph.optimize()
+        pose_graph.save(os.path.join(config["fragment_path"], f"{fragment_id}"))
 
         with self._lock:
-            if len(pose_graph_opt.nodes) >10:
-                vgb = self.integrate_(path, self.n_sid, pose_graph_opt, intrinsics, model)
+            if len(pose_graph) > 10:
+                vgb = self.integrate_(path, self.n_sid, pose_graph, intrinsics, model)
                 pointcloud = vgb.extract_point_cloud()
                 o3d.t.io.write_point_cloud(os.path.join(config["fragment_path"], f"{fragment_id}.pcd"), pointcloud)
 
