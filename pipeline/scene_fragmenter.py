@@ -373,9 +373,19 @@ class Scene_fragmenter:
 if __name__ == "__main__":
 
     with open("config.json", "rb") as file:
-            config = json.load(file)
+        config = json.load(file)
 
-    start = time.time()
+    intrinsics = o3d.io.read_pinhole_camera_intrinsic("data/intrinsics/intrinsics.json")
+    intrinsics_matrix = o3d.core.Tensor(intrinsics.intrinsic_matrix)
+
+    p = o3d.io.read_pose_graph("data/test/graph.json")
+    l = loop_closure(multiprocessing.Manager().Lock())
+    vgb = l.integrate_("data/test",1744, p, intrinsics_matrix)
+    pointcloud = vgb.extract_point_cloud()
+    o3d.visualization.draw([pointcloud])
+
+
+    '''start = time.time()
     odo =  Scene_fragmenter(config)
     odo.make_fragments()
     print(time.time()-start)
@@ -385,5 +395,5 @@ if __name__ == "__main__":
         if file.endswith(".pcd"):
             pcd.append(o3d.io.read_point_cloud(os.path.join("data/fragments", file)))
        
-    o3d.visualization.draw(pcd[0])
+    o3d.visualization.draw(pcd[0])'''
     

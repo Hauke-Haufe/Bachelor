@@ -334,7 +334,7 @@ __global__ void ComputeMaskOdometryResultHybridCUDAKernel(
         bool* v = source_mask_indexer.GetDataPtr<bool>(x, y); 
         bool valid;
 
-        if (*v){
+        if (!*v){
             bool valid = GetJacobianHybrid(
                     x, y, depth_outlier_trunc, source_depth_indexer,
                     target_depth_indexer, source_intensity_indexer,

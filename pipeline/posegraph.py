@@ -1,11 +1,13 @@
-import gtsam
+'''import gtsam
 import gtsam.noiseModel
+from gtsam import symbol'''
+
 import open3d as o3d
 import numpy as np
 import json
 from pathlib import Path
 from typing import Optional
-from gtsam import symbol
+
 import time
 
 class imuNoise:

@@ -8,11 +8,8 @@
 #include <open3d/core/Dtype.h>
 #include <open3d/t/io/ImageIO.h>
 #include <open3d/pipelines/registration/GlobalOptimization.h>
-#include <open3d/Open3D.h>
 
 #include <filesystem>
-#include <sstream>
-#include <vector>
 #include <algorithm>
 #include <iostream>
 
@@ -42,35 +39,16 @@ std::vector<fs::path> GetFilesDir(fs::path dirPath){
     return files;
 } 
 
-std::unique_ptr<t::geometry::VoxelBlockGrid> create_vgb(){
-
-    std::vector<std::string> atr_names = {"tsdf", "weight", "color"};
-    std::vector<core::Dtype> atr_types = {core::Dtype::Float32,core::Dtype::Float32, core::Dtype::Float32 };
-    std::vector<core::SizeVector> channels = {{1}, {1}, {3}};
-    core::Device device("CUDA:0");
-
-    return std::make_unique<t::geometry::VoxelBlockGrid>(
-        atr_names, 
-        atr_types,
-        channels,
-        0.005,
-        16,
-        10000,
-        device
-    );
-
-}
-
-
-
 
 void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
 
-    fs::path image_dir = run_path / "images";
+    fs::path image_dir = run_path / "color";
     fs::path mask_dir = run_path / "masks";
     fs::path depth_dir = run_path / "depth";
 
     core::Device device(core::Device::DeviceType::CPU, 0);
+    core::Device cuda_device(core::Device::DeviceType::CUDA, 0);
+
     auto dtype = core::Dtype::Float32;
     const auto init_trans = core::Tensor::Eye(4,core::Dtype::Float64 ,device);
 
@@ -84,7 +62,7 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
     auto t_color_image = std::make_shared<t::geometry::Image>();
     auto t_depth_image = std::make_shared<t::geometry::Image>();
     auto s_depth_image = std::make_shared<t::geometry::Image>();
-
+    
     auto temp_mask = std::make_shared<t::geometry::Image>();
     auto source_mask = temp_mask->To(core::Dtype::Bool);
     
@@ -103,8 +81,8 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
 
         t::io::ReadImageFromPNG((mask_images[i]).string(), source_mask);
 
-        auto source = t::geometry::RGBDImage(*s_color_image, *s_depth_image);
-        auto target = t::geometry::RGBDImage(*t_color_image, *t_depth_image);
+        auto source = t::geometry::RGBDImage(*s_color_image, *s_depth_image);//.To(cuda_device);
+        auto target = t::geometry::RGBDImage(*t_color_image, *t_depth_image);//.To(cuda_device);
 
         auto m_result = t::pipelines::odometry::RGBDMaskOdometryMultiScaleHybrid(
             source, target, source_mask, intrinsic_matrix, init_trans, 
@@ -125,7 +103,6 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
         pose = pose.Matmul(result.transformation_);
         m_pose = m_pose.Matmul(m_result.transformation_);
         
-
         graph.AddOdometryEdge(result.transformation_, information, i, i+1, false);
         m_graph.AddOdometryEdge(m_result.transformation_, m_information, i, i+1, false);
 
@@ -135,5 +112,17 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
 
     graph.Save(run_path/"graph.json");
     m_graph.Save(run_path/"masked_graph.json");
+
+    pipelines::registration::PoseGraph o3d_mgraph;
+    pipelines::registration::PoseGraph o3d_graph;
+
+    io::ReadPoseGraph(run_path/"graph.json", o3d_graph);
+    io::ReadPoseGraph(run_path/"masked_graph.json", o3d_mgraph);
+
+    std::vector<t::geometry::PointCloud> DrawObjects;
+
+
+    auto m_vgb = integrate(o3d_mgraph, color_images, depth_images, intrinsic_matrix);
+    auto vgb = integrate(o3d_graph, color_images, depth_images, intrinsic_matrix);
 
 };

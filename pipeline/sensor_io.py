@@ -408,7 +408,7 @@ class Framestreamer:
         self.eid = eid
         self.cur = self.sid 
 
-
+        #preload images
         for i in range(self.max_size):
             image, accel, gyro = self.load_(self.cur)
 
