@@ -26,8 +26,8 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> integrate(
     pipelines::registration::PoseGraph& Posegraph,
     const std::vector<fs::path>& color_images,
     const std::vector<fs::path>& depth_images, 
-    core::Tensor& instrinsics,
-    std::string path){
+    core::Tensor& instrinsics
+    ){
     
     std::unique_ptr<t::geometry::VoxelBlockGrid> vgb;
     vgb = create_vgb();

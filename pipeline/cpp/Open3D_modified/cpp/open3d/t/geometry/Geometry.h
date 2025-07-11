@@ -52,6 +52,8 @@ public:
         OrientedBoundingBox = 11,
         /// AxisAlignedBoundingBox
         AxisAlignedBoundingBox = 12,
+        /// RGBMIMage
+        RGBDImage = 13
     };
 
 public:

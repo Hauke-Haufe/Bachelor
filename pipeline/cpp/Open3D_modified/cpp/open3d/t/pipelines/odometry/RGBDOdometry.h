@@ -21,10 +21,15 @@ namespace pipelines {
 namespace odometry {
 
 enum class Method {
-    PointToPlane,  // Implemented and commented in
-                   // ComputeOdometryResultPointToPlane
+    PointToPlane,  // Implemented and commented in ComputeOdometryResultPointToPlane
     Intensity,  // Implemented and commented in ComputeOdometryResultIntensity
     Hybrid,     // Implemented and commented in ComputeOdometryResultHybrid
+};
+
+enum class MaskMethod{
+    SourceMask,
+    TargetMask,
+    Hybrid,
 };
 
 class OdometryConvergenceCriteria {

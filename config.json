@@ -17,8 +17,8 @@
     "num_keyframes": 2,
 
     "fragmenter_backend": "loop_closure",
-    "posegraph_backend": "gtsam",
-    "imu": true,
+    "posegraph_backend": "open3d",
+    "imu": false,
     "semantic": false,
 
     "scene_path": "data",
