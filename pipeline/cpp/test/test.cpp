@@ -65,6 +65,7 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
     
     auto temp_mask = std::make_shared<t::geometry::Image>();
     auto source_mask = temp_mask->To(core::Dtype::Bool);
+    auto target_mask = temp_mask->To(core::Dtype::Bool);
     
     auto pose = core::Tensor::Eye(4,core::Dtype::Float64 ,device);
     auto m_pose = core::Tensor::Eye(4,core::Dtype::Float64 ,device);
@@ -80,17 +81,20 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
         t::io::ReadImageFromPNG((depth_images[i+1]).string(), *t_depth_image);
 
         t::io::ReadImageFromPNG((mask_images[i]).string(), source_mask);
+        t::io::ReadImageFromPNG((mask_images[i+1]).string(), target_mask);
 
-        auto source = t::geometry::RGBDImage(*s_color_image, *s_depth_image);//.To(cuda_device);
-        auto target = t::geometry::RGBDImage(*t_color_image, *t_depth_image);//.To(cuda_device);
+        auto source = t::geometry::RGBDMImage(*s_color_image, *s_depth_image, source_mask);//.To(cuda_device);
+        auto target = t::geometry::RGBDMImage(*t_color_image, *t_depth_image, target_mask);//.To(cuda_device);
+        auto s = target.GetDevice();
 
-        auto m_result = t::pipelines::odometry::RGBDMaskOdometryMultiScaleHybrid(
-            source, target, source_mask, intrinsic_matrix, init_trans, 
+        auto m_result = t::pipelines::odometry::RGBDMOdometryMultiScale(
+            source, target,intrinsic_matrix, init_trans, 
             1000.0f, 3.0f, critirias, t::pipelines::odometry::OdometryLossParams() 
         );
 
         auto result = t::pipelines::odometry::RGBDOdometryMultiScale(
-            source, target, intrinsic_matrix, init_trans,1000.0f, 3.0f, critirias, 
+            t::geometry::RGBDImage(source.color_, source.depth_), t::geometry::RGBDImage(target.color_, target.depth_), 
+            intrinsic_matrix, init_trans,1000.0f, 3.0f, critirias, 
             t::pipelines::odometry::Method::Hybrid, t::pipelines::odometry::OdometryLossParams());
 
         //information muss auch noch geändert werden
@@ -121,8 +125,9 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
 
     std::vector<t::geometry::PointCloud> DrawObjects;
 
-
     auto m_vgb = integrate(o3d_mgraph, color_images, depth_images, intrinsic_matrix);
     auto vgb = integrate(o3d_graph, color_images, depth_images, intrinsic_matrix);
 
+    visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((vgb->ExtractPointCloud()).ToLegacy())});
+    visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((m_vgb->ExtractPointCloud()).ToLegacy())});
 };

@@ -14,7 +14,7 @@ RGBDMImage &RGBDMImage::Clear() {
 bool RGBDMImage::IsEmpty() const { return color_.IsEmpty() && depth_.IsEmpty() && mask_.IsEmpty(); }
 
 std::string RGBDMImage::ToString() const {
-    return fmt::format(
+    return  fmt::format(
             "RGBD Image pair [{}Aligned]\n"
             "Color [size=({},{}), channels={}, format={}, device={}]\n"
             "Depth [size=({},{}), channels={}, format={}, device={}]\n",

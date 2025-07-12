@@ -53,7 +53,7 @@ public:
         /// AxisAlignedBoundingBox
         AxisAlignedBoundingBox = 12,
         /// RGBMIMage
-        RGBDImage = 13
+        RGBDMImage = 13
     };
 
 public:

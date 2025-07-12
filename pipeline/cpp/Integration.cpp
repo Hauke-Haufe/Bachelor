@@ -6,7 +6,7 @@ namespace fs = std::filesystem;
 std::unique_ptr<t::geometry::VoxelBlockGrid> create_vgb(){
 
     std::vector<std::string> atr_names = {"tsdf", "weight", "color"};
-    std::vector<core::Dtype> atr_types = {core::Dtype::Float32,core::Dtype::Float32, core::Dtype::Float32 };
+    std::vector<core::Dtype> atr_types = {core::Dtype::Float32,core::Dtype::Float32, core::Dtype::Float32};
     std::vector<core::SizeVector> channels = {{1}, {1}, {3}};
     core::Device device("CUDA:0");
 
@@ -16,7 +16,7 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> create_vgb(){
         channels,
         0.005,
         16,
-        10000,
+        20000,
         device
     );
 
@@ -34,6 +34,7 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> integrate(
 
     t::geometry::Image color_image;
     t::geometry::Image depth_image;
+    core::Device cuda_device(core::Device::DeviceType::CUDA, 0);
     
     for(int i = 0; i < color_images.size()-1; i++){
 
@@ -46,15 +47,15 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> integrate(
         auto inverse_t = core::eigen_converter::EigenMatrixToTensor(inverse);
 
         auto frustum_block_coords = vgb->GetUniqueBlockCoordinates(
-            depth_image,
+            depth_image.To(cuda_device),
             instrinsics,
             inverse_t
         );
 
         vgb->Integrate(
             frustum_block_coords,
-            depth_image,
-            color_image,
+            depth_image.To(cuda_device),
+            color_image.To(cuda_device),
             instrinsics,
             inverse_t
         );

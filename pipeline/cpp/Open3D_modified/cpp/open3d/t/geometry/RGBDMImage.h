@@ -7,7 +7,7 @@ namespace open3d {
 namespace t {
 namespace geometry {
 
-/// \brief RGBDImage A triple of color, depth and a mask
+/// \brief RGBDMImage A triple of color, depth and a mask
 ///
 /// For most processing, the image triple should be aligned (same viewpoint and
 /// resolution).
@@ -24,7 +24,7 @@ public:
     /// \param aligned Are the two images aligned (same viewpoint and
     /// resolution)?
     RGBDMImage(const Image &color, const Image &depth, const Image &mask, bool aligned = true)
-        : Geometry(Geometry::GeometryType::RGBDImage, 2),
+        : Geometry(Geometry::GeometryType::RGBDMImage, 2),
           color_(color),
           depth_(depth),
           mask_(mask),
@@ -36,6 +36,10 @@ public:
             aligned_ = false;
             utility::LogWarning(
                     "Aligned image triple must have the same resolution.");
+        }
+        if (mask.GetDtype() != core::Dtype::UInt8){
+            utility::LogError(
+                "The Dtype of the mask must be UInt8 not {}", mask.GetDtype().ToString());
         }
     }
 
