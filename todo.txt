@@ -1,6 +1,6 @@
 
 ideas:
-
+einmal alle oddometry durch rechnen und dann erst Posegraphs bauen
 
 Akut:
 -python würfelt Laufzeit

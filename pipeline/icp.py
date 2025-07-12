@@ -1,15 +1,15 @@
 import open3d as o3d
 import open3d.t.pipelines.registration as o3r
+from posegraph import Posegraph
 import json
 import os
 from config import *
-import time
 import numpy as np
 
 class icp:
 
     @staticmethod
-    def _multiscale_registration(source, target, init_transform):
+    def multiscale_registration(source, target, init_transform, colored):
         
         criteria_list = [
             o3r.ICPConvergenceCriteria(0.0001, 0.0001, 100 ),
@@ -19,8 +19,23 @@ class icp:
         
         max_correspondence_distances = o3d.utility.DoubleVector([0.3, 0.14, 0.07])
         voxle_sizes = o3d.utility.DoubleVector([0.03, 0.02, 0.01])
-        init_transform = o3d.core.Tensor.eye(4)
-        estimation = o3r.TransformationEstimationPointToPlane()
+        scale_param = 0.1
+
+        if colored:
+            estimation = o3r.TransformationEstimationForColoredICP(
+                o3r.robust_kernel.RobustKernel(
+                    o3r.robust_kernel.RobustKernelMethod.TukeyLoss, 
+                    scale_param
+                )
+            )
+        else:
+            estimation = o3r.TransformationEstimationPointToPlane(
+                o3r.robust_kernel.RobustKernel(
+                    o3r.robust_kernel.RobustKernelMethod.TukeyLoss, 
+                    scale_param
+                )
+            )
+
 
         result = o3r.multi_scale_icp(source,
                                     target,
@@ -35,7 +50,7 @@ class icp:
         return result.transformation
 
     @staticmethod
-    def _global_registration(source, target, source_fpfh, target_fpfh, config):
+    def global_registration(source, target, source_fpfh, target_fpfh, config):
 
         distance_threshold = config["voxel_size"] * 1.5
         source = source.voxel_down_sample(voxel_size = 0.02)
@@ -56,43 +71,50 @@ class icp:
 
         return result.transformation
 
-
     def run_system(self, parallel= False):
 
         with open("config.json", "rb") as file:
             config = json.load(file)
 
-        radius_feature = config["voxel_size"] * 6
-        fragments = len([f for f in os.listdir(FRAGMENT_PATH)  if f.endswith(".pcd")])
-        
+
+        fragments = [f for f in os.listdir(FRAGMENT_PATH)  if f.endswith(".pcd")]
+        fragments = sorted(fragments, reverse=False)
+        graphs = [f for f in os.listdir(FRAGMENT_PATH)  if not f.endswith(".pcd")]
+        graphs = sorted(graphs, reverse=False)
+
         pcds, inits = [], []
         for fragment in fragments:
             pcd = o3d.t.io.read_point_cloud(os.path.join(FRAGMENT_PATH, fragment))
+            colors = pcd.point.colors
+            colors = colors.to(o3d.core.Dtype.Float32) / 255.0
+            pcd.point.colors = colors
             pcds.append(pcd)
 
-        graphs = [f for f in os.listdir(FRAGMENT_PATH)  if f.endswith(".json")]
+        overlab_ids = [0]
+        overlab_id = 0
         for g in graphs:
-            graph = o3d.io.read_pose_graph(os.path.join(FRAGMENT_PATH, g))
-            inits.append(graph.nodes[].pose)
+            graph = Posegraph(config["posegraph_backend"], np.eye(4), config["imu"])
+            graph.load(os.path.join(FRAGMENT_PATH, g))
+            old_overlap_id = overlab_id
+            overlab_id += config["frames_per_frag"] - config["frag_overlap"]
+            inits.append(graph[overlab_id-old_overlap_id])
+            overlab_ids.append(overlab_id)
 
-        merged_pcd = pcds[0]
+
+        transforms = []
         for i in range(1,len(fragments)):
 
-            start = time.time()
+            fine = self.multiscale_registration(
+                pcds[i-1].cuda(),pcds[i].cuda(), np.linalg.inv(inits[i-1]),
+                config["colored_icp"])
             
-            print(f"Ransac time: {time.time()-start}")
-
-            fine = self._multiscale_registration(pcds[i-1].cuda(),
-                                                 pcds[i].cuda(), 
-                                                 np.linalg.inv(inits[i]))
-            
-            p = pcds[i-1].transform(fine)
-            o3d.visualization.draw([pcds[i-1].transform(fine.numpy()), pcds[i]])
-
-            merged_pcd += p
+            o3d.visualization.draw([pcds[i-1].clone().transform(fine.numpy()), pcds[i]])
+            transforms.append(fine)
         
-        o3d.visualization.draw(merged_pcd)
-        o3d.t.io.write_point_cloud(os.path.join(SCENE_PATH, "scene.pcd"), merged_pcd)
+        if config["posegraph_backend"] == "gtsam":
+
+            
+
 
 
 if __name__ == "__main__":

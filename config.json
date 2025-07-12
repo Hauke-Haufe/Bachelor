@@ -1,6 +1,6 @@
 {
     "voxel_size":  0.01,
-    "color": true,
+    "colored_icp": true,
     "depth_scale": false,
     "depth_max": 3,
     
@@ -9,7 +9,7 @@
 
     "fps": 30,
     "max_images": 1000,
-    "frames_per_frag": 150,
+    "frames_per_frag": 100,
     "frag_overlap": 50,
     "parallel_fragments": true,
 
