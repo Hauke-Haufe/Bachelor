@@ -312,6 +312,7 @@ __global__ void ComputeMaskOdometryResultHybridCUDAKernel(
         NDArrayIndexer target_intensity_dy_indexer,
         NDArrayIndexer source_vertex_indexer,
         NDArrayIndexer source_mask_indexer, 
+        NDArrayIndexer target_mask_indexer,
         TransformIndexer ti,
         float* global_sum,
         int rows,
@@ -335,12 +336,13 @@ __global__ void ComputeMaskOdometryResultHybridCUDAKernel(
         bool valid;
 
         if (!*v){
-            bool valid = GetJacobianHybrid(
+            bool valid = GetMaskJacobianHybrid(
                     x, y, depth_outlier_trunc, source_depth_indexer,
                     target_depth_indexer, source_intensity_indexer,
                     target_intensity_indexer, target_depth_dx_indexer,
                     target_depth_dy_indexer, target_intensity_dx_indexer,
-                    target_intensity_dy_indexer, source_vertex_indexer, ti, J_I,
+                    target_intensity_dy_indexer, source_vertex_indexer, 
+                    target_mask_indexer, ti, J_I,
                     J_D, r_I, r_D);
         }
         else{
@@ -386,6 +388,7 @@ void ComputeMaskOdometryResultHybridCUDA(const core::Tensor& source_depth,
                                      const core::Tensor& target_intensity_dy,
                                      const core::Tensor& source_vertex_map,
                                      const core::Tensor& source_mask,
+                                     const core::Tensor& target_mask,
                                      const core::Tensor& intrinsics,
                                      const core::Tensor& init_source_to_target,
                                      core::Tensor& delta,
@@ -410,6 +413,7 @@ void ComputeMaskOdometryResultHybridCUDA(const core::Tensor& source_depth,
     NDArrayIndexer source_vertex_indexer(source_vertex_map, 2);
 
     NDArrayIndexer source_mask_indexer(source_mask, 2);
+    NDArrayIndexer target_mask_indexer(target_mask, 2);
 
     core::Device device = source_vertex_map.GetDevice();
     core::Tensor trans = init_source_to_target;
@@ -430,7 +434,8 @@ void ComputeMaskOdometryResultHybridCUDA(const core::Tensor& source_depth,
             source_intensity_indexer, target_intensity_indexer,
             target_depth_dx_indexer, target_depth_dy_indexer,
             target_intensity_dx_indexer, target_intensity_dy_indexer,
-            source_vertex_indexer, source_mask_indexer, ti, global_sum_ptr, rows, cols,
+            source_vertex_indexer, source_mask_indexer, target_mask_indexer,
+            ti, global_sum_ptr, rows, cols,
             depth_outlier_trunc, depth_huber_delta, intensity_huber_delta);
     core::cuda::Synchronize();
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);

@@ -10,6 +10,7 @@
 
 #include "open3d/t/geometry/PointCloud.h"
 #include "open3d/t/geometry/RGBDImage.h"
+#include "open3d/t/geometry/RGBDMImage.h"
 #include "open3d/t/geometry/kernel/Image.h"
 #include "open3d/t/pipelines/kernel/RGBDOdometry.h"
 #include "open3d/t/pipelines/kernel/TransformationConverter.h"
@@ -23,6 +24,7 @@ namespace odometry {
 using core::Tensor;
 using t::geometry::Image;
 using t::geometry::RGBDImage;
+using t::geometry::RGBDMImage;
 
 OdometryResult RGBDOdometryMultiScalePointToPlane(
         const RGBDImage& source,
@@ -47,6 +49,16 @@ OdometryResult RGBDOdometryMultiScaleIntensity(
 OdometryResult RGBDOdometryMultiScaleHybrid(
         const RGBDImage& source,
         const RGBDImage& target,
+        const Tensor& intrinsics,
+        const Tensor& trans,
+        const float depth_scale,
+        const float depth_max,
+        const std::vector<OdometryConvergenceCriteria>& criteria,
+        const OdometryLossParams& params);
+
+OdometryResult RGBDMOdometryMultiScaleHybrid(
+        const RGBDMImage& source,
+        const RGBDMImage& target,
         const Tensor& intrinsics,
         const Tensor& trans,
         const float depth_scale,
@@ -106,6 +118,45 @@ OdometryResult RGBDOdometryMultiScale(
 
     return OdometryResult(trans_d);
 }
+
+OdometryResult RGBDMOdometryMultiScale(
+        const t::geometry::RGBDMImage& source,
+        const t::geometry::RGBDMImage& target,
+        const core::Tensor& intrinsics,
+        const core::Tensor& init_source_to_target,
+        const float depth_scale,
+        const float depth_max ,
+        const std::vector<OdometryConvergenceCriteria>& criteria_list,
+        const OdometryLossParams& params){  
+
+    const core::Device device = source.depth_.GetDevice();
+
+    core::AssertTensorDevice(target.depth_.AsTensor(), device);
+
+    core::AssertTensorShape(intrinsics, {3, 3});
+    core::AssertTensorShape(init_source_to_target, {4, 4});
+
+    // 4x4 transformations are always float64 and stay on CPU.
+    const core::Device host("CPU:0");
+    const Tensor intrinsics_d = intrinsics.To(host, core::Float64).Clone();
+    const Tensor trans_d =
+            init_source_to_target.To(host, core::Float64).Clone();
+
+    Image source_depth = source.depth_;
+    Image target_depth = target.depth_;
+
+    Image source_depth_processed =
+            source_depth.ClipTransform(depth_scale, 0, depth_max, NAN);
+    Image target_depth_processed =
+            target_depth.ClipTransform(depth_scale, 0, depth_max, NAN);
+
+    RGBDMImage source_processed(source.color_, source_depth_processed, source.mask_);
+    RGBDMImage target_processed(target.color_, target_depth_processed, source.mask_);
+
+    return RGBDMOdometryMultiScaleHybrid(source_processed, target_processed,
+        intrinsics_d, trans_d, depth_scale, depth_max, criteria_list, params);    
+}
+
 
 OdometryResult RGBDOdometryMultiScalePointToPlane(
         const RGBDImage& source,
@@ -288,44 +339,22 @@ OdometryResult RGBDOdometryMultiScaleIntensity(
 
 //---------------------------------------------------------------------------------------------------------------
 //uint_8 IMage vlt hinzufuegen oder bool
-OdometryResult RGBDMaskOdometryMultiScaleHybrid(
-        const RGBDImage& pre_source,
-        const RGBDImage& pre_target,
-        const Image& source_mask,
+OdometryResult RGBDMOdometryMultiScaleHybrid(
+        const RGBDMImage& source,
+        const RGBDMImage& target,
         const Tensor& intrinsics,
         const Tensor& trans,
         const float depth_scale,
         const float depth_max,
         const std::vector<OdometryConvergenceCriteria>& criteria,
         const OdometryLossParams& params){
-        
-        const core::Device device = pre_source.depth_.GetDevice();
-        core::AssertTensorDevice(pre_target.depth_.AsTensor(), device);
-
-        core::AssertTensorShape(intrinsics, {3, 3});
-        core::AssertTensorShape(trans, {4, 4});
-
-        // 4x4 transformations are always float64 and stay on CPU.
-        const core::Device host("CPU:0");
-        const Tensor intrinsics_d = intrinsics.To(host, core::Float64).Clone();
-        const Tensor trans_d =
-                trans.To(host, core::Float64).Clone();
-
-        Image source_depth = pre_source.depth_;
-        Image target_depth = pre_target.depth_;
-
-        Image source_depth_processed =
-                source_depth.ClipTransform(depth_scale, 0, depth_max, NAN);
-        Image target_depth_processed =
-                target_depth.ClipTransform(depth_scale, 0, depth_max, NAN);
-
-        RGBDImage source_processed(pre_source.color_, source_depth_processed);
-        RGBDImage target_processed(pre_target.color_, target_depth_processed);
 
         int64_t n_levels = int64_t(criteria.size());
         std::vector<Tensor> source_intensity(n_levels);
         std::vector<Tensor> target_intensity(n_levels);
-        std::vector<Tensor> mask(n_levels);           
+
+        std::vector<Tensor> source_mask(n_levels);   
+        std::vector<Tensor> target_mask(n_levels);        
 
         std::vector<Tensor> source_depth_v(n_levels);
         std::vector<Tensor> target_depth_v(n_levels);
@@ -339,15 +368,17 @@ OdometryResult RGBDMaskOdometryMultiScaleHybrid(
 
         std::vector<Tensor> intrinsic_matrices(n_levels);
 
-        Image source_depth_curr(source_processed.depth_);
-        Image target_depth_curr(target_processed.depth_);
+        Image source_depth_curr(source.depth_);
+        Image target_depth_curr(target.depth_);
 
-        Image source_intensity_curr = source_processed.color_.RGBToGray().To(core::Float32);
-        Image target_intensity_curr = target_processed.color_.RGBToGray().To(core::Float32);
-        Image source_mask_curr = source_mask;
+        Image source_intensity_curr = source.color_.RGBToGray().To(core::Float32);
+        Image target_intensity_curr = target.color_.RGBToGray().To(core::Float32);
+
+        Image source_mask_curr(source.mask_);
+        Image target_mask_curr(target.mask_);
         
 
-        Tensor intrinsics_pyr = intrinsics_d;
+        Tensor intrinsics_pyr = intrinsics;
         // Create image pyramid
         for (int64_t i = 0; i < n_levels; ++i) {
                 source_depth_v[n_levels - 1 - i] = source_depth_curr.AsTensor().Clone();
@@ -357,8 +388,11 @@ OdometryResult RGBDMaskOdometryMultiScaleHybrid(
                         source_intensity_curr.AsTensor().Clone();
                 target_intensity[n_levels - 1 - i] =
                         target_intensity_curr.AsTensor().Clone();
-                mask[n_levels - 1 - i]= 
+
+                source_mask[n_levels - 1 - i]= 
                         source_mask_curr.AsTensor().Clone();
+                target_mask[n_levels - 1 - i] =
+                       target_mask_curr.AsTensor().Clone(); 
 
                 Image source_vertex_map =
                         source_depth_curr.CreateVertexMap(intrinsics_pyr, NAN);
@@ -382,7 +416,9 @@ OdometryResult RGBDMaskOdometryMultiScaleHybrid(
                         params.depth_outlier_trunc_ * 2, NAN);
                 source_intensity_curr = source_intensity_curr.PyrDown();
                 target_intensity_curr = target_intensity_curr.PyrDown();
+
                 source_mask_curr = source_mask_curr.PyrDown();
+                target_mask_curr = target_mask_curr.PyrDown();
 
                 intrinsics_pyr /= 2;
                 intrinsics_pyr[-1][-1] = 1;
@@ -390,14 +426,15 @@ OdometryResult RGBDMaskOdometryMultiScaleHybrid(
         }
 
         // Odometry
-        OdometryResult result(trans_d, /*prev rmse*/ 0.0, /*prev fitness*/ 1.0);
+        OdometryResult result(trans, /*prev rmse*/ 0.0, /*prev fitness*/ 1.0);
         for (int64_t i = 0; i < n_levels; ++i) {
                 for (int iter = 0; iter < criteria[i].max_iteration_; ++iter) {
 
                         auto delta_result = ComputeMaskOdometryResultHybrid(
                                 source_depth_v[i], target_depth_v[i], source_intensity[i],
                                 target_intensity[i], target_depth_dx[i], target_depth_dy[i],
-                                target_intensity_dx[i], target_intensity_dy[i], mask[i],
+                                target_intensity_dx[i], target_intensity_dy[i], source_mask[i],
+                                target_mask[i],
                                 source_vertex_maps[i], intrinsic_matrices[i],
                                 result.transformation_, params.depth_outlier_trunc_,
                                 params.depth_huber_delta_, params.intensity_huber_delta_);
@@ -601,6 +638,7 @@ OdometryResult ComputeMaskOdometryResultHybrid(const Tensor& source_depth,
                                            const Tensor& target_intensity_dx,
                                            const Tensor& target_intensity_dy,
                                            const Tensor& source_mask, 
+                                           const Tensor& target_mask,
                                            const Tensor& source_vertex_map,
                                            const Tensor& intrinsics,
                                            const Tensor& init_source_to_target,
@@ -616,7 +654,8 @@ OdometryResult ComputeMaskOdometryResultHybrid(const Tensor& source_depth,
         kernel::odometry::ComputeMaskOdometryResultHybrid(
                 source_depth, target_depth, source_intensity, target_intensity,
                 target_depth_dx, target_depth_dy, target_intensity_dx,
-                target_intensity_dy, source_vertex_map, source_mask, intrinsics,
+                target_intensity_dy, source_vertex_map, source_mask, 
+                target_mask, intrinsics,
                 init_source_to_target, se3_delta, inlier_residual, inlier_count,
                 depth_outlier_trunc, depth_huber_delta, intensity_huber_delta);
         // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.

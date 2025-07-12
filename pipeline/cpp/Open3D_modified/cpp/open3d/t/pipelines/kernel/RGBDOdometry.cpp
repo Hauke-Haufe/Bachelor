@@ -135,6 +135,7 @@ void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
                                  const core::Tensor &target_intensity_dy,
                                  const core::Tensor &source_vertex_map,
                                  const core::Tensor &source_mask, 
+                                 const core::Tensor &target_mask,
                                  const core::Tensor &intrinsics,
                                  const core::Tensor &init_source_to_target,
                                  core::Tensor &delta,
@@ -157,6 +158,9 @@ void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
     core::AssertTensorDtype(target_depth_dy, supported_dtype);
     core::AssertTensorDtype(target_intensity_dx, supported_dtype);
     core::AssertTensorDtype(target_intensity_dy, supported_dtype);
+    
+    core::AssertTensorDtype(source_mask, core::Dtype::UInt8);
+    core::AssertTensorDtype(target_mask, core::Dtype::UInt8);
 
     core::AssertTensorDevice(source_depth, device);
     core::AssertTensorDevice(target_depth, device);
@@ -177,10 +181,10 @@ void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
             init_source_to_target.To(host, core::Float64).Contiguous();
 
     if (device.IsCPU()) {
-        ComputeMaskOdometryResultHybridCPU(
+        ComputeDMaskOdometryResultHybridCPU(
                 source_depth, target_depth, source_intensity, target_intensity,
                 target_depth_dx, target_depth_dy, target_intensity_dx,
-                target_intensity_dy, source_vertex_map, source_mask, intrinsics_d, trans_d,
+                target_intensity_dy, source_vertex_map, source_mask, target_mask, intrinsics_d, trans_d,
                 delta, inlier_residual, inlier_count, depth_outlier_trunc,
                 depth_huber_delta, intensity_huber_delta);
     } else if (device.IsCUDA()) {
@@ -188,7 +192,7 @@ void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
         CUDA_CALL(ComputeMaskOdometryResultHybridCUDA, source_depth, target_depth,
                   source_intensity, target_intensity, target_depth_dx,
                   target_depth_dy, target_intensity_dx, target_intensity_dy,
-                  source_vertex_map, source_mask, intrinsics_d, trans_d, delta,
+                  source_vertex_map, source_mask, target_mask, intrinsics_d, trans_d, delta,
                   inlier_residual, inlier_count, depth_outlier_trunc,
                   depth_huber_delta, intensity_huber_delta);
     } else {

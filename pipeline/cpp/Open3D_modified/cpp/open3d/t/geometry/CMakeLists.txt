@@ -8,6 +8,7 @@ target_sources(tgeometry PRIVATE
     BoundingVolume.cpp
     PointCloud.cpp
     RGBDImage.cpp
+    RGBDMImage.cpp
     TensorMap.cpp
     TriangleMesh.cpp
     TriangleMeshFactory.cpp

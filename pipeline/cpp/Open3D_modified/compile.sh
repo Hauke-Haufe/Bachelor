@@ -11,7 +11,7 @@ mkdir -p $SCRIPT_DIR/install
 
 #compiles Open3d 
 cd $SCRIPT_DIR/build 
-cmake -DBUILD_CUDA_MODULE=true -DCMAKE_INSTALL_PREFIX=$SCRIPT_DIR/install -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DBUILD_CUDA_MODULE=true  -DBUILD_EXAMPLES=false -DCMAKE_INSTALL_PREFIX=$SCRIPT_DIR/install -DCMAKE_BUILD_TYPE=Debug ..
 make -j8
 make install 
 make python-package
