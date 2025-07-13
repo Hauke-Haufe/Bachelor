@@ -62,6 +62,15 @@ void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
                                  const float depth_huber_delta,
                                  const float intensity_huber_delta);
 
+void ComputeResidualMap(const core::Tensor& source_intensity,
+                        const core::Tensor& target_intensity,
+                        const core::Tensor target_depth,
+                        const core::Tensor& source_vertex_map, 
+                        core::Tensor& residuals, 
+                        const core::Tensor& source_to_target, 
+                        const core::Tensor& intrinsics, 
+                        const float depth_outlier_trunc);
+
 void ComputeOdometryResultHybrid(const core::Tensor &source_depth,
                                  const core::Tensor &target_depth,
                                  const core::Tensor &source_intensity,

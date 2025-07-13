@@ -39,6 +39,15 @@ std::vector<fs::path> GetFilesDir(fs::path dirPath){
     return files;
 } 
 
+std::vector<fs::path> GetFreqVec(std::vector<fs::path> v,int freq){
+
+    std::vector<fs::path> n;
+    for (size_t i = 0; i < v.size() - freq -1; i += freq) {
+        n.push_back(v[i]);
+    }
+
+    return n;
+}
 
 void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
 
@@ -54,9 +63,14 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
 
     std::vector<t::pipelines::odometry::OdometryConvergenceCriteria> critirias = {6,3,1};
 
-    auto color_images = GetFilesDir(image_dir);
-    auto mask_images = GetFilesDir(mask_dir);
-    auto depth_images = GetFilesDir(depth_dir);
+    auto icolor_images = GetFilesDir(image_dir);
+    auto imask_images = GetFilesDir(mask_dir);
+    auto idepth_images = GetFilesDir(depth_dir);
+
+    auto color_images = GetFreqVec(icolor_images,9);
+    auto mask_images = GetFreqVec(imask_images, 9);
+    auto depth_images = GetFreqVec(idepth_images, 9);
+
 
     auto s_color_image = std::make_shared<t::geometry::Image>();
     auto t_color_image = std::make_shared<t::geometry::Image>();
@@ -73,7 +87,7 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
     Posegraph<Open3dPosegraphBackend> m_graph(m_pose);
     Posegraph<Open3dPosegraphBackend> graph(pose);
     
-    for(int i = 0; i< CountFilesDir(image_dir)-1; i++){
+    for(int i = 0; i< color_images.size()-1; i++){
         
         t::io::ReadImageFromPNG((color_images[i]).string(), *s_color_image);
         t::io::ReadImageFromPNG((color_images[i+1]).string(), *t_color_image);
