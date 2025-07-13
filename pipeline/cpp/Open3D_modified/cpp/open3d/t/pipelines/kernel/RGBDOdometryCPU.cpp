@@ -203,6 +203,12 @@ void ComputeOdometryResultIntensityCPU(
 }
 
 
+
+
+
+
+
+
 //------------------------------------------------------------
 //implmented with bool label
 //only the target mask in beeing considered
@@ -570,7 +576,89 @@ void ComputeDMaskOdometryResultHybridCPU(const core::Tensor& source_depth,
     DecodeAndSolve6x6(A_reduction_tensor, delta, inlier_residual, inlier_count);
 }
 
+//Achtung conversion zwischen float und residual Dtype
+void ComputeResidualMapCPU(const core::Tensor& source_intensity,
+                           const core::Tensor& target_intensity,
+                           const core::Tensor target_depth,
+                           const core::Tensor& source_vertex_map, 
+                           core::Tensor& residuals, 
+                           const core::Tensor& source_to_target, 
+                           const core::Tensor& intrinsics, 
+                           const float depth_outlier_trunc){
+    
+    NDArrayIndexer source_intensity_indexer(source_intensity, 2);
+    NDArrayIndexer target_intensity_indexer(target_intensity, 2);
 
+    NDArrayIndexer target_depth_indexer(target_depth, 2);
+    NDArrayIndexer source_vertex_indexer(source_vertex_map, 2);
+
+    NDArrayIndexer residual_indexer(residuals, 2); 
+
+    t::geometry::kernel::TransformIndexer trans(intrinsics, source_to_target);
+
+    int64_t rows = source_intensity_indexer.GetShape(0);
+    int64_t cols = source_intensity_indexer.GetShape(1);
+    int64_t n = rows * cols;
+
+    core::Device device = source_vertex_map.GetDevice();
+    
+    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int workload_idx) {
+        int y = workload_idx / cols;
+        int x = workload_idx % cols;
+        float residual = 0;
+
+        bool valid = ComputeIntensityResidual(x,y, depth_outlier_trunc, source_vertex_indexer, 
+            source_intensity_indexer, target_intensity_indexer, target_depth_indexer, trans, residual);
+
+        if (valid){
+            float* r = residual_indexer.GetDataPtr<float>(x,y);
+            *r = residual;
+        }
+    });
+}
+
+
+bool ComputeIntensityResidual(int x, 
+                              int y, 
+                              const float depth_outlier_trunc,
+                              const NDArrayIndexer& source_vertex_indexer,
+                              const NDArrayIndexer& source_intensity_indexer, 
+                              const NDArrayIndexer& target_intensity_indexer, 
+                              const NDArrayIndexer& target_depth_indexer,
+                              const TransformIndexer& trans,
+                              float& residual
+                            ) {
+    
+    float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
+    if (isnan(source_v[0])) {
+        return false;
+    }
+
+    // Transform source points to the target camera's coordinate space.
+    float T_source_to_target_v[3], u_tf, v_tf;
+    trans.RigidTransform(source_v[0], source_v[1], source_v[2],
+                      &T_source_to_target_v[0], &T_source_to_target_v[1],
+                      &T_source_to_target_v[2]);
+    trans.Project(T_source_to_target_v[0], T_source_to_target_v[1],
+               T_source_to_target_v[2], &u_tf, &v_tf);
+    int u_t = int(roundf(u_tf));
+    int v_t = int(roundf(v_tf));
+
+    if (T_source_to_target_v[2] < 0 ||
+        !target_intensity_indexer.InBoundary(u_t, v_t)) {
+        return false;}
+    
+    float depth_t = *target_depth_indexer.GetDataPtr<float>(u_t, v_t);
+    float diff_D = depth_t - T_source_to_target_v[2];
+    if (isnan(depth_t) || abs(diff_D) > depth_outlier_trunc) {
+        return false;
+    }
+    
+    residual = *source_intensity_indexer.GetDataPtr<float>(x,y) - 
+                *target_intensity_indexer.GetDataPtr<float>(u_t, v_t);
+    
+    return true;
+}
 
 void ComputeOdometryResultHybridCPU(const core::Tensor& source_depth,
                                     const core::Tensor& target_depth,

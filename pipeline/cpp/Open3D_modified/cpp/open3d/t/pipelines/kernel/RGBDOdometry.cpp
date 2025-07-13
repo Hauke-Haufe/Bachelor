@@ -200,6 +200,49 @@ void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
     }
 }
 
+void ComputeResidualMap(const core::Tensor& source_intensity,
+                        const core::Tensor& target_intensity,
+                        const core::Tensor target_depth,
+                        const core::Tensor& source_vertex_map, 
+                        core::Tensor& residuals, 
+                        const core::Tensor& source_to_target, 
+                        const core::Tensor& intrinsics, 
+                        const float depth_outlier_trunc){
+
+    core::AssertTensorDtypes(source_vertex_map, {core::Float32});
+
+    const core::Dtype supported_dtype = source_vertex_map.GetDtype();
+    const core::Device device = source_vertex_map.GetDevice();
+
+    core::AssertTensorDtype(target_depth, supported_dtype);
+    core::AssertTensorDtype(source_intensity, supported_dtype);
+    core::AssertTensorDtype(target_intensity, supported_dtype);
+    core::AssertTensorDtype(residuals, supported_dtype);
+
+    core::AssertTensorDevice(target_depth, device);
+    core::AssertTensorDevice(source_intensity, device);
+    core::AssertTensorDevice(target_intensity, device);
+    core::AssertTensorDevice(residuals, device);
+
+    core::AssertTensorShape(intrinsics, {3, 3});
+    core::AssertTensorShape(source_to_target, {4, 4});
+
+    if (device.IsCPU()) {
+        ComputeResidualMapCPU(
+                source_intensity, target_intensity, target_depth, source_vertex_map, 
+                residuals, source_to_target, intrinsics, depth_outlier_trunc);
+    } else if (device.IsCUDA()) {
+        core::CUDAScopedDevice scoped_device(target_depth.GetDevice());
+        CUDA_CALL(ComputeResidualMapCUDA, source_intensity, 
+            target_intensity, target_depth, source_vertex_map, 
+            residuals, source_to_target, intrinsics, depth_outlier_trunc);
+    } else {
+        utility::LogError("Unimplemented device.");
+    }
+     
+}
+
+
 
 void ComputeOdometryResultHybrid(const core::Tensor &source_depth,
                                  const core::Tensor &target_depth,
