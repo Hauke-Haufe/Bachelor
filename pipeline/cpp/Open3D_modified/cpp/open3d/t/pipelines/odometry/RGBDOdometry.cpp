@@ -733,6 +733,46 @@ core::Tensor ComputeOdometryInformationMatrix(
     return information;
 }
 
+core::Tensor ComputeResidualMap(
+        const t::geometry::RGBDImage source,
+        const t::geometry::RGBDImage target, 
+        const core::Tensor source_to_target,
+        const core::Tensor intrinsics,
+        const float depth_outlier_trunc){
+        
+        const core::Device device = source.depth_.GetDevice();
+        core::AssertTensorDevice(target.depth_.AsTensor(), device);
+
+        core::AssertTensorShape(intrinsics, {3, 3});
+        core::AssertTensorShape(source_to_target, {4, 4});
+
+        const core::Device host("CPU:0");
+        const Tensor intrinsics_d = intrinsics.To(host, core::Float64).Clone();
+        const Tensor trans_d =
+            source_to_target.To(host, core::Float64).Clone();
+        
+        core::Tensor source_intensity = source.color_.RGBToGray().To(core::Float32).AsTensor();
+        core::Tensor target_intensity = target.color_.RGBToGray().To(core::Float32).AsTensor();
+
+        core::Tensor target_depth = target.depth_.AsTensor();
+        core::Tensor source_vertex_map = source.depth_.Clone().CreateVertexMap(intrinsics_d, NAN).AsTensor();
+        
+        auto residuals = core::Tensor::Zeros(target_depth.GetShape(),core::Dtype::Float64, device);
+
+        t::pipelines::kernel::odometry::ComputeResidualMap(
+                source_intensity,
+                target_intensity,
+                target_depth,
+                source_vertex_map,
+                residuals,
+                trans_d,
+                intrinsics_d,
+                depth_outlier_trunc
+        );
+
+        return  residuals;
+}
+
 }  // namespace odometry
 }  // namespace pipelines
 }  // namespace t

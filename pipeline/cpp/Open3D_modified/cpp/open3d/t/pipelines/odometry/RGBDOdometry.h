@@ -299,6 +299,7 @@ OdometryResult ComputeOdometryResultIntensity(
 /// \param intensity_huber_delta Huber norm parameter used in intensity loss.
 /// \return odometry result, with(4, 4) optimized transformation matrix
 /// from source to target, inlier ratio, and fitness.
+
 OdometryResult ComputeOdometryResultHybrid(
         const core::Tensor& source_depth,
         const core::Tensor& target_depth,
@@ -342,6 +343,15 @@ core::Tensor ComputeOdometryInformationMatrix(
         const float dist_thr,
         const float depth_scale = 1000.0f,
         const float depth_max = 3.0f);
+
+core::Tensor ComputeResidualMap(
+        const t::geometry::RGBDImage source,
+        const t::geometry::RGBDImage target, 
+        const core::Tensor source_to_target,
+        const core::Tensor intrinsics,
+        const float depth_outlier_trunc = 0.07
+);
+
 }  // namespace odometry
 }  // namespace pipelines
 }  // namespace t
