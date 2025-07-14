@@ -441,6 +441,46 @@ void ComputeMaskOdometryResultHybridCUDA(const core::Tensor& source_depth,
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
 }
 
+void ComputeResidualMapCUDA(const core::Tensor& source_intensity,
+        const core::Tensor& target_intensity,
+        const core::Tensor target_depth,
+        const core::Tensor& source_vertex_map, 
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target, 
+        const core::Tensor& intrinsics, 
+        const float depth_outlier_trunc){
+    
+    NDArrayIndexer source_intensity_indexer(source_intensity, 2);
+    NDArrayIndexer target_intensity_indexer(target_intensity, 2);
+
+    NDArrayIndexer target_depth_indexer(target_depth, 2);
+    NDArrayIndexer source_vertex_indexer(source_vertex_map, 2);
+
+    NDArrayIndexer residual_indexer(residuals, 2); 
+
+    t::geometry::kernel::TransformIndexer trans(intrinsics, source_to_target);
+
+    int64_t rows = source_intensity_indexer.GetShape(0);
+    int64_t cols = source_intensity_indexer.GetShape(1);
+    int64_t n = rows * cols;
+
+    core::Device device = source_vertex_map.GetDevice();
+    
+    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int workload_idx) {
+        int y = workload_idx / cols;
+        int x = workload_idx % cols;
+        float residual = 0;
+
+        bool valid = ComputeIntensityResidual(x,y, depth_outlier_trunc, source_vertex_indexer, 
+            source_intensity_indexer, target_intensity_indexer, target_depth_indexer, trans, residual);
+
+        if (valid){
+            float* r = residual_indexer.GetDataPtr<float>(x,y);
+            *r = residual;
+        }
+    });
+}
+
 void ComputeOdometryResultHybridCUDA(const core::Tensor& source_depth,
                                      const core::Tensor& target_depth,
                                      const core::Tensor& source_intensity,
