@@ -2,7 +2,9 @@
 #include "../pose_graph.h"
 #include "../Integration.h"
 
-//#include <open3d/Open3D.h>
+
+#include <fmt/core.h>
+#include <open3d/core/TensorKey.h>
 #include <open3d/t/pipelines/odometry/RGBDOdometry.h>
 #include <open3d/core/Device.h>
 #include <open3d/core/Dtype.h>
@@ -67,10 +69,9 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
     auto imask_images = GetFilesDir(mask_dir);
     auto idepth_images = GetFilesDir(depth_dir);
 
-    auto color_images = GetFreqVec(icolor_images,9);
-    auto mask_images = GetFreqVec(imask_images, 9);
-    auto depth_images = GetFreqVec(idepth_images, 9);
-
+    auto color_images = GetFreqVec(icolor_images,1);
+    auto mask_images = GetFreqVec(imask_images, 1);
+    auto depth_images = GetFreqVec(idepth_images, 1);
 
     auto s_color_image = std::make_shared<t::geometry::Image>();
     auto t_color_image = std::make_shared<t::geometry::Image>();
@@ -106,11 +107,22 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
             1000.0f, 3.0f, critirias, t::pipelines::odometry::OdometryLossParams() 
         );
 
+
         auto result = t::pipelines::odometry::RGBDOdometryMultiScale(
             t::geometry::RGBDImage(source.color_, source.depth_), t::geometry::RGBDImage(target.color_, target.depth_), 
-            intrinsic_matrix, init_trans,1000.0f, 3.0f, critirias, 
+            intrinsic_matrix, init_trans ,1000.0f, 3.0f, critirias, 
             t::pipelines::odometry::Method::Hybrid, t::pipelines::odometry::OdometryLossParams());
+        
 
+        auto res = t::pipelines::odometry::ComputeResidualMap( 
+            t::geometry::RGBDImage(source.color_, source.depth_), 
+            t::geometry::RGBDImage(target.color_, target.depth_), 
+            m_result.transformation_, intrinsic_matrix);
+
+        
+        std::string t_filename = (run_path / "residual{}.npy").string();
+        res.AsTensor().Save(fmt::format(t_filename, i));
+        
         //information muss auch noch geändert werden
         auto information = t::pipelines::odometry::ComputeOdometryInformationMatrix(*s_depth_image,
         *t_depth_image, intrinsic_matrix, result.transformation_, 0.1);
@@ -136,8 +148,6 @@ void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
 
     io::ReadPoseGraph(run_path/"graph.json", o3d_graph);
     io::ReadPoseGraph(run_path/"masked_graph.json", o3d_mgraph);
-
-    std::vector<t::geometry::PointCloud> DrawObjects;
 
     auto m_vgb = integrate(o3d_mgraph, color_images, depth_images, intrinsic_matrix);
     auto vgb = integrate(o3d_graph, color_images, depth_images, intrinsic_matrix);

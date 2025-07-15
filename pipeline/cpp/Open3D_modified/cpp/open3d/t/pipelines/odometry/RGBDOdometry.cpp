@@ -733,11 +733,11 @@ core::Tensor ComputeOdometryInformationMatrix(
     return information;
 }
 
-core::Tensor ComputeResidualMap(
-        const t::geometry::RGBDImage source,
-        const t::geometry::RGBDImage target, 
-        const core::Tensor source_to_target,
-        const core::Tensor intrinsics,
+t::geometry::Image ComputeResidualMap(
+        const t::geometry::RGBDImage& source,
+        const t::geometry::RGBDImage& target, 
+        const core::Tensor& source_to_target,
+        const core::Tensor& intrinsics,
         const float depth_outlier_trunc){
         
         const core::Device device = source.depth_.GetDevice();
@@ -754,10 +754,10 @@ core::Tensor ComputeResidualMap(
         core::Tensor source_intensity = source.color_.RGBToGray().To(core::Float32).AsTensor();
         core::Tensor target_intensity = target.color_.RGBToGray().To(core::Float32).AsTensor();
 
-        core::Tensor target_depth = target.depth_.AsTensor();
-        core::Tensor source_vertex_map = source.depth_.Clone().CreateVertexMap(intrinsics_d, NAN).AsTensor();
+        core::Tensor target_depth = target.depth_.To(core::Float32).AsTensor();
+        core::Tensor source_vertex_map = source.depth_.To(core::Float32).CreateVertexMap(intrinsics_d, NAN).AsTensor();
         
-        auto residuals = core::Tensor::Zeros(target_depth.GetShape(),core::Dtype::Float64, device);
+        auto residuals = core::Tensor::Zeros(target_depth.GetShape(),core::Dtype::Float32, device);
 
         t::pipelines::kernel::odometry::ComputeResidualMap(
                 source_intensity,
@@ -770,7 +770,7 @@ core::Tensor ComputeResidualMap(
                 depth_outlier_trunc
         );
 
-        return  residuals;
+        return  t::geometry::Image(residuals);
 }
 
 }  // namespace odometry

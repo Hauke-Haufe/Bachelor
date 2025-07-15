@@ -9,6 +9,7 @@ from config import INTRINSICS_PATH
 import os
 import multiprocessing
 import time
+import matplotlib.pyplot as plt
 
 import threading
 
@@ -166,6 +167,9 @@ def func2():
     
     graph = dispatch(config, 0, 200, intrinsics_matrix)
 
-s = time.time()
-func()
-print(time.time()-s)
+
+t_path = [t for t in os.listdir("data/test") if Path(t).suffix == ".npy"]
+for t in t_path:
+    t = np.load(Path("data/test")/ t)
+    plt.imshow(t)
+    plt.show()

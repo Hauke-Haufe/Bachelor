@@ -92,7 +92,7 @@ void ComputeOdometryInformationMatrixCPU(const core::Tensor& source_depth,
                                          const float depth_outlier_trunc,
                                          core::Tensor& information);
 
-void ComputeResidualMapCPU(const core::Tensor& source_intensity,
+void ComputeResidualMapIntensityCPU(const core::Tensor& source_intensity,
         const core::Tensor& target_intensity,
         const core::Tensor target_depth,
         const core::Tensor& source_vertex_map, 
@@ -101,6 +101,13 @@ void ComputeResidualMapCPU(const core::Tensor& source_intensity,
         const core::Tensor& intrinsics, 
         const float depth_outlier_trunc);
 
+void ComputeResidualMapPointToPlaneCUDA(const core::Tensor& source_vertex_map, 
+        const core::Tensor& target_vertex_map, 
+        const core::Tensor& target_normal_map,
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target, 
+        const core::Tensor& intrinsics, 
+        const float depth_outlier_trunc);
 
 #ifdef BUILD_CUDA_MODULE
 
@@ -177,10 +184,18 @@ void ComputeOdometryInformationMatrixCUDA(const core::Tensor& source_depth,
                                           const float square_dist_thr,
                                           core::Tensor& information);
 
-void ComputeResidualMapCUDA(const core::Tensor& source_intensity,
+void ComputeResidualMapIntensityCUDA(const core::Tensor& source_intensity,
         const core::Tensor& target_intensity,
         const core::Tensor target_depth,
         const core::Tensor& source_vertex_map, 
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target, 
+        const core::Tensor& intrinsics, 
+        const float depth_outlier_trunc);
+
+void ComputeResidualMapPointToPlaneCUDA(const core::Tensor& source_vertex_map, 
+        const core::Tensor& target_vertex_map, 
+        const core::Tensor& target_normal_map,
         core::Tensor& residuals, 
         const core::Tensor& source_to_target, 
         const core::Tensor& intrinsics, 
@@ -240,11 +255,61 @@ inline bool ComputeIntensityResidual
         return false;
     }
     
-    residual = *source_intensity_indexer.GetDataPtr<float>(x,y) - 
-                *target_intensity_indexer.GetDataPtr<float>(u_t, v_t);
+    residual = abs( *source_intensity_indexer.GetDataPtr<float>(x,y) - 
+                *target_intensity_indexer.GetDataPtr<float>(u_t, v_t));
     
     return true;
 }
+
+#if defined(__CUDACC__)
+__device__ inline bool ComputePointToPlaneResidual
+#else
+inline bool ComputePointToPlaneResidual
+#endif
+    (int x, 
+    int y, 
+    const float depth_outlier_trunc,
+    const NDArrayIndexer& source_vertex_indexer,
+    const NDArrayIndexer& target_vertex_indexer, 
+    const NDArrayIndexer& target_normal_indexer,  
+    const TransformIndexer& trans,
+    float& residual
+    ){
+
+    float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
+    if (isnan(source_v[0])) {
+        return false;
+    }
+
+    // Transform source points to the target camera's coordinate space.
+    float T_source_to_target_v[3], u, v;
+    trans.RigidTransform(source_v[0], source_v[1], source_v[2],
+                      &T_source_to_target_v[0], &T_source_to_target_v[1],
+                      &T_source_to_target_v[2]);
+    trans.Project(T_source_to_target_v[0], T_source_to_target_v[1],
+               T_source_to_target_v[2], &u, &v);
+    u = roundf(u);
+    v = roundf(v);
+
+    if (T_source_to_target_v[2] < 0 ||
+        !target_vertex_indexer.InBoundary(u, v)) {
+        return false;
+    }
+
+    int ui = static_cast<int>(u);
+    int vi = static_cast<int>(v);
+    float* target_v = target_vertex_indexer.GetDataPtr<float>(ui, vi);
+    float* target_n = target_normal_indexer.GetDataPtr<float>(ui, vi);
+    if (isnan(target_v[0]) || isnan(target_n[0])) {
+        return false;
+    }
+
+    residual = abs((T_source_to_target_v[0] - target_v[0]) * target_n[0] +
+        (T_source_to_target_v[1] - target_v[1]) * target_n[1] +
+        (T_source_to_target_v[2] - target_v[2]) * target_n[2]);
+
+}
+
 
 }  // namespace odometry
 }  // namespace kernel

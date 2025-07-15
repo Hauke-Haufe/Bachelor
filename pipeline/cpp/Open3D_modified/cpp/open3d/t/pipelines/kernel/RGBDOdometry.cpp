@@ -202,7 +202,7 @@ void ComputeMaskOdometryResultHybrid(const core::Tensor &source_depth,
 
 void ComputeResidualMap(const core::Tensor& source_intensity,
                         const core::Tensor& target_intensity,
-                        const core::Tensor target_depth,
+                        const core::Tensor& target_depth,
                         const core::Tensor& source_vertex_map, 
                         core::Tensor& residuals, 
                         const core::Tensor& source_to_target, 
@@ -241,7 +241,6 @@ void ComputeResidualMap(const core::Tensor& source_intensity,
     }
      
 }
-
 
 
 void ComputeOdometryResultHybrid(const core::Tensor &source_depth,
