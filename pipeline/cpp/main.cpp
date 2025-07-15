@@ -12,7 +12,7 @@ namespace fs =  std::filesystem;
 
 int main(){
     
-    open3d::utility::Logger::GetInstance().SetVerbosityLevel(open3d::utility::VerbosityLevel::Debug);
+    //open3d::utility::Logger::GetInstance().SetVerbosityLevel(open3d::utility::VerbosityLevel::Debug);
     fs::path core("/home/hauke/code/Beachlor");
 
     camera::PinholeCameraIntrinsic intrinsics;

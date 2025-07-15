@@ -576,7 +576,7 @@ void ComputeDMaskOdometryResultHybridCPU(const core::Tensor& source_depth,
     DecodeAndSolve6x6(A_reduction_tensor, delta, inlier_residual, inlier_count);
 }
 
-void ComputeResidualMapCPU(const core::Tensor& source_intensity,
+void ComputeResidualMapIntensityCPU(const core::Tensor& source_intensity,
         const core::Tensor& target_intensity,
         const core::Tensor target_depth,
         const core::Tensor& source_vertex_map, 
@@ -616,6 +616,43 @@ void ComputeResidualMapCPU(const core::Tensor& source_intensity,
     });
 }
 
+void ComputeResidualMapPointToPlaneCPU(const core::Tensor& source_vertex_map, 
+        const core::Tensor& target_vertex_map, 
+        const core::Tensor& target_normal_map,
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target, 
+        const core::Tensor& intrinsics, 
+        const float depth_outlier_trunc){
+
+    NDArrayIndexer source_vertex_indexer(source_vertex_map, 2);
+    NDArrayIndexer target_vertex_indexer(target_vertex_map, 2);
+
+    NDArrayIndexer target_normal_indexer(target_normal_map, 2);
+
+    NDArrayIndexer residual_indexer(residuals, 2); 
+
+    t::geometry::kernel::TransformIndexer trans(intrinsics, source_to_target);
+
+    int64_t rows = source_vertex_indexer.GetShape(0);
+    int64_t cols = source_vertex_indexer.GetShape(1);
+    int64_t n = rows * cols;
+
+    core::Device device = source_vertex_map.GetDevice();
+    
+    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int workload_idx) {
+        int y = workload_idx / cols;
+        int x = workload_idx % cols;
+        float residual = 0;
+
+        bool valid = ComputePointToPlaneResidual(x,y, depth_outlier_trunc, source_vertex_indexer, 
+            target_vertex_indexer, target_normal_indexer, trans, residual);
+
+        if (valid){
+            float* r = residual_indexer.GetDataPtr<float>(x,y);
+            *r = residual;
+        }
+    });
+}
 
 void ComputeOdometryResultHybridCPU(const core::Tensor& source_depth,
                                     const core::Tensor& target_depth,

@@ -344,11 +344,11 @@ core::Tensor ComputeOdometryInformationMatrix(
         const float depth_scale = 1000.0f,
         const float depth_max = 3.0f);
 
-core::Tensor ComputeResidualMap(
-        const t::geometry::RGBDImage source,
-        const t::geometry::RGBDImage target, 
-        const core::Tensor source_to_target,
-        const core::Tensor intrinsics,
+t::geometry::Image ComputeResidualMap(
+        const t::geometry::RGBDImage& source,
+        const t::geometry::RGBDImage& target, 
+        const core::Tensor& source_to_target,
+        const core::Tensor& intrinsics,
         const float depth_outlier_trunc = 0.07
 );
 
