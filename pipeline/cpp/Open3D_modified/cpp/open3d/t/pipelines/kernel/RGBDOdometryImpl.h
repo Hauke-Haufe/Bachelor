@@ -46,27 +46,6 @@ void ComputeOdometryResultIntensityCPU(
         const float depth_outlier_trunc,
         const float intensity_huber_delta);
 
-//-----------------------------------------------------------------
-void ComputeDMaskOdometryResultHybridCPU(const core::Tensor& source_depth,
-                                    const core::Tensor& target_depth,
-                                    const core::Tensor& source_intensity,
-                                    const core::Tensor& target_intensity,
-                                    const core::Tensor& target_depth_dx,
-                                    const core::Tensor& target_depth_dy,
-                                    const core::Tensor& target_intensity_dx,
-                                    const core::Tensor& target_intensity_dy,
-                                    const core::Tensor& source_vertex_map,
-                                    const core::Tensor& source_mask,
-                                    const core::Tensor& target_mask,
-                                    const core::Tensor& intrinsics,
-                                    const core::Tensor& init_source_to_target,
-                                    core::Tensor& delta,
-                                    float& inlier_residual,
-                                    int& inlier_count,
-                                    float depth_outlier_trunc,
-                                    const float depth_huber_delta,
-                                    const float intensity_huber_delta);
-
 void ComputeOdometryResultHybridCPU(const core::Tensor& source_depth,
                                     const core::Tensor& target_depth,
                                     const core::Tensor& source_intensity,
@@ -101,7 +80,7 @@ void ComputeResidualMapIntensityCPU(const core::Tensor& source_intensity,
         const core::Tensor& intrinsics, 
         const float depth_outlier_trunc);
 
-void ComputeResidualMapPointToPlaneCUDA(const core::Tensor& source_vertex_map, 
+void ComputeResidualMapPointToPlaneCPU(const core::Tensor& source_vertex_map, 
         const core::Tensor& target_vertex_map, 
         const core::Tensor& target_normal_map,
         core::Tensor& residuals, 
@@ -255,9 +234,9 @@ inline bool ComputeIntensityResidual
         return false;
     }
     
-    residual = abs( *source_intensity_indexer.GetDataPtr<float>(x,y) - 
+    residual =( *source_intensity_indexer.GetDataPtr<float>(x,y) - 
                 *target_intensity_indexer.GetDataPtr<float>(u_t, v_t));
-    
+    residual = residual *residual;    
     return true;
 }
 
@@ -304,10 +283,66 @@ inline bool ComputePointToPlaneResidual
         return false;
     }
 
-    residual = abs((T_source_to_target_v[0] - target_v[0]) * target_n[0] +
+    residual = (T_source_to_target_v[0] - target_v[0]) * target_n[0] +
         (T_source_to_target_v[1] - target_v[1]) * target_n[1] +
-        (T_source_to_target_v[2] - target_v[2]) * target_n[2]);
+        (T_source_to_target_v[2] - target_v[2]) * target_n[2];
 
+    residual = residual*residual;
+
+    return true;
+}
+
+#if defined(__CUDACC__)
+__device__ inline bool ComputeHybridResidual
+#else
+inline bool ComputeHybridResidual
+#endif
+        (int x,
+        int y,
+        const float depth_outlier_trunc,
+        const NDArrayIndexer& source_depth_indexer,
+        const NDArrayIndexer& target_depth_indexer,
+        const NDArrayIndexer& source_intensity_indexer,
+        const NDArrayIndexer& target_intensity_indexer,
+        const NDArrayIndexer& target_depth_dx_indexer,
+        const NDArrayIndexer& target_depth_dy_indexer,
+        const NDArrayIndexer& target_intensity_dx_indexer,
+        const NDArrayIndexer& target_intensity_dy_indexer,
+        const NDArrayIndexer& source_vertex_indexer,
+        const TransformIndexer& trans,
+        float& residual){
+
+    float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
+    if (isnan(source_v[0])) {
+        return false;
+    }
+
+    // Transform source points to the target camera coordinate space.
+    float T_source_to_target_v[3], u_tf, v_tf;
+    trans.RigidTransform(source_v[0], source_v[1], source_v[2],
+                      &T_source_to_target_v[0], &T_source_to_target_v[1],
+                      &T_source_to_target_v[2]);
+    trans.Project(T_source_to_target_v[0], T_source_to_target_v[1],
+               T_source_to_target_v[2], &u_tf, &v_tf);
+    int u_t = int(roundf(u_tf));
+    int v_t = int(roundf(v_tf));
+
+    if (T_source_to_target_v[2] < 0 ||
+        !target_depth_indexer.InBoundary(u_t, v_t)) {
+        return false;
+    }
+
+    float depth_t = *target_depth_indexer.GetDataPtr<float>(u_t, v_t);
+    float diff_D = depth_t - T_source_to_target_v[2];
+    if (isnan(depth_t) || abs(diff_D) > depth_outlier_trunc) {
+        return false;
+    }
+
+    float diff_I = *target_intensity_indexer.GetDataPtr<float>(u_t, v_t) -
+                *source_intensity_indexer.GetDataPtr<float>(x, y);
+    
+    residual = diff_I*diff_I +diff_D*diff_D;
+    return true;
 }
 
 

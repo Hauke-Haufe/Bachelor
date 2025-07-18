@@ -1,4 +1,5 @@
 #include "test.h"
+#include "test_dataset.h"
 #include "../pose_graph.h"
 #include "../Integration.h"
 
@@ -10,6 +11,7 @@
 #include <open3d/core/Dtype.h>
 #include <open3d/t/io/ImageIO.h>
 #include <open3d/pipelines/registration/GlobalOptimization.h>
+#include "open3d/t/pipelines/odometry/RGBDMOdometry.h"
 
 #include <filesystem>
 #include <algorithm>
@@ -29,129 +31,141 @@ int CountFilesDir(fs::path dirPath){
     return count;
 }
 
-std::vector<fs::path> GetFilesDir(fs::path dirPath){
+t::pipelines::odometry::OdometryResult DOdometry(Tum_dataset& dataset, int i, t::pipelines::odometry::Method method, core::Device device){
 
-    std::vector<fs::path> files;
-    for(auto& entry: fs::directory_iterator(dirPath)){
-        files.emplace_back(entry.path());
-    }
+    auto source = dataset.get_RGBDMImage(i);
+    auto target = dataset.get_RGBDMImage(i+1);
 
-    std::sort(files.begin(), files.end(), [](const fs::path& a, const fs::path& b){return a < b;});
+    auto result = t::pipelines::odometry::RGBDMOdometryMultiScale(source.To(device), 
+            target.To(device),
+            dataset.get_intrinsics(device),
+            core::Tensor::Eye(4, core::Float64, ((open3d::core::Device)("CPU:0"))), 
+            5000.0F,
+            3.0F,
+            {10, 5, 3},
+            method,
+            open3d::t::pipelines::odometry::OdometryLossParams());
 
-    return files;
-} 
-
-std::vector<fs::path> GetFreqVec(std::vector<fs::path> v,int freq){
-
-    std::vector<fs::path> n;
-    for (size_t i = 0; i < v.size() - freq -1; i += freq) {
-        n.push_back(v[i]);
-    }
-
-    return n;
+    return result;
 }
 
-void test_masked_odometry(fs::path run_path, core::Tensor intrinsic_matrix){
+t::pipelines::odometry::OdometryResult TOdometry(Tum_dataset& dataset, int i, t::pipelines::odometry::Method method, core::Device device){
 
-    fs::path image_dir = run_path / "color";
-    fs::path mask_dir = run_path / "masks";
-    fs::path depth_dir = run_path / "depth";
+    auto source = dataset.get_RGBDImage(i);
+    auto target = dataset.get_RGBDMImage(i+1);
 
-    core::Device device(core::Device::DeviceType::CPU, 0);
-    core::Device cuda_device(core::Device::DeviceType::CUDA, 0);
+    auto result = t::pipelines::odometry::RGBDMOdometryMultiScale(source.To(device), 
+            target.To(device), 
+            dataset.get_intrinsics(device), 
+            core::Tensor::Eye(4, core::Float64, ((open3d::core::Device)("CPU:0"))), 
+            5000.0F,
+            3.0F,
+            {10, 5, 3},
+            method,
+            open3d::t::pipelines::odometry::OdometryLossParams());
+
+    return result;
+}
+
+t::pipelines::odometry::OdometryResult SOdometry(Tum_dataset& dataset, int i, t::pipelines::odometry::Method method, core::Device device){
+
+    auto source = dataset.get_RGBDMImage(i);
+    auto target = dataset.get_RGBDImage(i+1);
+
+    try{
+        auto result = t::pipelines::odometry::RGBDMOdometryMultiScale(source.To(device), 
+                target.To(device),
+                dataset.get_intrinsics(device),
+                core::Tensor::Eye(4, core::Float64, ((open3d::core::Device)("CPU:0"))), 
+                5000.0F,
+                3.0F,
+                {10, 5, 3},
+                method,
+                open3d::t::pipelines::odometry::OdometryLossParams());
+
+        return result; 
+    }
+    catch(std::runtime_error){
+        return t::pipelines::odometry::OdometryResult();
+    }
+
+    
+}
+
+t::pipelines::odometry::OdometryResult Odometry(Tum_dataset& dataset, int i, t::pipelines::odometry::Method method, core::Device device){
+
+    auto source = dataset.get_RGBDImage(i);
+    auto target = dataset.get_RGBDImage(i+1);
+
+    auto Pcd = t::geometry::PointCloud::CreateFromDepthImage(source.depth_, dataset.get_intrinsics(device), 
+        core::Tensor::Eye(4, core::Float32, ((open3d::core::Device)("CPU:0"))), 1000.0f, 10.0f);
+    visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((Pcd).ToLegacy())});
+    
+    auto result = t::pipelines::odometry::RGBDOdometryMultiScale(source.To(device), 
+            target.To(device),
+            dataset.get_intrinsics(device),
+            core::Tensor::Eye(4, core::Float64, ((open3d::core::Device)("CPU:0"))), 
+            5000.0F,
+            3.0F,
+            {10, 5, 3},
+            method,
+            open3d::t::pipelines::odometry::OdometryLossParams());
+
+    return result; 
+}
+
+void test_masked_odometry(fs::path run_path,
+                          t::pipelines::odometry::Method method, 
+                          t::pipelines::odometry::MaskMethod m_mehtod,
+                          core::Device  device){
+
+    auto dataset = Tum_dataset(run_path);
 
     auto dtype = core::Dtype::Float32;
     const auto init_trans = core::Tensor::Eye(4,core::Dtype::Float64 ,device);
 
     std::vector<t::pipelines::odometry::OdometryConvergenceCriteria> critirias = {6,3,1};
+    core::Tensor pose = core::Tensor::Eye(4, core::Dtype::Float64 ,device);
 
-    auto icolor_images = GetFilesDir(image_dir);
-    auto imask_images = GetFilesDir(mask_dir);
-    auto idepth_images = GetFilesDir(depth_dir);
-
-    auto color_images = GetFreqVec(icolor_images,1);
-    auto mask_images = GetFreqVec(imask_images, 1);
-    auto depth_images = GetFreqVec(idepth_images, 1);
-
-    auto s_color_image = std::make_shared<t::geometry::Image>();
-    auto t_color_image = std::make_shared<t::geometry::Image>();
-    auto t_depth_image = std::make_shared<t::geometry::Image>();
-    auto s_depth_image = std::make_shared<t::geometry::Image>();
-    
-    auto temp_mask = std::make_shared<t::geometry::Image>();
-    auto source_mask = temp_mask->To(core::Dtype::Bool);
-    auto target_mask = temp_mask->To(core::Dtype::Bool);
-    
-    auto pose = core::Tensor::Eye(4,core::Dtype::Float64 ,device);
-    auto m_pose = core::Tensor::Eye(4,core::Dtype::Float64 ,device);
-
-    Posegraph<Open3dPosegraphBackend> m_graph(m_pose);
     Posegraph<Open3dPosegraphBackend> graph(pose);
     
-    for(int i = 0; i< color_images.size()-1; i++){
+    for(int i = 0; i< dataset.get_size() -1 ; i++){
+
+        t::pipelines::odometry::OdometryResult result;
+
+        switch (m_mehtod)
+        {
+        case t::pipelines::odometry::MaskMethod::SourceMask:
+            result = SOdometry(dataset, i, method, device);
+
+        case t::pipelines::odometry::MaskMethod::TargetMask:
+            result = TOdometry(dataset, i, method, device);
         
-        t::io::ReadImageFromPNG((color_images[i]).string(), *s_color_image);
-        t::io::ReadImageFromPNG((color_images[i+1]).string(), *t_color_image);
-        t::io::ReadImageFromPNG((depth_images[i]).string(), *s_depth_image);
-        t::io::ReadImageFromPNG((depth_images[i+1]).string(), *t_depth_image);
-
-        t::io::ReadImageFromPNG((mask_images[i]).string(), source_mask);
-        t::io::ReadImageFromPNG((mask_images[i+1]).string(), target_mask);
-
-        auto source = t::geometry::RGBDMImage(*s_color_image, *s_depth_image, source_mask);//.To(cuda_device);
-        auto target = t::geometry::RGBDMImage(*t_color_image, *t_depth_image, target_mask);//.To(cuda_device);
-        auto s = target.GetDevice();
-
-        auto m_result = t::pipelines::odometry::RGBDMOdometryMultiScale(
-            source, target,intrinsic_matrix, init_trans, 
-            1000.0f, 3.0f, critirias, t::pipelines::odometry::OdometryLossParams() 
-        );
-
-
-        auto result = t::pipelines::odometry::RGBDOdometryMultiScale(
-            t::geometry::RGBDImage(source.color_, source.depth_), t::geometry::RGBDImage(target.color_, target.depth_), 
-            intrinsic_matrix, init_trans ,1000.0f, 3.0f, critirias, 
-            t::pipelines::odometry::Method::Hybrid, t::pipelines::odometry::OdometryLossParams());
+        case t::pipelines::odometry::MaskMethod::CompleteMask:
+            result = DOdometry(dataset, i, method, device);
+        }
         
+        t::geometry::RGBDImage source = dataset.get_RGBDImage(i);
+        t::geometry::RGBDImage target = dataset.get_RGBDImage(i+1);
 
-        auto res = t::pipelines::odometry::ComputeResidualMap( 
-            t::geometry::RGBDImage(source.color_, source.depth_), 
-            t::geometry::RGBDImage(target.color_, target.depth_), 
-            m_result.transformation_, intrinsic_matrix);
-
-        
-        std::string t_filename = (run_path / "residual{}.npy").string();
-        res.AsTensor().Save(fmt::format(t_filename, i));
-        
         //information muss auch noch geändert werden
-        auto information = t::pipelines::odometry::ComputeOdometryInformationMatrix(*s_depth_image,
-        *t_depth_image, intrinsic_matrix, result.transformation_, 0.1);
-
-        auto m_information = t::pipelines::odometry::ComputeOdometryInformationMatrix(*s_depth_image,
-        *t_depth_image, intrinsic_matrix, m_result.transformation_, 0.1);
+        auto information = t::pipelines::odometry::ComputeOdometryInformationMatrix(
+            source.depth_, target.depth_,
+            dataset.get_intrinsics(device), result.transformation_, 0.1);
         
         pose = pose.Matmul(result.transformation_);
-        m_pose = m_pose.Matmul(m_result.transformation_);
-        
         graph.AddOdometryEdge(result.transformation_, information, i, i+1, false);
-        m_graph.AddOdometryEdge(m_result.transformation_, m_information, i, i+1, false);
-
         graph.AddNode(pose.Inverse());
-        m_graph.AddNode(m_pose.Inverse());
+
     } 
 
     graph.Save(run_path/"graph.json");
-    m_graph.Save(run_path/"masked_graph.json");
 
-    pipelines::registration::PoseGraph o3d_mgraph;
     pipelines::registration::PoseGraph o3d_graph;
-
     io::ReadPoseGraph(run_path/"graph.json", o3d_graph);
-    io::ReadPoseGraph(run_path/"masked_graph.json", o3d_mgraph);
 
-    auto m_vgb = integrate(o3d_mgraph, color_images, depth_images, intrinsic_matrix);
-    auto vgb = integrate(o3d_graph, color_images, depth_images, intrinsic_matrix);
-
+    auto intrinsics = dataset.get_intrinsics(device);
+    auto vgb = integrate(o3d_graph, dataset.get_colorfiles(), dataset.get_depthfiles(), intrinsics);
     visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((vgb->ExtractPointCloud()).ToLegacy())});
-    visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((m_vgb->ExtractPointCloud()).ToLegacy())});
+
 };

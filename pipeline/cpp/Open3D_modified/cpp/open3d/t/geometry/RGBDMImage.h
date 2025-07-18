@@ -37,7 +37,7 @@ public:
             utility::LogWarning(
                     "Aligned image triple must have the same resolution.");
         }
-        if (mask.GetDtype() != core::Dtype::UInt8){
+        if (!(mask.GetDtype() == core::Dtype::UInt8 || mask.GetDtype() == core::Dtype::Bool)){
             utility::LogError(
                 "The Dtype of the mask must be UInt8 not {}", mask.GetDtype().ToString());
         }

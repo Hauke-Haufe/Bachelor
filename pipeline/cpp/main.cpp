@@ -2,6 +2,8 @@
 #include <open3d/core/EigenConverter.h>
 #include <open3d/camera/PinholeCameraIntrinsic.h>
 #include <open3d/io/IJsonConvertibleIO.h>
+#include <open3d/t/pipelines/odometry/RGBDMOdometry.h>
+#include <open3d/t/pipelines/odometry/RGBDOdometry.h>
 
 
 #include "test/test.h"
@@ -13,14 +15,13 @@ namespace fs =  std::filesystem;
 int main(){
     
     //open3d::utility::Logger::GetInstance().SetVerbosityLevel(open3d::utility::VerbosityLevel::Debug);
-    fs::path core("/home/hauke/code/Beachlor");
+    fs::path root_dir("/home/hauke/Downloads/rgbd_dataset_freiburg3_walking_rpy");
+    core::Device device(core::Device::DeviceType::CPU, 0);
 
-    camera::PinholeCameraIntrinsic intrinsics;
-    io::ReadIJsonConvertible(core / "data/intrinsics/intrinsics.json", intrinsics);
-    auto intrinsics_matrix = core::eigen_converter::EigenMatrixToTensor(intrinsics.intrinsic_matrix_);
-
-    fs::path run_path(core / "data/test");
-    test_masked_odometry(run_path, intrinsics_matrix);
+    test_masked_odometry(root_dir, 
+        t::pipelines::odometry::Method::PointToPlane,
+        t::pipelines::odometry::MaskMethod::SourceMask,
+        device);
 
     return 0;
 };
