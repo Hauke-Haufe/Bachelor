@@ -27,12 +27,6 @@ enum class Method {
     Hybrid,     // Implemented and commented in ComputeOdometryResultHybrid
 };
 
-enum class MaskMethod{
-    SourceMask,
-    TargetMask,
-    Hybrid,
-};
-
 class OdometryConvergenceCriteria {
 public:
     /// \brief Constructor for the convergence criteria, where we stop
@@ -160,19 +154,6 @@ OdometryResult RGBDOdometryMultiScale(
                                                                          3},
         const Method method = Method::Hybrid,
         const OdometryLossParams& params = OdometryLossParams());
-
-OdometryResult RGBDMOdometryMultiScale(
-        const t::geometry::RGBDMImage& source,
-        const t::geometry::RGBDMImage& target,
-        const core::Tensor& intrinsics,
-        const core::Tensor& init_source_to_target =
-                core::Tensor::Eye(4, core::Float64, core::Device("CPU:0")),
-        const float depth_scale = 1000.0f,
-        const float depth_max = 3.0f,
-        const std::vector<OdometryConvergenceCriteria>& criteria_list = {10, 5,
-                                                                         3},
-        const OdometryLossParams& params = OdometryLossParams());
-
 
 /// \brief Estimates the 4x4 rigid transformation T from source to target, with
 /// inlier rmse and fitness.
@@ -316,22 +297,6 @@ OdometryResult ComputeOdometryResultHybrid(
         const float depth_huber_delta,
         const float intensity_huber_delta);
 
-OdometryResult ComputeMaskOdometryResultHybrid(const core::Tensor& source_depth,
-                                           const core::Tensor& target_depth,
-                                           const core::Tensor& source_intensity,
-                                           const core::Tensor& target_intensity,
-                                           const core::Tensor& target_depth_dx,
-                                           const core::Tensor& target_depth_dy,
-                                           const core::Tensor& target_intensity_dx,
-                                           const core::Tensor& target_intensity_dy,
-                                           const core::Tensor& source_mask, 
-                                           const core::Tensor& target_mask,
-                                           const core::Tensor& source_vertex_map,
-                                           const core::Tensor& intrinsics,
-                                           const core::Tensor& init_source_to_target,
-                                           const float depth_outlier_trunc,
-                                           const float depth_huber_delta,
-                                           const float intensity_huber_delta);
 
 /// Estimates 6x6 information matrix from a pair of depth images.
 /// The process is akin to information matrix creation for point clouds.
@@ -349,8 +314,10 @@ t::geometry::Image ComputeResidualMap(
         const t::geometry::RGBDImage& target, 
         const core::Tensor& source_to_target,
         const core::Tensor& intrinsics,
-        const float depth_outlier_trunc = 0.07
-);
+        const Method method, 
+        const float depth_scale = 1000.0f,
+        const float depth_max = 3.0f,
+        const float depth_outlier_trunc = 0.07f);
 
 }  // namespace odometry
 }  // namespace pipelines

@@ -449,6 +449,70 @@ OPEN3D_HOST_DEVICE inline bool GetMaskJacobianHybrid(
     return true;
 }
 
+OPEN3D_HOST_DEVICE inline bool GetMaskJacobianPointToPlane(
+        int x,
+        int y,
+        const float depth_outlier_trunc,
+        const NDArrayIndexer& source_vertex_indexer,
+        const NDArrayIndexer& target_vertex_indexer,
+        const NDArrayIndexer& target_normal_indexer,
+        const NDArrayIndexer& target_mask_indexer,
+        const TransformIndexer& ti,
+        float* J_ij,
+        float& r) {
+    float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
+    if (isnan(source_v[0])) {
+        return false;
+    }
+
+    // Transform source points to the target camera's coordinate space.
+    float T_source_to_target_v[3], u, v;
+    ti.RigidTransform(source_v[0], source_v[1], source_v[2],
+                      &T_source_to_target_v[0], &T_source_to_target_v[1],
+                      &T_source_to_target_v[2]);
+    ti.Project(T_source_to_target_v[0], T_source_to_target_v[1],
+               T_source_to_target_v[2], &u, &v);
+    u = roundf(u);
+    v = roundf(v);
+
+    if (T_source_to_target_v[2] < 0 ||
+        !target_vertex_indexer.InBoundary(u, v)) {
+        return false;
+    }
+
+    if (*target_mask_indexer.GetDataPtr<bool>(u, v)){
+        return false;
+    }
+
+    int ui = static_cast<int>(u);
+    int vi = static_cast<int>(v);
+    float* target_v = target_vertex_indexer.GetDataPtr<float>(ui, vi);
+    float* target_n = target_normal_indexer.GetDataPtr<float>(ui, vi);
+    if (isnan(target_v[0]) || isnan(target_n[0])) {
+        return false;
+    }
+
+    r = (T_source_to_target_v[0] - target_v[0]) * target_n[0] +
+        (T_source_to_target_v[1] - target_v[1]) * target_n[1] +
+        (T_source_to_target_v[2] - target_v[2]) * target_n[2];
+    if (abs(r) > depth_outlier_trunc) {
+        return false;
+    }
+
+    J_ij[0] = -T_source_to_target_v[2] * target_n[1] +
+              T_source_to_target_v[1] * target_n[2];
+    J_ij[1] = T_source_to_target_v[2] * target_n[0] -
+              T_source_to_target_v[0] * target_n[2];
+    J_ij[2] = -T_source_to_target_v[1] * target_n[0] +
+              T_source_to_target_v[0] * target_n[1];
+    J_ij[3] = target_n[0];
+    J_ij[4] = target_n[1];
+    J_ij[5] = target_n[2];
+
+    return true;
+}
+
+
 }  // namespace odometry
 }  // namespace kernel
 }  // namespace pipelines

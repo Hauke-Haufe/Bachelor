@@ -6,7 +6,9 @@ target_sources(tpipelines_kernel PRIVATE
     FillInLinearSystem.cpp
     FillInLinearSystemCPU.cpp
     RGBDOdometry.cpp
+    RGBDMOdometry.cpp
     RGBDOdometryCPU.cpp
+    RGBDMOdometryCPU.cpp
     TransformationConverter.cpp
     Feature.cpp
     FeatureCPU.cpp
@@ -17,6 +19,7 @@ if (BUILD_CUDA_MODULE)
         RegistrationCUDA.cu
         FillInLinearSystemCUDA.cu
         RGBDOdometryCUDA.cu
+        RGBDMOdometryCUDA.cu
         TransformationConverter.cu
         FeatureCUDA.cu
     )
