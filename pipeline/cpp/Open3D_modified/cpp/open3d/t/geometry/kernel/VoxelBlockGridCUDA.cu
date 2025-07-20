@@ -254,13 +254,46 @@ template void IntegrateCUDA<float, float, float, float, float>(FN_ARGUMENTS);
             float voxel_size, float sdf_trunc, float depth_scale,             \
             float depth_max
 
-template void CustomIntegrateCUDA<uint16_t, uint8_t, uint8_t, float, uint16_t, uint16_t, uint8_t>(
+template void SemanticIntegrateCUDA<uint16_t, uint8_t, uint8_t, float, uint16_t, uint16_t, uint8_t>(
         FN_ARGUMENTS);
-template void CustomIntegrateCUDA<uint16_t, uint8_t, uint8_t, float, float, float, uint8_t>(
+template void SemanticIntegrateCUDA<uint16_t, uint8_t, uint8_t, float, float, float, uint8_t>(
         FN_ARGUMENTS);
-template void CustomIntegrateCUDA<float, float, uint8_t, float, uint16_t, uint16_t, uint8_t>(
+template void SemanticIntegrateCUDA<float, float, uint8_t, float, uint16_t, uint16_t, uint8_t>(
         FN_ARGUMENTS);
-template void CustomIntegrateCUDA<float, float, uint8_t, float, float, float, uint8_t>(FN_ARGUMENTS);
+template void SemanticIntegrateCUDA<float, float, uint8_t, float, float, float, uint8_t>(FN_ARGUMENTS);
+
+#undef FN_ARGUMENTS
+
+#define FN_ARGUMENTS                                                      \
+    const core::Tensor &depth, const core::Tensor &color, const core::Tensor &mask, \
+            const core::Tensor &indices, const core::Tensor &block_keys,  \
+            TensorMap &block_values, const core::Tensor &depth_intrinsic, \
+            const core::Tensor &color_intrinsic,                          \
+            const core::Tensor &extrinsic, index_t resolution,            \
+            float voxel_size, float sdf_trunc, float depth_scale,         \
+            float depth_max
+
+template void MaskedIntegrateCUDA<uint16_t, uint8_t, float, uint16_t, uint16_t>(
+        FN_ARGUMENTS);
+template void MaskedIntegrateCUDA<uint16_t, uint8_t, float, float, float>(
+        FN_ARGUMENTS);
+template void MaskedIntegrateCUDA<float, float, float, uint16_t, uint16_t>(
+        FN_ARGUMENTS);
+template void MaskedIntegrateCUDA<float, float, float, float, float>(FN_ARGUMENTS);
+
+#undef FN_ARGUMENTS
+
+#define FN_ARGUMENTS                                                      \
+    const core::Tensor &depth, const core::Tensor &color,  const core::Tensor &weight_mask,\
+            const core::Tensor &indices, const core::Tensor &block_keys,  \
+            TensorMap &block_values, const core::Tensor &depth_intrinsic, \
+            const core::Tensor &color_intrinsic,                          \
+            const core::Tensor &extrinsic, index_t resolution,            \
+            float voxel_size, float sdf_trunc, float depth_scale,         \
+            float depth_max
+template void WeightMaskedIntegrateCUDA<uint16_t, uint8_t, float>(
+        FN_ARGUMENTS);
+template void WeightMaskedIntegrateCUDA<float, float, float>(FN_ARGUMENTS);
 
 #undef FN_ARGUMENTS
 

@@ -63,15 +63,10 @@ def test_graph(graph):
             print(i)
 
         prev = curr
+
 if __name__ == "__main__":
     
-    fragments = [file for file in os.listdir("data/fragments") if file.endswith(".pcd")]
+    pcd = o3d.io.read_point_cloud(f"build/p.pcd")
+    graph = o3d.io.read_pose_graph("build/graph.json")
 
-    for i in range(len(fragments)):
-        pcd = o3d.io.read_point_cloud(f"data/fragments/{i}.pcd")
-        pre = o3d.io.read_pose_graph(f"data/fragments/gtsampre_{i}.json")
-        opt = o3d.io.read_pose_graph(f"data/fragments/gtsam{i}.json")
-
-        graphs = [ pre, opt]
-
-        plot_graph(pcd, graphs, False, True)
+    plot_graph(pcd, [graph], False, True)

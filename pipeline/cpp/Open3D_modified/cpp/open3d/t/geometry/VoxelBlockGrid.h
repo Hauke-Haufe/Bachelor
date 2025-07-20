@@ -166,18 +166,6 @@ public:
                    float trunc_voxel_multiplier = 8.0f);
     
     //// RGBD plus semantic information integration
-    void Integrate(const core::Tensor &block_coords,
-                   const Image &depth,
-                   const Image &color,
-                   const core::Tensor &label,
-                   const core::Tensor &depth_intrinsic,
-                   const core::Tensor &color_intrinsic,
-                   const core::Tensor &extrinsic,
-                   float depth_scale = 1000.0f,
-                   float depth_max = 3.0f,
-                   float trunc_voxel_multiplier = 8.0f);
-    
-    //// RGBD plus semantic information integration
     void SemanticIntegrate(const core::Tensor &block_coords,
              const t::geometry::Image &depth,
              const t::geometry::Image &color,
@@ -187,6 +175,28 @@ public:
              float depth_scale = 1000.0f,
              float depth_max = 3.0f,
              float trunc_voxel_multiplier = 8.0f);
+    
+    void MaskedIntegrate(const core::Tensor& block_coords,
+                         const t::geometry::Image &depth,
+                         const t::geometry::Image &color,
+                         const t::geometry::Image &mask_out,
+                         const core::Tensor &instrinsic,
+                         const core::Tensor &extrinsic,
+                         float depth_scale = 1000.0f,
+                         float depth_max = 3.0f,
+                         float trunc_voxel_multiplier = 8.0f);
+
+    void WeightMaskedIntegrate(const core::Tensor& block_coords,
+                    const t::geometry::Image &depth,
+                    const t::geometry::Image &color,
+                    const t::geometry::Image &mask_out,
+                    const core::Tensor &intrinsic,
+                    const core::Tensor &extrinsic,
+                    float depth_scale = 1000.0f,
+                    float depth_max = 3.0f,
+                    float trunc_voxel_multiplier = 8.0f,
+                    int kernel_size = 25, 
+                    float sigma = 7);
 
     /// Specific operation for TSDF volumes.
     /// Perform volumetric ray casting in the selected block coordinates.

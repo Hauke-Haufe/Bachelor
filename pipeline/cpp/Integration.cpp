@@ -8,7 +8,7 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> create_vgb(){
     std::vector<std::string> atr_names = {"tsdf", "weight", "color"};
     std::vector<core::Dtype> atr_types = {core::Dtype::Float32,core::Dtype::Float32, core::Dtype::Float32};
     std::vector<core::SizeVector> channels = {{1}, {1}, {3}};
-    core::Device device("CUDA:0");
+    core::Device device("CPU:0");
 
     return std::make_unique<t::geometry::VoxelBlockGrid>(
         atr_names, 
@@ -16,7 +16,7 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> create_vgb(){
         channels,
         0.005,
         16,
-        20000,
+        10000,
         device
     );
 
@@ -26,7 +26,9 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> integrate(
     pipelines::registration::PoseGraph& Posegraph,
     const std::vector<fs::path>& color_images,
     const std::vector<fs::path>& depth_images, 
-    core::Tensor& instrinsics
+    core::Tensor& instrinsics, 
+    float depth_scale,
+    float depth_max
     ){
     
     std::unique_ptr<t::geometry::VoxelBlockGrid> vgb;
@@ -34,7 +36,7 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> integrate(
 
     t::geometry::Image color_image;
     t::geometry::Image depth_image;
-    core::Device cuda_device(core::Device::DeviceType::CUDA, 0);
+    core::Device cuda_device(core::Device::DeviceType::CPU, 0);
     
     for(int i = 0; i < color_images.size()-1; i++){
 
@@ -49,7 +51,9 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> integrate(
         auto frustum_block_coords = vgb->GetUniqueBlockCoordinates(
             depth_image.To(cuda_device),
             instrinsics,
-            inverse_t
+            inverse_t, 
+            depth_scale,
+            depth_max
         );
 
         vgb->Integrate(
@@ -57,7 +61,9 @@ std::unique_ptr<t::geometry::VoxelBlockGrid> integrate(
             depth_image.To(cuda_device),
             color_image.To(cuda_device),
             instrinsics,
-            inverse_t
+            inverse_t,
+            depth_scale,
+            depth_max
         );
 
     }

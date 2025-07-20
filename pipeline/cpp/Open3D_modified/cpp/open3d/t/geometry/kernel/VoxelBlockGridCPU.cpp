@@ -228,15 +228,48 @@ template void IntegrateCPU<float, float, float, float, float>(FN_ARGUMENTS);
             float voxel_size, float sdf_trunc, float depth_scale,             \
             float depth_max
 
-template void CustomIntegrateCPU<uint16_t, uint8_t, uint8_t, float, uint16_t, uint16_t, uint8_t>(
+template void SemanticIntegrateCPU<uint16_t, uint8_t, uint8_t, float, uint16_t, uint16_t, uint8_t>(
         FN_ARGUMENTS);
-template void CustomIntegrateCPU<uint16_t, uint8_t, uint8_t, float, float, float, uint8_t>(
+template void SemanticIntegrateCPU<uint16_t, uint8_t, uint8_t, float, float, float, uint8_t>(
         FN_ARGUMENTS);
-template void CustomIntegrateCPU<float, float, uint8_t, float, uint16_t, uint16_t, uint8_t>(
+template void SemanticIntegrateCPU<float, float, uint8_t, float, uint16_t, uint16_t, uint8_t>(
         FN_ARGUMENTS);
-template void CustomIntegrateCPU<float, float, uint8_t, float, float, float, uint8_t>(FN_ARGUMENTS);
+template void SemanticIntegrateCPU<float, float, uint8_t, float, float, float, uint8_t>(FN_ARGUMENTS);
 
 #undef FN_ARGUMENTS
+
+#define FN_ARGUMENTS                                                      \
+    const core::Tensor &depth, const core::Tensor &color,  const core::Tensor &mask,\
+            const core::Tensor &indices, const core::Tensor &block_keys,  \
+            TensorMap &block_values, const core::Tensor &depth_intrinsic, \
+            const core::Tensor &color_intrinsic,                          \
+            const core::Tensor &extrinsic, index_t resolution,            \
+            float voxel_size, float sdf_trunc, float depth_scale,         \
+            float depth_max
+
+template void MaskedIntegrateCPU<uint16_t, uint8_t, float, uint16_t, uint16_t>(
+        FN_ARGUMENTS);
+template void MaskedIntegrateCPU<uint16_t, uint8_t, float, float, float>(
+        FN_ARGUMENTS);
+template void MaskedIntegrateCPU<float, float, float, uint16_t, uint16_t>(
+        FN_ARGUMENTS);
+template void MaskedIntegrateCPU<float, float, float, float, float>(FN_ARGUMENTS);
+
+#undef FN_ARGUMENTS
+
+#define FN_ARGUMENTS                                                      \
+    const core::Tensor &depth, const core::Tensor &color,  const core::Tensor &weight_mask,\
+            const core::Tensor &indices, const core::Tensor &block_keys,  \
+            TensorMap &block_values, const core::Tensor &depth_intrinsic, \
+            const core::Tensor &color_intrinsic,                          \
+            const core::Tensor &extrinsic, index_t resolution,            \
+            float voxel_size, float sdf_trunc, float depth_scale,         \
+            float depth_max
+template void WeightMaskedIntegrateCPU<uint16_t, uint8_t, float>(FN_ARGUMENTS);
+template void WeightMaskedIntegrateCPU<float, float, float>(FN_ARGUMENTS);
+
+#undef FN_ARGUMENTS
+
 
 #define FN_ARGUMENTS                                                           \
     std::shared_ptr<core::HashMap> &hashmap, const TensorMap &block_value_map, \

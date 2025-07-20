@@ -31,7 +31,8 @@ public:
           const core::Tensor& T_init = core::Tensor::Eye(4,
                                                          core::Float64,
                                                          core::Device("CPU:0")),
-          const core::Device& device = core::Device("CUDA:0"));
+          const core::Device& device = core::Device("CUDA:0"),
+          bool precise = false);
 
     core::Tensor GetCurrentFramePose() const { return T_frame_to_world_; }
     void UpdateFramePose(int frame_id, const core::Tensor& T_frame_to_world) {
@@ -82,6 +83,16 @@ public:
             odometry::Method method = odometry::Method::PointToPlane,
             const std::vector<odometry::OdometryConvergenceCriteria>& criteria =
                     {6, 3, 1});
+    
+    odometry::OdometryResult TrackMaskedFrameToModel(
+        const Frame& input_frame,
+        const Frame& raycast_frame,
+        float depth_scale  = 1000.0,
+        float depth_max = 3.0,
+        float depth_diff = 0.07,
+        const odometry::Method method = odometry::Method::PointToPlane,
+        const std::vector<odometry::OdometryConvergenceCriteria>& criteria = 
+                    {6, 3, 1});
 
     /// Integrate RGBD frame into the volumetric voxel grid.
     /// \param input_frame Input RGBD frame.
@@ -95,6 +106,18 @@ public:
                    float depth_scale = 1000.0,
                    float depth_max = 3.0,
                    float trunc_voxel_multiplier = 8.0f);
+
+    void MaskedIntegrate(const Frame& input_frame,
+                      float depth_scale = 1000.0,
+                      float depth_max = 3.0,
+                      float trunc_voxel_multiplier = 8.0f);
+
+    void WeightMaskedIntegrate(const Frame& input_frame,
+                      float depth_scale = 1000.0f,
+                      float depth_max = 3.0f,
+                      float trunc_voxel_multiplier = 8.0f, 
+                      int kernel_size = 25, 
+                      float sigma = 7);
 
     /// Extract surface point cloud for visualization / model saving.
     /// \param weight_threshold Weight threshold of the TSDF voxels to prune

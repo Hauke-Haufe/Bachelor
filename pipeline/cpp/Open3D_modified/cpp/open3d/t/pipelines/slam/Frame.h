@@ -23,7 +23,8 @@ public:
     Frame(int height,
           int width,
           const core::Tensor& intrinsics,
-          const core::Device& device)
+          const core::Device& device,
+          bool precise = false)
         : height_(height),
           width_(width),
           intrinsics_(intrinsics),

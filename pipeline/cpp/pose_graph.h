@@ -308,6 +308,10 @@ public:
         backend_->Save(path);
     }
 
+    const open3d::pipelines::registration::PoseGraph& GetPoseGraph(){
+        return backend_->GetPoseGraph();
+    }
+
     // If you want access to the backend instance itself
     BackendT& Backend() { return *backend_; }
 

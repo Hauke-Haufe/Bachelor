@@ -190,8 +190,164 @@ void Integrate(const core::Tensor& depth,
     }
 }
 
+void MaskedIntegrate(const core::Tensor& depth,
+               const core::Tensor& color,
+               const core::Tensor& mask,
+               const core::Tensor& block_indices,
+               const core::Tensor& block_keys,
+               TensorMap& block_value_map,
+               const core::Tensor& depth_intrinsic,
+               const core::Tensor& color_intrinsic,
+               const core::Tensor& extrinsic,
+               index_t resolution,
+               float voxel_size,
+               float sdf_trunc,
+               float depth_scale,
+               float depth_max) {
 
-#define CDISPATCH_VALUE_DTYPE_TO_TEMPLATE(WEIGHT_DTYPE, COLOR_DTYPE, ...)    \
+    using tsdf_t = float;
+    core::Dtype block_weight_dtype = core::Dtype::Float32;
+    core::Dtype block_color_dtype = core::Dtype::Float32;
+    if (block_value_map.Contains("weight")) {
+        block_weight_dtype = block_value_map.at("weight").GetDtype();
+    }
+    if (block_value_map.Contains("color")) {
+        block_color_dtype = block_value_map.at("color").GetDtype();
+    }
+
+    core::Dtype input_depth_dtype = depth.GetDtype();
+    core::Dtype input_color_dtype = (input_depth_dtype == core::Dtype::Float32)
+                                            ? core::Dtype::Float32
+                                            : core::Dtype::UInt8;
+    if (color.NumElements() > 0) {
+        input_color_dtype = color.GetDtype();
+    }
+    core::Tensor mask_d;
+
+    if (mask.GetDtype() == core::Dtype::UInt8){
+        mask_d = mask.To(core::Dtype::Bool);
+    }
+    else if(mask.GetDtype() == core::Dtype::Bool){
+        mask_d = mask;
+    }
+    else{
+        utility::LogError("Not a supported Dtype for a Mask");
+    }
+    
+    if (depth.IsCPU()) {
+        DISPATCH_INPUT_DTYPE_TO_TEMPLATE(
+                input_depth_dtype, input_color_dtype, [&] {
+                    DISPATCH_VALUE_DTYPE_TO_TEMPLATE(
+                            block_weight_dtype, block_color_dtype, [&] {
+                                MaskedIntegrateCPU<input_depth_t, input_color_t,
+                                             tsdf_t, weight_t, color_t>(
+                                        depth, color, mask_d, block_indices, block_keys,
+                                        block_value_map, depth_intrinsic,
+                                        color_intrinsic, extrinsic, resolution,
+                                        voxel_size, sdf_trunc, depth_scale,
+                                        depth_max);
+                            });
+                });
+    } else if (depth.IsCUDA()) {
+#ifdef BUILD_CUDA_MODULE
+        DISPATCH_INPUT_DTYPE_TO_TEMPLATE(
+                input_depth_dtype, input_color_dtype, [&] {
+                    DISPATCH_VALUE_DTYPE_TO_TEMPLATE(
+                            block_weight_dtype, block_color_dtype, [&] {
+                                MaskedIntegrateCUDA<input_depth_t, input_color_t,
+                                              tsdf_t, weight_t, color_t>(
+                                        depth, color, mask_d, block_indices, block_keys,
+                                        block_value_map, depth_intrinsic,
+                                        color_intrinsic, extrinsic, resolution,
+                                        voxel_size, sdf_trunc, depth_scale,
+                                        depth_max);
+                            });
+                });
+#else
+        utility::LogError("Not compiled with CUDA, but CUDA device is used.");
+#endif
+    } else {
+        utility::LogError("Unimplemented device");
+    }
+}
+
+
+void WeightMaskedIntegrate(const core::Tensor& depth,
+               const core::Tensor& color,
+               const core::Tensor& weight_mask,
+               const core::Tensor& block_indices,
+               const core::Tensor& block_keys,
+               TensorMap& block_value_map,
+               const core::Tensor& depth_intrinsic,
+               const core::Tensor& color_intrinsic,
+               const core::Tensor& extrinsic,
+               index_t resolution,
+               float voxel_size,
+               float sdf_trunc,
+               float depth_scale,
+               float depth_max) {
+
+    using tsdf_t = float;
+
+    if (block_value_map.Contains("weight")) {
+        if (block_value_map.at("weight").GetDtype() != core::Dtype::Float32){
+            utility::LogError("Unsupported Atribute Dtype {}. Expected Float32",
+                block_value_map.at("weight").GetDtype().ToString());
+        }
+    }
+    else{
+        utility::LogError("Weight Atribute is needed");
+    }
+    if (block_value_map.Contains("color")) {
+
+        if (block_value_map.at("color").GetDtype() != core::Dtype::Float32){
+            utility::LogError("Unsupported Atribute Dtype {}. Expected Float32",
+                block_value_map.at("color").GetDtype().ToString());
+        }
+    }
+
+    core::Dtype input_depth_dtype = depth.GetDtype();
+    core::Dtype input_color_dtype = (input_depth_dtype == core::Dtype::Float32)
+                                            ? core::Dtype::Float32
+                                            : core::Dtype::UInt8;
+    if (color.NumElements() > 0) {
+        input_color_dtype = color.GetDtype();
+    }
+
+    if (depth.IsCPU()) {
+        DISPATCH_INPUT_DTYPE_TO_TEMPLATE(
+                input_depth_dtype, input_color_dtype, [&] {
+                        WeightMaskedIntegrateCPU<input_depth_t, input_color_t,
+                                        tsdf_t>(
+                                depth, color, weight_mask, block_indices, block_keys,
+                                block_value_map, depth_intrinsic,
+                                color_intrinsic, extrinsic, resolution,
+                                voxel_size, sdf_trunc, depth_scale,
+                                depth_max);
+                });
+
+    } else if (depth.IsCUDA()) {
+#ifdef BUILD_CUDA_MODULE
+        DISPATCH_INPUT_DTYPE_TO_TEMPLATE(
+                input_depth_dtype, input_color_dtype, [&] {
+                                WeightMaskedIntegrateCUDA<input_depth_t, input_color_t,
+                                              tsdf_t>(
+                                        depth, color, weight_mask, block_indices, block_keys,
+                                        block_value_map, depth_intrinsic,
+                                        color_intrinsic, extrinsic, resolution,
+                                        voxel_size, sdf_trunc, depth_scale,
+                                        depth_max);
+                });
+#else
+        utility::LogError("Not compiled with CUDA, but CUDA device is used.");
+#endif
+    } else {
+        utility::LogError("Unimplemented device");
+    }
+}
+
+
+#define SEMANTIC_DISPATCH_VALUE_DTYPE_TO_TEMPLATE(WEIGHT_DTYPE, COLOR_DTYPE, ...)    \
     [&] {                                                                   \
         if (WEIGHT_DTYPE == open3d::core::Float32 &&                        \
             COLOR_DTYPE == open3d::core::Float32) {                         \
@@ -214,7 +370,7 @@ void Integrate(const core::Tensor& depth,
         }                                                                   \
     }()
 
-#define CDISPATCH_INPUT_DTYPE_TO_TEMPLATE(DEPTH_DTYPE, COLOR_DTYPE, ...)        \
+#define SEMANTIC_DISPATCH_INPUT_DTYPE_TO_TEMPLATE(DEPTH_DTYPE, COLOR_DTYPE, ...)        \
     [&] {                                                                      \
         if (DEPTH_DTYPE == open3d::core::Float32 &&                            \
             COLOR_DTYPE == open3d::core::Float32) {                            \
@@ -236,7 +392,7 @@ void Integrate(const core::Tensor& depth,
         }                                                                      \
     }()
                                                     
-void custom_Integrate(const core::Tensor& depth,
+void SemanticIntegrate(const core::Tensor& depth,
             const core::Tensor& color,
             const core::Tensor& label,
             const core::Tensor& block_indices,
@@ -278,11 +434,11 @@ void custom_Integrate(const core::Tensor& depth,
 
     if (depth.IsCPU()) {
 
-        CDISPATCH_INPUT_DTYPE_TO_TEMPLATE(
+        SEMANTIC_DISPATCH_INPUT_DTYPE_TO_TEMPLATE(
             input_depth_dtype, input_color_dtype, [&] {
-                CDISPATCH_VALUE_DTYPE_TO_TEMPLATE(
+                SEMANTIC_DISPATCH_VALUE_DTYPE_TO_TEMPLATE(
                         block_weight_dtype, block_color_dtype, [&] {
-                            CustomIntegrateCPU<input_depth_t, input_color_t, input_label_t,
+                            SemanticIntegrateCPU<input_depth_t, input_color_t, input_label_t,
                                          tsdf_t, weight_t, color_t, label_t>(
                                     depth, color, label, block_indices, block_keys,
                                     block_value_map, depth_intrinsic,
@@ -295,11 +451,11 @@ void custom_Integrate(const core::Tensor& depth,
     } else if (depth.IsCUDA()) {
         
        
-        CDISPATCH_INPUT_DTYPE_TO_TEMPLATE(
+        SEMANTIC_DISPATCH_INPUT_DTYPE_TO_TEMPLATE(
             input_depth_dtype, input_color_dtype, [&] {
-                CDISPATCH_VALUE_DTYPE_TO_TEMPLATE(
+                 SEMANTIC_DISPATCH_VALUE_DTYPE_TO_TEMPLATE(
                         block_weight_dtype, block_color_dtype, [&] {
-                            CustomIntegrateCUDA<input_depth_t, input_color_t, input_label_t,
+                            SemanticIntegrateCUDA<input_depth_t, input_color_t, input_label_t,
                                          tsdf_t, weight_t, color_t, label_t>(
                                     depth, color, label, block_indices, block_keys,
                                     block_value_map, depth_intrinsic,
@@ -477,7 +633,7 @@ void ExtractSemanticPointCloud(const core::Tensor& block_indices,
     }
 
     if (block_indices.IsCPU()) {
-        CDISPATCH_VALUE_DTYPE_TO_TEMPLATE(
+        SEMANTIC_DISPATCH_VALUE_DTYPE_TO_TEMPLATE(
                 block_weight_dtype, block_color_dtype, [&] {
                     ExtractSemanticPointCloudCPU<tsdf_t, weight_t, color_t, label_t>(
                             block_indices, nb_block_indices, nb_block_masks,
@@ -488,7 +644,7 @@ void ExtractSemanticPointCloud(const core::Tensor& block_indices,
 
     } else if (block_indices.IsCUDA()) {
 #ifdef BUILD_CUDA_MODULE
-        CDISPATCH_VALUE_DTYPE_TO_TEMPLATE(
+        SEMANTIC_DISPATCH_VALUE_DTYPE_TO_TEMPLATE(
                 block_weight_dtype, block_color_dtype, [&] {
                     ExtractSemanticPointCloudCUDA<tsdf_t, weight_t, color_t, label_t>(
                             block_indices, nb_block_indices, nb_block_masks,

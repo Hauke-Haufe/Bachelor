@@ -562,7 +562,7 @@ void ComputePointToPlaneResidualMap(
         );
 }
 
-t::geometry::Image ComputeResiudalMap(
+t::geometry::Image ComputeResidualMap(
         const t::geometry::RGBDImage& source,
         const t::geometry::RGBDImage& target, 
         const core::Tensor& source_to_target,

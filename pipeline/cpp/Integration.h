@@ -13,4 +13,6 @@ std::unique_ptr<open3d::t::geometry::VoxelBlockGrid> integrate(
     open3d::pipelines::registration::PoseGraph& Posegraph,
     const std::vector<std::filesystem::path>& color_images,
     const std::vector<std::filesystem::path>& depth_images, 
-    open3d::core::Tensor& instrinsics);
+    open3d::core::Tensor& instrinsics,
+    float depth_scale = 1000.0f,
+    float depth_max = 3.0f);

@@ -462,7 +462,7 @@ __global__ void ComputeDMaskOdometryResultPointToPlaneCUDAKernel(
         bool valid;
 
         if (!*v){
-            bool valid = GetMaskJacobianPointToPlane(
+            valid = GetMaskJacobianPointToPlane(
                     x, y, depth_outlier_trunc, source_vertex_indexer,
                     target_vertex_indexer, target_normal_indexer, target_mask_indexer, ti, J, r);
         }
@@ -666,7 +666,7 @@ __global__ void ComputeSMaskOdometryResultPointToPlaneCUDAKernel(
         bool valid;
 
         if (!*v){
-            bool valid = GetJacobianPointToPlane(
+            valid = GetJacobianPointToPlane(
                     x, y, depth_outlier_trunc, source_vertex_indexer,
                     target_vertex_indexer, target_normal_indexer, ti, J, r);
         }

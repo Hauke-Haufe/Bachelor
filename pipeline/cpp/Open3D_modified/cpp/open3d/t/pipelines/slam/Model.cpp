@@ -13,6 +13,7 @@
 #include "open3d/t/geometry/Utility.h"
 #include "open3d/t/geometry/VoxelBlockGrid.h"
 #include "open3d/t/pipelines/odometry/RGBDOdometry.h"
+#include "open3d/t/pipelines/odometry/RGBDMOdometry.h"
 #include "open3d/t/pipelines/slam/Frame.h"
 
 namespace open3d {
@@ -24,10 +25,11 @@ Model::Model(float voxel_size,
              int block_resolution,
              int est_block_count,
              const core::Tensor& T_init,
-             const core::Device& device)
+             const core::Device& device,
+             bool precise)
     : voxel_grid_(std::vector<std::string>({"tsdf", "weight", "color"}),
-                  std::vector<core::Dtype>(
-                          {core::Float32, core::UInt16, core::UInt16}),
+                  precise? std::vector<core::Dtype>({core::Float32, core::Float32, core::Float32}):
+                  std::vector<core::Dtype>({core::Float32, core::UInt16, core::UInt16}),
                   std::vector<core::SizeVector>({{1}, {1}, {3}}),
                   voxel_size,
                   block_resolution,
@@ -63,6 +65,30 @@ void Model::SynthesizeModelFrame(Frame& raycast_frame,
                                             raycast_frame.GetWidth(), 3},
                                            core::Float32, core::Device()));
     }
+}
+
+odometry::OdometryResult Model::TrackMaskedFrameToModel(
+        const Frame& input_frame,
+        const Frame& raycast_frame,
+        float depth_scale,
+        float depth_max,
+        float depth_diff,
+        const odometry::Method method,
+        const std::vector<odometry::OdometryConvergenceCriteria>& criteria) {
+    // TODO: Expose init_source_to_target as param, and make the input sequence
+    // consistent with RGBDOdometryMultiScale.
+    const static core::Tensor init_source_to_target =
+            core::Tensor::Eye(4, core::Float64, core::Device("CPU:0"));
+
+    return odometry::RGBDMOdometryMultiScale(
+            t::geometry::RGBDMImage(input_frame.GetDataAsImage("color"),
+                                   input_frame.GetDataAsImage("depth"),
+                                   input_frame.GetDataAsImage("mask")),
+            t::geometry::RGBDImage(raycast_frame.GetDataAsImage("color"),
+                                   raycast_frame.GetDataAsImage("depth")),
+            raycast_frame.GetIntrinsics(), init_source_to_target, depth_scale,
+            depth_max, criteria, method,
+            odometry::OdometryLossParams(depth_diff));
 }
 
 odometry::OdometryResult Model::TrackFrameToModel(
@@ -103,6 +129,48 @@ void Model::Integrate(const Frame& input_frame,
     voxel_grid_.Integrate(frustum_block_coords_, depth, color, intrinsic,
                           extrinsic, depth_scale, depth_max,
                           trunc_voxel_multiplier);
+}
+
+void Model::MaskedIntegrate(const Frame& input_frame,
+                      float depth_scale,
+                      float depth_max,
+                      float trunc_voxel_multiplier) {
+    t::geometry::Image depth = input_frame.GetDataAsImage("depth");
+    t::geometry::Image color = input_frame.GetDataAsImage("color");
+    t::geometry::Image mask = input_frame.GetDataAsImage("mask");
+
+    core::Tensor intrinsic = input_frame.GetIntrinsics();
+    core::Tensor extrinsic =
+            t::geometry::InverseTransformation(GetCurrentFramePose());
+    frustum_block_coords_ = voxel_grid_.GetUniqueBlockCoordinates(
+            depth, intrinsic, extrinsic, depth_scale, depth_max,
+            trunc_voxel_multiplier);
+    voxel_grid_.MaskedIntegrate(frustum_block_coords_, depth, color, 
+                          mask, intrinsic,
+                          extrinsic, depth_scale, depth_max,
+                          trunc_voxel_multiplier);
+}
+
+void Model::WeightMaskedIntegrate(const Frame& input_frame,
+                      float depth_scale,
+                      float depth_max,
+                      float trunc_voxel_multiplier, 
+                      int kernel_size, 
+                      float sigma) {
+    t::geometry::Image depth = input_frame.GetDataAsImage("depth");
+    t::geometry::Image color = input_frame.GetDataAsImage("color");
+    t::geometry::Image mask = input_frame.GetDataAsImage("mask");
+
+    core::Tensor intrinsic = input_frame.GetIntrinsics();
+    core::Tensor extrinsic =
+            t::geometry::InverseTransformation(GetCurrentFramePose());
+    frustum_block_coords_ = voxel_grid_.GetUniqueBlockCoordinates(
+            depth, intrinsic, extrinsic, depth_scale, depth_max,
+            trunc_voxel_multiplier);
+    voxel_grid_.WeightMaskedIntegrate(frustum_block_coords_, depth, color, 
+                          mask, intrinsic,
+                          extrinsic, depth_scale, depth_max,
+                          trunc_voxel_multiplier, kernel_size, sigma);
 }
 
 t::geometry::PointCloud Model::ExtractPointCloud(float weight_threshold,
