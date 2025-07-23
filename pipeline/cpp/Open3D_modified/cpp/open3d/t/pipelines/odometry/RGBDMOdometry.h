@@ -22,24 +22,6 @@ namespace t {
 namespace pipelines {
 namespace odometry {
 
-enum class MaskMethod{
-     SourceMask,
-     TargetMask,
-     CompleteMask
-};
-
-OdometryResult RGBDMOdometryMultiScale(
-        const t::geometry::RGBDMImage& source,
-        const t::geometry::RGBDMImage& target,
-        const core::Tensor& intrinsics,
-        const core::Tensor& init_source_to_target =
-                core::Tensor::Eye(4, core::Float64, core::Device("CPU:0")),
-        const float depth_scale = 1000.0f,
-        const float depth_max = 3.0f,
-        const std::vector<OdometryConvergenceCriteria>& criteria_list = {10, 5, 3},
-        const Method method = Method::PointToPlane,
-        const MaskMethod maskmethod = MaskMethod::CompleteMask,
-        const OdometryLossParams& params = OdometryLossParams());
 
 OdometryResult RGBDMOdometryMultiScale(
         const t::geometry::RGBDMImage& source,

@@ -88,6 +88,16 @@ void ComputeResidualMapPointToPlaneCPU(const core::Tensor& source_vertex_map,
         const core::Tensor& intrinsics, 
         const float depth_outlier_trunc);
 
+void ComputeResidualMapHybridCPU(const core::Tensor source_depth, 
+        const core::Tensor target_depth,
+        const core::Tensor& source_intensity,
+        const core::Tensor& target_intensity,
+        const core::Tensor& source_vertex_map, 
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target, 
+        const core::Tensor& intrinsics, 
+        const float depth_outlier_trunc);
+
 #ifdef BUILD_CUDA_MODULE
 
 void ComputeOdometryResultPointToPlaneCUDA(
@@ -175,6 +185,16 @@ void ComputeResidualMapIntensityCUDA(const core::Tensor& source_intensity,
 void ComputeResidualMapPointToPlaneCUDA(const core::Tensor& source_vertex_map, 
         const core::Tensor& target_vertex_map, 
         const core::Tensor& target_normal_map,
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target, 
+        const core::Tensor& intrinsics, 
+        const float depth_outlier_trunc);
+
+void ComputeResidualMapHybridCUDA(const core::Tensor source_depth, 
+        const core::Tensor target_depth,
+        const core::Tensor& source_intensity,
+        const core::Tensor& target_intensity,
+        const core::Tensor& source_vertex_map, 
         core::Tensor& residuals, 
         const core::Tensor& source_to_target, 
         const core::Tensor& intrinsics, 
@@ -304,10 +324,6 @@ inline bool ComputeHybridResidual
         const NDArrayIndexer& target_depth_indexer,
         const NDArrayIndexer& source_intensity_indexer,
         const NDArrayIndexer& target_intensity_indexer,
-        const NDArrayIndexer& target_depth_dx_indexer,
-        const NDArrayIndexer& target_depth_dy_indexer,
-        const NDArrayIndexer& target_intensity_dx_indexer,
-        const NDArrayIndexer& target_intensity_dy_indexer,
         const NDArrayIndexer& source_vertex_indexer,
         const TransformIndexer& trans,
         float& residual){
@@ -341,7 +357,7 @@ inline bool ComputeHybridResidual
     float diff_I = *target_intensity_indexer.GetDataPtr<float>(u_t, v_t) -
                 *source_intensity_indexer.GetDataPtr<float>(x, y);
     
-    residual = diff_I*diff_I +diff_D*diff_D;
+    residual = 0.5f *diff_I*diff_I + 0.5f *diff_D*diff_D;
     return true;
 }
 

@@ -431,6 +431,51 @@ void ComputeResidualMapIntensityCPU(const core::Tensor& source_intensity,
     });
 }
 
+void ComputeResidualMapHybridCPU(const core::Tensor source_depth, 
+        const core::Tensor target_depth,
+        const core::Tensor& source_intensity,
+        const core::Tensor& target_intensity,
+        const core::Tensor& source_vertex_map, 
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target, 
+        const core::Tensor& intrinsics, 
+        const float depth_outlier_trunc){
+    
+    NDArrayIndexer source_depth_indexer(source_depth, 2);
+    NDArrayIndexer target_depth_indexer(target_depth, 2);
+
+    NDArrayIndexer source_intensity_indexer(source_intensity, 2);
+    NDArrayIndexer target_intensity_indexer(target_intensity, 2);
+
+    NDArrayIndexer source_vertex_indexer(source_vertex_map, 2);
+
+    NDArrayIndexer residual_indexer(residuals, 2); 
+    
+    auto trans = source_to_target;
+    t::geometry::kernel::TransformIndexer ti(intrinsics, trans);
+
+    int64_t rows = source_intensity_indexer.GetShape(0);
+    int64_t cols = source_intensity_indexer.GetShape(1);
+    int64_t n = rows * cols;
+
+    core::Device device = source_vertex_map.GetDevice();
+    
+    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int workload_idx) {
+        int y = workload_idx / cols;
+        int x = workload_idx % cols;
+        float residual = 0;
+
+        bool valid = ComputeHybridResidual(x,y, depth_outlier_trunc, source_depth_indexer, 
+            target_depth_indexer, source_intensity_indexer, target_intensity_indexer, 
+            source_vertex_indexer, ti, residual);
+
+        if (valid){
+            float* r = residual_indexer.GetDataPtr<float>(x,y);
+            *r = residual;
+        }
+    });
+}
+
 void ComputeResidualMapPointToPlaneCPU(const core::Tensor& source_vertex_map, 
         const core::Tensor& target_vertex_map, 
         const core::Tensor& target_normal_map,

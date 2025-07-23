@@ -515,6 +515,34 @@ core::Tensor ComputeOdometryInformationMatrix(
     return information;
 }
 
+void ComputeHybridResidualMap(
+        const t::geometry::RGBDImage& source,
+        const t::geometry::RGBDImage& target, 
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target,
+        const core::Tensor& intrinsics,
+        const float depth_outlier_trunc){
+        
+        core::Tensor target_depth = target.depth_.AsTensor();
+
+        auto source_intensity = source.color_.RGBToGray().To(core::Float32);
+        auto target_intensity = target.color_.RGBToGray().To(core::Float32);
+        
+        t::geometry::Image source_depth = source.depth_;
+        auto source_vertex_map = source_depth.CreateVertexMap(intrinsics, NAN);
+
+        t::pipelines::kernel::odometry::ComputeResidualHybridMap(
+                source_depth.AsTensor(), 
+                target_depth,
+                source_intensity.AsTensor(),
+                target_intensity.AsTensor(),
+                source_vertex_map.AsTensor(),
+                residuals,
+                source_to_target,
+                intrinsics,
+                depth_outlier_trunc
+        );
+}
 
 void ComputeIntensityResidualMap(
         const t::geometry::RGBDImage& source,
@@ -550,10 +578,13 @@ void ComputePointToPlaneResidualMap(
         const core::Tensor& source_to_target,
         const core::Tensor& intrinsics,
         const float depth_outlier_trunc){
-
-        core::Tensor source_vertex_map = source.depth_.To(core::Float32).CreateVertexMap(intrinsics, NAN).AsTensor();
-        core::Tensor target_vertex_map = target.depth_.To(core::Float32).CreateVertexMap(intrinsics, NAN).AsTensor();
-        Image target_depth_smooth = target.depth_.To(core::Float32).FilterBilateral(5, 5, 10);
+        
+        auto source_depth = source.depth_;
+        auto target_depth = target.depth_;
+        
+        core::Tensor source_vertex_map = source_depth.CreateVertexMap(intrinsics, NAN).AsTensor();
+        core::Tensor target_vertex_map = target_depth.CreateVertexMap(intrinsics, NAN).AsTensor();
+        Image target_depth_smooth = target.depth_.FilterBilateral(5, 5, 10);
         Image target_vertex_map_smooth = target_depth_smooth.CreateVertexMap(intrinsics, NAN);
         core::Tensor target_normal_map = target_vertex_map_smooth.CreateNormalMap(NAN).AsTensor();
 
@@ -562,6 +593,7 @@ void ComputePointToPlaneResidualMap(
                 residuals, source_to_target, intrinsics, depth_outlier_trunc
         );
 }
+
 
 t::geometry::Image ComputeResidualMap(
         const t::geometry::RGBDImage& source,
@@ -603,9 +635,11 @@ t::geometry::Image ComputeResidualMap(
                 source_processed, target_processed, residuals, trans_d, 
                 intrinsics_d, depth_outlier_trunc);
     } else if (method == Method::Intensity) {
-        utility::LogError("Residual not implemented.");
-    } else if (method == Method::Hybrid) {
         ComputeIntensityResidualMap(
+                source_processed, target_processed,residuals, trans_d, 
+                intrinsics_d, depth_outlier_trunc);
+    } else if (method == Method::Hybrid) {
+        ComputeHybridResidualMap(
                 source_processed, target_processed, residuals, trans_d, 
                 intrinsics_d, depth_outlier_trunc);
     } else {

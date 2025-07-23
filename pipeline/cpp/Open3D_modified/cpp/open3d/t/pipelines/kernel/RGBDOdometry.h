@@ -84,6 +84,16 @@ void ComputeResidualPointToPlaneMap(const core::Tensor& source_vertex_map,
                         const core::Tensor& intrinsics, 
                         const float depth_outlier_trunc);
 
+void ComputeResidualHybridMap(const core::Tensor source_depth, 
+        const core::Tensor target_depth,
+        const core::Tensor& source_intensity,
+        const core::Tensor& target_intensity,
+        const core::Tensor& source_vertex_map, 
+        core::Tensor& residuals, 
+        const core::Tensor& source_to_target, 
+        const core::Tensor& intrinsics, 
+        const float depth_outlier_trunc);
+
 }  // namespace odometry
 }  // namespace kernel
 }  // namespace pipelines

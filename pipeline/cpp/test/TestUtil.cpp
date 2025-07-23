@@ -2,7 +2,7 @@
 #include <open3d/core/Tensor.h>
 #include "open3d/core/EigenConverter.h"
 #include "open3d/t/pipelines/odometry/RGBDMOdometry.h"
-#include "test_util.h"
+#include "TestUtil.h"
 
 using namespace open3d;
 namespace fs = std::filesystem;

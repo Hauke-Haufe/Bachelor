@@ -1,0 +1,5 @@
+{
+    "device": "CUDA",
+    "slam_method": "Raw",
+    "dataset": "static_xyz"
+}

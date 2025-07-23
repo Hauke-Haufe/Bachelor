@@ -336,6 +336,80 @@ OPEN3D_HOST_DEVICE inline bool GetJacobianHybrid(
     return true;
 }
 
+OPEN3D_HOST_DEVICE inline bool GetMaskJacobianIntensity(
+        int x,
+        int y,
+        const float depth_outlier_trunc,
+        const NDArrayIndexer& source_depth_indexer,
+        const NDArrayIndexer& target_depth_indexer,
+        const NDArrayIndexer& source_intensity_indexer,
+        const NDArrayIndexer& target_intensity_indexer,
+        const NDArrayIndexer& target_intensity_dx_indexer,
+        const NDArrayIndexer& target_intensity_dy_indexer,
+        const NDArrayIndexer& source_vertex_indexer,
+        const NDArrayIndexer& target_mask_indexer, 
+        const TransformIndexer& ti,
+        float* J_I,
+        float& r_I) {
+    const float sobel_scale = 0.125;
+
+    float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
+    if (isnan(source_v[0])) {
+        return false;
+    }
+
+    // Transform source points to the target camera's coordinate space.
+    float T_source_to_target_v[3], u_tf, v_tf;
+    ti.RigidTransform(source_v[0], source_v[1], source_v[2],
+                      &T_source_to_target_v[0], &T_source_to_target_v[1],
+                      &T_source_to_target_v[2]);
+    ti.Project(T_source_to_target_v[0], T_source_to_target_v[1],
+               T_source_to_target_v[2], &u_tf, &v_tf);
+    int u_t = int(roundf(u_tf));
+    int v_t = int(roundf(v_tf));
+
+    if (T_source_to_target_v[2] < 0 ||
+        !target_depth_indexer.InBoundary(u_t, v_t)) {
+        return false;
+    }
+
+    if (*target_mask_indexer.GetDataPtr<bool>(u_t, v_t)){
+        return false;
+    }
+
+    float fx, fy;
+    ti.GetFocalLength(&fx, &fy);
+
+    float depth_t = *target_depth_indexer.GetDataPtr<float>(u_t, v_t);
+    float diff_D = depth_t - T_source_to_target_v[2];
+    if (isnan(depth_t) || abs(diff_D) > depth_outlier_trunc) {
+        return false;
+    }
+
+    float diff_I = *target_intensity_indexer.GetDataPtr<float>(u_t, v_t) -
+                   *source_intensity_indexer.GetDataPtr<float>(x, y);
+    float dIdx = sobel_scale *
+                 (*target_intensity_dx_indexer.GetDataPtr<float>(u_t, v_t));
+    float dIdy = sobel_scale *
+                 (*target_intensity_dy_indexer.GetDataPtr<float>(u_t, v_t));
+
+    float invz = 1 / T_source_to_target_v[2];
+    float c0 = dIdx * fx * invz;
+    float c1 = dIdy * fy * invz;
+    float c2 = -(c0 * T_source_to_target_v[0] + c1 * T_source_to_target_v[1]) *
+               invz;
+
+    J_I[0] = (-T_source_to_target_v[2] * c1 + T_source_to_target_v[1] * c2);
+    J_I[1] = (T_source_to_target_v[2] * c0 - T_source_to_target_v[0] * c2);
+    J_I[2] = (-T_source_to_target_v[1] * c0 + T_source_to_target_v[0] * c1);
+    J_I[3] = (c0);
+    J_I[4] = (c1);
+    J_I[5] = (c2);
+    r_I = diff_I;
+
+    return true;
+}
+
 OPEN3D_HOST_DEVICE inline bool GetMaskJacobianHybrid(
         int x,
         int y,
