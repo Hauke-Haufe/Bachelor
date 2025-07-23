@@ -406,8 +406,9 @@ void ComputeResidualMapIntensityCPU(const core::Tensor& source_intensity,
     NDArrayIndexer source_vertex_indexer(source_vertex_map, 2);
 
     NDArrayIndexer residual_indexer(residuals, 2); 
-
-    t::geometry::kernel::TransformIndexer trans(intrinsics, source_to_target);
+    
+    auto trans = source_to_target;
+    t::geometry::kernel::TransformIndexer ti(intrinsics, trans);
 
     int64_t rows = source_intensity_indexer.GetShape(0);
     int64_t cols = source_intensity_indexer.GetShape(1);
@@ -421,7 +422,7 @@ void ComputeResidualMapIntensityCPU(const core::Tensor& source_intensity,
         float residual = 0;
 
         bool valid = ComputeIntensityResidual(x,y, depth_outlier_trunc, source_vertex_indexer, 
-            source_intensity_indexer, target_intensity_indexer, target_depth_indexer, trans, residual);
+            source_intensity_indexer, target_intensity_indexer, target_depth_indexer, ti, residual);
 
         if (valid){
             float* r = residual_indexer.GetDataPtr<float>(x,y);

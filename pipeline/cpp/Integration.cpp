@@ -6,7 +6,7 @@ namespace fs = std::filesystem;
 std::unique_ptr<t::geometry::VoxelBlockGrid> create_vgb(){
 
     std::vector<std::string> atr_names = {"tsdf", "weight", "color"};
-    std::vector<core::Dtype> atr_types = {core::Dtype::Float32,core::Dtype::Float32, core::Dtype::Float32};
+    std::vector<core::Dtype> atr_types = {core::Dtype::Float32,core::Dtype::UInt16, core::Dtype::UInt16};
     std::vector<core::SizeVector> channels = {{1}, {1}, {3}};
     core::Device device("CPU:0");
 

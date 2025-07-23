@@ -227,7 +227,6 @@ void ComputeOdometryInformationMatrix(const core::Tensor &source_vertex_map,
     }
 }
 
-
 void ComputeResidualIntensityMap(const core::Tensor& source_intensity,
                         const core::Tensor& target_intensity,
                         const core::Tensor& target_depth,

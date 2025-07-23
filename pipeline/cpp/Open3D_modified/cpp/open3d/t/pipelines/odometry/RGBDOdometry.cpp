@@ -524,17 +524,18 @@ void ComputeIntensityResidualMap(
         const core::Tensor& intrinsics,
         const float depth_outlier_trunc){
         
-        core::Tensor source_intensity = source.color_.RGBToGray().To(core::Float32).AsTensor();
-        core::Tensor target_intensity = target.color_.RGBToGray().To(core::Float32).AsTensor();
-
-        core::Tensor target_depth = target.depth_.To(core::Float32).AsTensor();
-        core::Tensor source_vertex_map = source.depth_.To(core::Float32).CreateVertexMap(intrinsics, NAN).AsTensor();
+        auto source_intensity = source.color_.RGBToGray().To(core::Float32);
+        auto target_intensity = target.color_.RGBToGray().To(core::Float32);
+        
+        t::geometry::Image source_depth = source.depth_;
+        auto target_depth = target.depth_.AsTensor();
+        auto source_vertex_map = source_depth.CreateVertexMap(intrinsics, NAN);
 
         t::pipelines::kernel::odometry::ComputeResidualIntensityMap(
-                source_intensity,
-                target_intensity,
+                source_intensity.AsTensor(),
+                target_intensity.AsTensor(),
                 target_depth,
-                source_vertex_map,
+                source_vertex_map.AsTensor(),
                 residuals,
                 source_to_target,
                 intrinsics,
@@ -599,13 +600,13 @@ t::geometry::Image ComputeResidualMap(
 
      if (method == Method::PointToPlane) {
         ComputePointToPlaneResidualMap(
-                source, target, residuals, trans_d, 
+                source_processed, target_processed, residuals, trans_d, 
                 intrinsics_d, depth_outlier_trunc);
     } else if (method == Method::Intensity) {
         utility::LogError("Residual not implemented.");
     } else if (method == Method::Hybrid) {
         ComputeIntensityResidualMap(
-                source, target, residuals, source_to_target, 
+                source_processed, target_processed, residuals, trans_d, 
                 intrinsics_d, depth_outlier_trunc);
     } else {
         utility::LogError("Odometry method not implemented.");

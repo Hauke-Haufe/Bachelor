@@ -15,7 +15,8 @@ find_package(Open3D REQUIRED)
 add_executable(main main.cpp
     Integration.cpp
     test/test.cpp
-    test/test_dataset.cpp)
+    test/test_dataset.cpp
+    test/test_util.cpp)
 
 target_link_libraries(main PRIVATE Open3D::Open3D)
 

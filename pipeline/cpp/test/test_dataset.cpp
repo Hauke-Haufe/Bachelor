@@ -240,6 +240,7 @@ double ComputeTensorRPE(const std::vector<open3d::core::Tensor>& gt_poses,
         core::Tensor trans = error.Slice(0, 0, 3).Slice(1, 3, 4);  // shape: (3, 1)
 
         double norm = trans.Mul(trans).Sum({0}).Sqrt().Item<double>();
+        //std::cout<< norm <<std::endl;
         error_sum += norm;
         count++;
     }
