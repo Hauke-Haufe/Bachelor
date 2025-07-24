@@ -6,6 +6,7 @@ doc/build/
 data/
 dataset/
 install/
+sam2/
 
 
 # Byte-compiled / optimized / DLL files

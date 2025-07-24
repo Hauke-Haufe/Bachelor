@@ -11,11 +11,11 @@ import torch.nn.functional as F
 import tkinter as tk
 from tkinter import filedialog
 
-from detectron2.engine import DefaultPredictor
+"""from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
-from detectron2.data import MetadataCatalog
+from detectron2.data import MetadataCatalog"""
 
 import matplotlib.pyplot as plt
 
@@ -50,12 +50,12 @@ def convert_mask_to_sam_logits(mask_binary, target_size=(256, 256), fg_value=10.
 #helper class for tkinter
 class LWSContext():
 
-    def __init__(self, sam_version = 2):
+    def __init__(self, sam_version = 2, path = Path("data/sam2.1_hiera_large.pt")):
         
         if sam_version == 1:
             from segment_anything import sam_model_registry, SamPredictor
            
-            sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
+            sam = sam_model_registry["vit_h"](checkpoint=str(path))
             sam.to("cuda")
             self.sam = SamPredictor(sam)
 
@@ -64,11 +64,11 @@ class LWSContext():
             from sam2.build_sam import build_sam2
             from sam2.sam2_image_predictor import SAM2ImagePredictor
 
-            checkpoint = "data/sam2.1_hiera_large.pt"
+            checkpoint = str(path)
             model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
             sam = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint))
 
-            self.sam = SamPredictor(sam)
+            self.sam = sam
 
         else:
             raise RuntimeError("not a valid Sam Version only 1 or 2")
@@ -106,7 +106,7 @@ class LabelwithSam:
 
         self.root =  tk.Tk() 
         self.ctx = ctx
-        self.root.state('zoomed')
+        self.root.state('normal')
 
         #--------------------------------------
         #----------Setup Window Layout --------

@@ -1,6 +1,0 @@
-{
-    "device": "CUDA",
-    "method": "P2P",
-    "maskingmethod":"NoMask", 
-    "dataset": "static_xyz"
-}
