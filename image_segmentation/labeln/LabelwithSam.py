@@ -9,13 +9,6 @@ import numpy as np
 import torch.nn.functional as F
 
 import tkinter as tk
-from tkinter import filedialog
-
-from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
-from detectron2 import model_zoo
-from detectron2.utils.visualizer import Visualizer
-from detectron2.data import MetadataCatalog
 
 import matplotlib.pyplot as plt
 
@@ -68,7 +61,7 @@ class LWSContext():
             model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
             sam = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint))
 
-            self.sam = SamPredictor(sam)
+            self.sam = sam
 
         else:
             raise RuntimeError("not a valid Sam Version only 1 or 2")

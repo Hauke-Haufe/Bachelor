@@ -798,7 +798,7 @@ def save_json(root):
 if __name__ == "__main__":
     
     project = label_project()
-    project.add_run("data/images/color")
+    project.revise_with_sam(5, predic=False)
         
 
     
