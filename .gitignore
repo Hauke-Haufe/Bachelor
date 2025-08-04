@@ -6,7 +6,17 @@ doc/build/
 data/
 dataset/
 install/
+<<<<<<< HEAD
 
+=======
+<<<<<<< HEAD
+sam2/
+build/
+presentation_data/
+=======
+
+>>>>>>> 957f18db6bc394620323b08264b628e6e921aca4
+>>>>>>> 1dd28801958d71b51b3a4ffad52ebb0842f3d18f
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

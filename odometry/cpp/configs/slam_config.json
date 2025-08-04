@@ -1,0 +1,5 @@
+{
+    "device": "CUDA",
+    "slam_method": "Maskout",
+    "dataset": "static_xyz"
+}
