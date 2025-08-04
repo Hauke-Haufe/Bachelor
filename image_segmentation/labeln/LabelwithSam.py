@@ -11,11 +11,19 @@ import torch.nn.functional as F
 import tkinter as tk
 from tkinter import filedialog
 
+<<<<<<< HEAD
 """from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2 import model_zoo
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog"""
+=======
+from detectron2.engine import DefaultPredictor
+from detectron2.config import get_cfg
+from detectron2 import model_zoo
+from detectron2.utils.visualizer import Visualizer
+from detectron2.data import MetadataCatalog
+>>>>>>> 957f18db6bc394620323b08264b628e6e921aca4
 
 import matplotlib.pyplot as plt
 
@@ -50,12 +58,20 @@ def convert_mask_to_sam_logits(mask_binary, target_size=(256, 256), fg_value=10.
 #helper class for tkinter
 class LWSContext():
 
+<<<<<<< HEAD
     def __init__(self, sam_version = 2, path = Path("data/sam2.1_hiera_large.pt")):
+=======
+    def __init__(self, sam_version = 2):
+>>>>>>> 957f18db6bc394620323b08264b628e6e921aca4
         
         if sam_version == 1:
             from segment_anything import sam_model_registry, SamPredictor
            
+<<<<<<< HEAD
             sam = sam_model_registry["vit_h"](checkpoint=str(path))
+=======
+            sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
+>>>>>>> 957f18db6bc394620323b08264b628e6e921aca4
             sam.to("cuda")
             self.sam = SamPredictor(sam)
 
@@ -64,11 +80,19 @@ class LWSContext():
             from sam2.build_sam import build_sam2
             from sam2.sam2_image_predictor import SAM2ImagePredictor
 
+<<<<<<< HEAD
             checkpoint = str(path)
             model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
             sam = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint))
 
             self.sam = sam
+=======
+            checkpoint = "data/sam2.1_hiera_large.pt"
+            model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+            sam = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint))
+
+            self.sam = SamPredictor(sam)
+>>>>>>> 957f18db6bc394620323b08264b628e6e921aca4
 
         else:
             raise RuntimeError("not a valid Sam Version only 1 or 2")
@@ -106,7 +130,11 @@ class LabelwithSam:
 
         self.root =  tk.Tk() 
         self.ctx = ctx
+<<<<<<< HEAD
         self.root.state('normal')
+=======
+        self.root.state('zoomed')
+>>>>>>> 957f18db6bc394620323b08264b628e6e921aca4
 
         #--------------------------------------
         #----------Setup Window Layout --------
