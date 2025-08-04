@@ -11,7 +11,6 @@ from lib.Deeplab.metrics import StreamSegMetrics
 
 import torch
 import torch.nn as nn
-from lib.Deeplab.utils.visualizer import Visualizer
 from PIL import Image
 from my_dataset import Mydataset
 import matplotlib.pyplot as plt
@@ -88,12 +87,6 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
     return score, ret_samples
 
 def train(opts, fold_path):
-    
-    # Setup visualization
-    vis = Visualizer(port=opts.vis_port,
-                        env=opts.vis_env) if opts.enable_vis else None
-    if vis is not None:  # display options
-        vis.vis_table("Options", vars(opts))
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device: %s" % device)
@@ -115,23 +108,29 @@ def train(opts, fold_path):
     model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
     utils.set_bn_momentum(model.backbone, momentum=0.01)
     
-    layers_to_freeze = ["conv1", "layer1", "layer2", "layer3"]
-    for name, module in model.backbone.named_children():
-        if name in layers_to_freeze:
-            for param in module.parameters():
-                param.requires_grad = False
-    
-    """for param in model.backbone.parameters():
-        param.requires_grad = False"""
 
     # Set up metrics
     metrics = StreamSegMetrics(opts.num_classes)
 
     # Set up optimizer
-    optimizer = torch.optim.SGD(params=[
-        {'params': model.backbone.parameters(), 'lr': 0.1 * opts.lr},
-        {'params': model.classifier.parameters(), 'lr': opts.lr},
-    ], lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
+    if opts.freeze_backbone:
+        if opts.output_stride== 16:
+            layers_to_freeze = ["conv1", "layer1", "layer2"]
+        else:
+            layers_to_freeze = ["conv1", "layer1", "layer2", "layer3"]
+
+        for name, module in model.backbone.named_children():
+            if name in layers_to_freeze:
+                for param in module.parameters():
+                    param.requires_grad = False
+
+        optimizer = torch.optim.SGD(params=model.parameters(), lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
+
+    else:   
+        optimizer = torch.optim.SGD(params=[
+            {'params': model.backbone.parameters(), 'lr': 0.1 * opts.lr},
+            {'params': model.classifier.parameters(), 'lr': opts.lr},
+        ], lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
 
     # Set up Learning rate scheduler
     if opts.lr_policy == 'poly':
@@ -229,8 +228,8 @@ def train(opts, fold_path):
                 interval_loss = 0.0
 
             if (cur_itrs) % opts.val_interval == 0:
-
-                save_ckpt(fold_path /  f'latest.pth')
+                if opts.save_param:
+                    save_ckpt(fold_path /  f'latest.pth')
                 print("validation...")
                 model.eval()
                 
@@ -256,7 +255,8 @@ def train(opts, fold_path):
                 if val_score['Mean IoU'] > best_score: 
                     
                     best_score = val_score['Mean IoU']
-                    save_ckpt(fold_path /  f'best.pth')
+                    if opts.save_param:
+                        save_ckpt(fold_path /  f'best.pth')
                 
                 if best_score - val_score['Mean IoU'] > opts.max_decrease:
                     print("model Perfomence decrease too much")
