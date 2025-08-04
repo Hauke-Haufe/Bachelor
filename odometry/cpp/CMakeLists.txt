@@ -20,6 +20,9 @@ find_package(Open3D REQUIRED)
 add_library(Testutil STATIC TestDataset.cpp TestUtil.cpp)
 target_link_libraries(Testutil PRIVATE Open3D::Open3D)
 
+add_executable(mismain MiselaniousMain.cpp)
+target_link_libraries(mismain PRIVATE Open3D::Open3D)
+
 add_executable(OdometryTest OdometryTest.cpp)
 target_link_libraries(OdometryTest PRIVATE Open3D::Open3D nlohmann_json::nlohmann_json Testutil)
 

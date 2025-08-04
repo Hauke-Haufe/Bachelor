@@ -149,7 +149,7 @@ void ComputeMetrics(SubDataset data, t::pipelines::odometry::Method method, Mask
 
     auto dtype = core::Dtype::Float32;
 
-    std::vector<t::pipelines::odometry::OdometryConvergenceCriteria> critirias = {6,3,1};
+    std::vector<t::pipelines::odometry::OdometryConvergenceCriteria> critirias = {10,10,10};
     core::Tensor pose = dataset.get_init_pose();
     
     Trajectory[0]= pose;

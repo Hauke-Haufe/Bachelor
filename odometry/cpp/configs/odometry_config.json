@@ -1,6 +1,6 @@
 {
     "device": "CUDA", 
-    "method": "P2P",
+    "method": "Intensity",
     "maskingmethod":"Both", 
-    "dataset": "static_xyz"
+    "dataset": "walking_static"
 }

@@ -1,5 +1,5 @@
 {
     "device": "CUDA",
-    "slam_method": "Raw",
-    "dataset": "walking_xyz"
+    "slam_method": "Maskout",
+    "dataset": "static_xyz"
 }

@@ -49,7 +49,7 @@ Tum_dataset::Tum_dataset(SubDataset dataset){
         t::io::ReadImageFromPNG((depth_file_paths[i]).string(), d_image);
         t::io::ReadImageFromPNG((color_file_paths[i]).string(), c_image);
         auto mask = core::Tensor::Load((mask_file_paths[i]).string());
-        auto mask_image = t::geometry::Image(mask);
+        auto mask_image = t::geometry::Image(mask.To(core::Bool));
 
         color_files.push_back(c_image);
         depth_files.push_back(d_image);
