@@ -11,13 +11,13 @@ from lib.Deeplab.metrics import StreamSegMetrics
 
 import torch
 import torch.nn as nn
-from PIL import Image
 from my_dataset import Mydataset
 import matplotlib.pyplot as plt
 import matplotlib
 from pathlib import Path
 import json
-import time
+
+from optuna import TrialPruned
 
 
 #todo p[ath in validate 
@@ -86,7 +86,7 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
         score = metrics.get_results()
     return score, ret_samples
 
-def train(opts, fold_path):
+def train(opts, fold_path, trial = None):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device: %s" % device)
@@ -262,12 +262,19 @@ def train(opts, fold_path):
                     print("model Perfomence decrease too much")
                     return
 
+                if trial is not None:
+                    trial.report(1 - val_score['Mean IoU'], step = cur_epochs)
+
+                    if trial.should_prune():
+                        raise TrialPruned()
+
                 model.train()
 
             scheduler.step()
 
             if cur_itrs >= opts.total_itrs:
                 return
+            
 
 if __name__ == "__main__":
     pass

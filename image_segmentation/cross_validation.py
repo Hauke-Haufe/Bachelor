@@ -28,7 +28,7 @@ class Options():
 
         #constants
         self.val_interval = 50
-        self.total_itrs = 5000
+        self.total_itrs = 300
         self.val_batch_size = 10
         self.max_decrease = 0.35
 
@@ -101,7 +101,7 @@ class Crossvalidation:
                 for run in run_path.iterdir():
                     
                     frame_path = (run/ "images")
-                    frames = os.listdir(frame_path)
+                    frames = sorted(os.listdir(frame_path))
                     n = len(frames)
                     chunk_size = int(n / k_folds)
                     # Get validation indices for this fold
@@ -179,13 +179,18 @@ class Crossvalidation:
         opts.lr_policy=  trial.suggest_categorical("lr_policy",  ["poly", "step"])
         opts.freeze_backbone =trial.suggest_categorical('freeze_backbone', [True, False])
 
-        metrics = self.run_config(opts, destination_folder)
+        metrics = self.run_config(opts, destination_folder,trial= trial)
         metrics =  max(metrics["validation"], key=lambda d: d["Mean IoU"])
         return 1 - metrics["Mean IoU"]
 
     def hyperparameter_optimization(self, path):
 
-        study = optuna.create_study(direction='minimize')
+        study = optuna.create_study(study_name=f"fold_optimization",
+                                    storage=f"sqlite:///{path}/optuna_study.db",
+                                    load_if_exists=True,
+                                    direction='minimize',
+                                    pruner=optuna.pruners.MedianPruner(n_startup_trials=25, n_warmup_steps=20))
+        
         study.optimize(partial(self.objective, destination_folder=path), n_trials=250)
 
         with open(path/ "best.json", "w") as f:
@@ -195,7 +200,7 @@ class Crossvalidation:
         df.to_csv(path/"optuna_trials.csv", index=False)
 
     @staticmethod
-    def run_config(opts, destination_folder):
+    def run_config(opts, destination_folder, trial =None):
 
         path = Path(destination_folder)
         config_path = path / make_path(opts)
@@ -220,14 +225,14 @@ class Crossvalidation:
             yaml.safe_dump({
                 "batchsize": opts.batch_size,
                 "output_stride": opts.output_stride,
-                "background_weighting": round(float(opts.class_weights[0]), 4),
-                "learning_rate": round(opts.step_size, 4), 
-                "weight_decay": round(opts.weight_decay, 4), 
+                "background_weighting": round(float(opts.class_weights[0]), 6),
+                "learning_rate": round(opts.step_size, 6), 
+                "weight_decay": round(opts.weight_decay, 6), 
                 "loss_type": opts.loss_type,
                 "lr_policy": opts.lr_policy,
                 "freeze_backbone": opts.freeze_backbone
             }, f)
-        train(opts, config_path)
+        train(opts, config_path, trial=trial)
         
         with open(config_path / "metrics.json", "r") as f:
             metrics = json.load(f)
@@ -236,16 +241,18 @@ class Crossvalidation:
 
 
 def test_config():
+
+
     cv = Crossvalidation("dataset")
     opts = Options()
     opts.save_param = True
-    opts.batch_size = 7
+    opts.batch_size = 14
     opts.output_stride = 16
-    opts.lr = 0.006686751369829143
-    opts.weight_decay =  0.0013486587252696729
-    opts.lr_policy = "poly"
-    opts.class_weights[0] =  0.6144319530643725
-    opts.loss_type = "cross_entropy"
+    opts.lr =  0.005937
+    opts.weight_decay =  0.000593
+    opts.lr_policy = "step"
+    opts.class_weights[0] =  0.4431
+    opts.loss_type = "focal_loss"
     opts.freeze_backbone = True
 
     opts.total_itrs = 10000
@@ -258,6 +265,6 @@ def test_config():
 if __name__ == "__main__":
 
     cv = Crossvalidation("dataset")
-    test_config()
+    cv.create_folds(5)
     #cv.cross_validation()
 

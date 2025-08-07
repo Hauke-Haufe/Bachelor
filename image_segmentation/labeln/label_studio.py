@@ -197,6 +197,28 @@ class label_project:
 
         self.save_config()
     
+
+    def fix(self, run):
+        run = str(run)
+        ls = Client(url=self.host, api_key=self.key)
+        project = ls.get_project(self.runs[run][f"project_id"])
+
+        self.runs[str(run)] = {"project_id": project.id} 
+        self.save_config()
+
+        task = project.get_tasks()
+
+        project.delete_all_tasks()
+
+        for tasks in task:
+            path = tasks["data"]["image"]
+            path = self.lpath_to_path(path)
+            path =Path("data")/ path.relative_to(self.label_studio_root)
+            tasks["data"]["image"] = f"/data/local-files/?d={str(path)}"
+            
+            project.import_tasks(tasks)
+
+
     #danger zone deletes a run from the progress json and the images get deleted
     def delete_run(self, run: int):
 
@@ -377,6 +399,8 @@ class label_project:
     #uses last annotation
     def export_final_masks(self, run: int, destination_folder):
 
+        VGA_SIZE = (640, 480)
+
         if os.path.exists( destination_folder):
             if os.path.isfile( destination_folder) or os.path.islink( destination_folder):
                 os.remove( destination_folder)
@@ -427,8 +451,16 @@ class label_project:
             file_path = Path(task["data"]["image"].split("=")[-1])
             filename =  file_path.parts[-1]
 
-            Image.fromarray(combined_mask).save(os.path.join(os.path.abspath(destination_folder), "masks",  filename))
-            shutil.copy(self.label_studio_root / file_path, os.path.join(destination_folder, "images", filename))
+            
+            mask_img = Image.fromarray(combined_mask).resize(VGA_SIZE, Image.NEAREST)  # NEAREST to preserve mask labels
+            mask_path = os.path.join(os.path.abspath(destination_folder), "masks", filename)
+            mask_img.save(mask_path)
+
+            # Resize image
+            image_path = self.label_studio_root / file_path
+            image_img = Image.open(image_path).resize(VGA_SIZE, Image.BILINEAR)  # BILINEAR for smoother image resize
+            image_save_path = os.path.join(destination_folder, "images", filename)
+            image_img.save(image_save_path)
 
 def save_json(root):
 
@@ -457,7 +489,7 @@ if __name__ == "__main__":
     
     project = label_project()
     #project.revise_with_sam(2, predic=False, ids=[1354, 1342])
-    project.export_final_masks(6, "dataset/runs/run6" )
-        
+    project.export_final_masks(8, "dataset/runs/run8")
+
 
     
