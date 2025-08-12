@@ -201,10 +201,23 @@ void ComputeMetrics(SubDataset data, t::pipelines::odometry::Method method, Mask
     //auto vgb = integrate(o3d_posegraph, dataset.get_colorfiles_paths(), dataset.get_depthfiles_paths(), intrinsics, 5000.0, 5.0);
     //visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((vgb->ExtractPointCloud()).ToLegacy())});
 
-    std::cout << "ATE: " << dataset.ComputeATE(Trajectory, false)<< std::endl;
-    std::cout << "RPE: " << dataset.ComputeRPE(Trajectory, 1)<< std::endl;
+    nlohmann::json returnJson;
+    returnJson["ATE_Trans"] = dataset.ComputeATETrans(Trajectory, false);
+    returnJson["ATE_Rot"] = dataset.ComputeATERot(Trajectory);
+    returnJson["RPE_Trans"] = dataset.ComputeRPETrans(Trajectory, 1);
+    returnJson["RPE_Rot"] = dataset.ComputeRPERot(Trajectory, 1);
 
-    graph.Save("graph.json");
+    std::ofstream file("data/output.json");
+    file << returnJson.dump(4); 
+    file.close();
+
+    std::cout << "ATE Trans: " << dataset.ComputeATETrans(Trajectory, false)<< std::endl;
+    std::cout << "ATE Rot: " << dataset.ComputeATERot(Trajectory)<< std::endl;
+    std::cout << "RPE Trans: " << dataset.ComputeRPETrans(Trajectory, 1)<< std::endl;
+    std::cout << "RPE Rot: " << dataset.ComputeRPERot(Trajectory, 1)<< std::endl;
+
+
+    //graph.Save("graph.json");
     //t::io::WritePointCloud("pointcloud.pcd", vgb->ExtractPointCloud());
 };
 
@@ -217,7 +230,6 @@ void ComputeMetricsOptimize(SubDataset data,t::pipelines::odometry::Method metho
 
     std::vector<t::pipelines::odometry::OdometryConvergenceCriteria> critirias = {6,3,1};
     core::Tensor pose = dataset.get_init_pose();
-    
 
     Trajectory.push_back(pose);
     Posegraph<Open3dPosegraphBackend> graph(pose);
@@ -279,13 +291,15 @@ void ComputeMetricsOptimize(SubDataset data,t::pipelines::odometry::Method metho
 
     //graph.Save("graph.json");
     //t::io::WritePointCloud("pointcloud.pcd", vgb->ExtractPointCloud());
-    std::cout << "ATE: " << dataset.ComputeATE(Trajectory, false)<< std::endl;
-    std::cout << "RPE: " << dataset.ComputeRPE(Trajectory, 1)<< std::endl;
+    std::cout << "ATE Trans: " << dataset.ComputeATETrans(Trajectory, false)<< std::endl;
+    std::cout << "ATE Rot: " << dataset.ComputeATERot(Trajectory)<< std::endl;
+    std::cout << "RPE Trans: " << dataset.ComputeRPETrans(Trajectory, 1)<< std::endl;
+    std::cout << "RPE Rot: " << dataset.ComputeRPERot(Trajectory, 1)<< std::endl;
 };
 
 int main() {
     
-    std::ifstream config_file("configs/odometry_config.json");
+    std::ifstream config_file("data/testConfigs/odometry_config.json");
     if (!config_file.is_open()) {
         throw std::runtime_error("Failed to open config.json");
     }

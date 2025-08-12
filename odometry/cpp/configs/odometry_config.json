@@ -1,6 +1,0 @@
-{
-    "device": "CUDA", 
-    "method": "Intensity",
-    "maskingmethod":"Both", 
-    "dataset": "walking_static"
-}

@@ -66,7 +66,10 @@ def test_graph(graph):
 
 if __name__ == "__main__":
     
-    pcd = o3d.io.read_point_cloud(f"build/pointcloud_masked_odometry.pcd")
+    """pcd = o3d.io.read_point_cloud(f"build/pointcloud_masked_odometry.pcd")
     graph = o3d.io.read_pose_graph("build/graph_masked_odometry.json")
 
-    plot_graph(pcd, [graph], False, True)
+    plot_graph(pcd, [graph], False, True)"""
+
+    pcd = o3d.io.read_point_cloud("odometry/cpp/maskout.pcd")
+    o3d.visualization.draw([pcd])

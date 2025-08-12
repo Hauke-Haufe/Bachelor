@@ -28,3 +28,6 @@ target_link_libraries(OdometryTest PRIVATE Open3D::Open3D nlohmann_json::nlohman
 
 add_executable(SlamTest SlamTest.cpp)
 target_link_libraries(SlamTest PRIVATE Open3D::Open3D nlohmann_json::nlohmann_json Testutil) 
+
+add_executable(SpeedTest SpeedTest.cpp)
+target_link_libraries(SpeedTest PRIVATE Open3D::Open3D nlohmann_json::nlohmann_json Testutil) 

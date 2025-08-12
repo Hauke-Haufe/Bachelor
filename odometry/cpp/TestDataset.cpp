@@ -174,7 +174,7 @@ Eigen::Matrix4d ComputeUmeyamaAlignment(const std::vector<Eigen::Vector3d>& gt,
     return T;
 }
 
-double ComputeTensorATE(const std::vector<core::Tensor>& gt_poses,
+double ComputeTensorATETrans(const std::vector<core::Tensor>& gt_poses,
                   const std::vector<core::Tensor>& est_poses, 
                   bool align) {
 
@@ -211,8 +211,34 @@ double ComputeTensorATE(const std::vector<core::Tensor>& gt_poses,
     return std::sqrt(error_sum / N);
 }
 
+double ComputeTensorATERot(const std::vector<core::Tensor>& gt_poses,
+                           const std::vector<core::Tensor>& est_poses) {
+    assert(gt_poses.size() == est_poses.size());
+    const size_t N = gt_poses.size();
 
-double ComputeTensorRPE(const std::vector<open3d::core::Tensor>& gt_poses,
+    double error_sum = 0.0;
+    for (size_t i = 0; i < N; ++i) {
+    
+        auto gt_pose_eigen  = core::eigen_converter::TensorToEigenMatrixXd(gt_poses[i]);
+        auto est_pose_eigen = core::eigen_converter::TensorToEigenMatrixXd(est_poses[i]);
+
+        Eigen::Matrix3d R_gt  = gt_pose_eigen.block<3,3>(0,0);
+        Eigen::Matrix3d R_est = est_pose_eigen.block<3,3>(0,0);
+
+
+        Eigen::Matrix3d R_err = R_est * R_gt.transpose();
+
+        double trace_val = (R_err.trace() - 1.0) * 0.5;
+        trace_val = std::min(1.0, std::max(-1.0, trace_val)); 
+        double angle = std::acos(trace_val);
+
+        error_sum += angle * angle;
+    }
+
+    return std::sqrt(error_sum / N);
+}
+
+double ComputeTensorRPETrans(const std::vector<open3d::core::Tensor>& gt_poses,
                         const std::vector<open3d::core::Tensor>& est_poses,
                         int delta = 1) {
 
@@ -229,31 +255,75 @@ double ComputeTensorRPE(const std::vector<open3d::core::Tensor>& gt_poses,
         const auto& Ti_est  = est_poses[i];
         const auto& Tip_est = est_poses[i + delta];
 
-        // Relative transformations
         core::Tensor rel_gt  = Ti_gt.Inverse().Matmul(Tip_gt);
         core::Tensor rel_est = Ti_est.Inverse().Matmul(Tip_est);
 
-        // RPE transform: error = inverse(gt_rel) * est_rel
         core::Tensor error = rel_gt.Inverse().Matmul(rel_est);
 
-        // Extract translation vector (top-right 3x1 block)
-        core::Tensor trans = error.Slice(0, 0, 3).Slice(1, 3, 4);  // shape: (3, 1)
+        core::Tensor trans = error.Slice(0, 0, 3).Slice(1, 3, 4);  
 
         double norm = trans.Mul(trans).Sum({0}).Sqrt().Item<double>();
-        //std::cout<< norm <<std::endl;
-        error_sum += norm;
+        error_sum += norm * norm;
         count++;
     }
 
     return std::sqrt(error_sum / count);
 }
 
-double Tum_dataset::ComputeATE(std::vector<core::Tensor> Trajectory, bool align){
+double ComputeTensorRPERot(const std::vector<open3d::core::Tensor>& gt_poses,
+                           const std::vector<open3d::core::Tensor>& est_poses,
+                           int delta = 1) {
+    using core::Tensor;
+    assert(gt_poses.size() == est_poses.size());
+    assert(delta > 0 && gt_poses.size() > static_cast<size_t>(delta));
 
-    return ComputeTensorATE(GroundTruth, Trajectory, align);
+    const int N = static_cast<int>(gt_poses.size());
+    double sq_err_sum = 0.0;
+    int count = 0;
+
+    for (int i = 0; i + delta < N; ++i) {
+        const Tensor& Ti_gt   = gt_poses[i];
+        const Tensor& Tip_gt  = gt_poses[i + delta];
+        const Tensor& Ti_est  = est_poses[i];
+        const Tensor& Tip_est = est_poses[i + delta];
+
+        // Relative motions
+        Tensor rel_gt  = Ti_gt.Inverse().Matmul(Tip_gt);
+        Tensor rel_est = Ti_est.Inverse().Matmul(Tip_est);
+
+        // Rotation error: R_err = R_est * R_gt^T  (from relative motions)
+        Tensor E = rel_gt.Inverse().Matmul(rel_est);
+
+        // Convert to Eigen for a clean, safe angle extraction
+        auto E_eig = open3d::core::eigen_converter::TensorToEigenMatrixXd(E);
+        Eigen::Matrix3d R_err = E_eig.block<3,3>(0,0);
+
+        // Geodesic distance on SO(3)
+        double c = (R_err.trace() - 1.0) * 0.5;
+        c = std::max(-1.0, std::min(1.0, c)); // clamp for numerical safety
+        double angle = std::acos(c);          // radians
+
+        sq_err_sum += angle * angle;
+        ++count;
+    }
+
+    return std::sqrt(sq_err_sum / static_cast<double>(count)); // RMS (radians)
 }
 
-double Tum_dataset::ComputeRPE(std::vector<core::Tensor> Trajectory, int delta){
+double Tum_dataset::ComputeATETrans(std::vector<core::Tensor> Trajectory, bool align){
 
-    return ComputeTensorRPE(GroundTruth, Trajectory, delta);
+    return ComputeTensorATETrans(GroundTruth, Trajectory, align);
+}
+
+double Tum_dataset::ComputeRPETrans(std::vector<core::Tensor> Trajectory, int delta){
+
+    return ComputeTensorRPETrans(GroundTruth, Trajectory, delta);
+}
+
+double Tum_dataset::ComputeATERot(std::vector<core::Tensor> Trajectory){
+    return ComputeTensorATERot(GroundTruth, Trajectory);
+}
+
+double Tum_dataset::ComputeRPERot(std::vector<core::Tensor> Trajectory, int delta){
+    return ComputeTensorRPERot(GroundTruth, Trajectory, delta);
 }

@@ -5,7 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
-void test_slam(SubDataset data, core::Device device, SlamMethod method){
+void computeMetricsSlam(SubDataset data, core::Device device, SlamMethod method, t::pipelines::odometry::Method o_method){
 
     float depthscale = 5000.0;
     float depth_max = 7.0;
@@ -56,10 +56,13 @@ void test_slam(SubDataset data, core::Device device, SlamMethod method){
 
         source_frame.SetDataFromImage("color", source.color_);
         source_frame.SetDataFromImage("depth", source.depth_);
+        
 
         source_frame.SetDataFromImage("mask", source.mask_);
         model.SynthesizeModelFrame(ray_cast_frame, depthscale, 0.1, depth_max, 8.0f, true, weight_threshold); 
 
+        auto image = t::geometry::Image(ray_cast_frame.GetData("color"));
+        
         current_T_frame_to_world = model.GetCurrentFramePose(); 
         bool succes;
         try{ 
@@ -70,11 +73,11 @@ void test_slam(SubDataset data, core::Device device, SlamMethod method){
                     break;
                 case SlamMethod::Raw:
                     result = model.TrackFrameToModel(source_frame, ray_cast_frame, depthscale, depth_max, 0.07, 
-                            t::pipelines::odometry::Method::PointToPlane, critirias);
+                            o_method, critirias);
                     break;
                 case SlamMethod::Maskout:
                     result =  model.TrackMaskedFrameToModel(source_frame, ray_cast_frame, depthscale, depth_max, 0.07, 
-                            t::pipelines::odometry::Method::PointToPlane, critirias);
+                            o_method, critirias);
                     break;}
                 succes = true;
             
@@ -102,9 +105,9 @@ void test_slam(SubDataset data, core::Device device, SlamMethod method){
             model.UpdateFramePose(i, current_T_frame_to_world);
         }
 
-        if (IsLargeTranslation(result.transformation_, 0.1)){
-            std::cout<<i<<std::endl;
-        }
+        // if (IsLargeTranslation(result.transformation_, 0.1)){
+        //     std::cout<<i<<std::endl;
+        // }
 
         //std::cout << dataset.get_timestamp(i) << std::endl;
         auto information = t::pipelines::odometry::ComputeOdometryInformationMatrix(
@@ -118,22 +121,34 @@ void test_slam(SubDataset data, core::Device device, SlamMethod method){
 
         pose = model.GetCurrentFramePose();
         Trajectory.push_back(pose);
-
     } 
 
-    io::WritePoseGraph("graph.json", graph.GetPoseGraph());
+    //io::WritePoseGraph("graph.json", graph.GetPoseGraph());
 
-    auto pcd = model.ExtractPointCloud(7.0f);
-    visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((pcd).ToLegacy())});
-    t::io::WritePointCloud("p.pcd", pcd);
+    //auto pcd = model.ExtractPointCloud(7.0f);
 
-    std::cout << "realative ATE: " << dataset.ComputeATE(Trajectory, false)<< std::endl;
-    std::cout << "RPE: " << dataset.ComputeRPE(Trajectory, 1)<< std::endl;
+    //visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((pcd).ToLegacy())});
+    //t::io::WritePointCloud("p.pcd", pcd);
+
+    nlohmann::json returnJson;
+    returnJson["ATE_Trans"] = dataset.ComputeATETrans(Trajectory, false);
+    returnJson["ATE_Rot"] = dataset.ComputeATERot(Trajectory);
+    returnJson["RPE_Trans"] = dataset.ComputeRPETrans(Trajectory, 1);
+    returnJson["RPE_Rot"] = dataset.ComputeRPERot(Trajectory, 1);
+
+    std::ofstream file("data/output.json");
+    file << returnJson.dump(4); 
+    file.close();
+
+    std::cout << "ATE Trans: " << dataset.ComputeATETrans(Trajectory, false)<< std::endl;
+    std::cout << "ATE Rot: " << dataset.ComputeATERot(Trajectory)<< std::endl;
+    std::cout << "RPE Trans: " << dataset.ComputeRPETrans(Trajectory, 1)<< std::endl;
+    std::cout << "RPE Rot: " << dataset.ComputeRPERot(Trajectory, 1)<< std::endl;
 }
 
 int main(){
 
-    std::ifstream config_file("configs/slam_config.json");
+    std::ifstream config_file("data/testConfigs/slam_config.json");
     if (!config_file.is_open()) {
         throw std::runtime_error("Failed to open config.json");
     }
@@ -144,10 +159,11 @@ int main(){
     core::Device device = get_device(config["device"]);
     SlamMethod method = get_slammethod(config["slam_method"]);
     SubDataset dataset_type = get_dataset(config["dataset"]);
+    t::pipelines::odometry::Method odom_method = get_method(config["method"]);
 
     std::cout << fmt::format("On config: Device {}, Integrationmethod {}, Dataset {}",
         config["device"].get<std::string>(),  config["slam_method"].get<std::string>(),
         config["dataset"].get<std::string>())<< std::endl;
 
-    test_slam(dataset_type, device, method);
+    computeMetricsSlam(dataset_type, device, method, odom_method);
 }
