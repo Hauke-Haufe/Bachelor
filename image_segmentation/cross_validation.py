@@ -28,7 +28,7 @@ class Options():
 
         #constants
         self.val_interval =2
-        self.total_epochs = 6
+        self.total_epochs = 50
         self.val_batch_size = 10
         self.max_decrease = 0.35
 
@@ -326,7 +326,7 @@ def test_config():
 if __name__ == "__main__":
 
     cv = Training("dataset")
-    cv.cross_validation()
+    cv.create_folds(5)
 
 
 

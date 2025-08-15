@@ -18,9 +18,7 @@ from pathlib import Path
 import json
 
 from optuna import TrialPruned
-
-
-#todo p[ath in validate 
+ 
 def get_dataset(path):
     
     *parent_paths, _ = path.parts
@@ -37,8 +35,8 @@ def get_dataset(path):
 
     return train_dst, val_dst
 
-def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
-    """Do validation and return specified samples"""
+def validate(opts, model, loader, device, metrics, path):
+
     metrics.reset()
     ret_samples = []
     if opts.save_val_results:
@@ -46,6 +44,7 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
         result_path.mkdir(parents=True, exist_ok=True)
         img_id = 0
 
+    model.eval()
     with torch.no_grad():
         for i, (images, labels) in tqdm(enumerate(loader)):
             
@@ -84,6 +83,8 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
                     img_id += 1
 
         score = metrics.get_results()
+        model.train()
+        
     return score, ret_samples
 
 def train(opts, fold_path, trial = None):
@@ -108,7 +109,6 @@ def train(opts, fold_path, trial = None):
     model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
     utils.set_bn_momentum(model.backbone, momentum=0.01)
     
-
     # Set up metrics
     metrics = StreamSegMetrics(opts.num_classes)
 
@@ -124,13 +124,13 @@ def train(opts, fold_path, trial = None):
                 for param in module.parameters():
                     param.requires_grad = False
 
-        optimizer = torch.optim.SGD(params=model.parameters(), lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
+        optimizer = torch.optim.AdamW(params=model.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
 
     else:   
-        optimizer = torch.optim.SGD(params=[
+        optimizer = torch.optim.AdamW(params=[
             {'params': model.backbone.parameters(), 'lr': 0.1 * opts.lr},
             {'params': model.classifier.parameters(), 'lr': opts.lr},
-        ], lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
+        ], lr=opts.lr, weight_decay=opts.weight_decay)
 
     # Set up Learning rate scheduler
     if opts.lr_policy == 'poly':

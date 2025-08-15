@@ -1,4 +1,4 @@
-from cross_validation import Crossvalidation
+from cross_validation import Training
 import argparse
 
 if __name__ == "__main__":
@@ -6,5 +6,5 @@ if __name__ == "__main__":
     parser.add_argument("path", help="Destination folder to save best parameters.")
     args = parser.parse_args()
 
-    optimizer = Crossvalidation("dataset")
+    optimizer =Training("dataset")
     optimizer.hyperparameter_optimization(args.path)

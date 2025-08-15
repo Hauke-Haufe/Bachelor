@@ -442,7 +442,6 @@ class label_project:
                             mask_by_clas_dict[label] = np.logical_or(mask, mask_by_clas_dict[label])
                        
 
-
             combined_mask = np.zeros((height, width), dtype = np.uint8)
             
             for label in sorted_labels:
@@ -488,7 +487,7 @@ def save_json(root):
 if __name__ == "__main__":
     
     project = label_project()
-    project.revise_with_sam(1, predic=False, ids = [i for i in range(566, 617)])
+    project.export_final_masks(1, "dataset/test")
 
 
     
