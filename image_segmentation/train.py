@@ -134,9 +134,12 @@ def train(opts, fold_path, trial = None):
 
     # Set up Learning rate scheduler
     if opts.lr_policy == 'poly':
-        scheduler = utils.PolyLR(optimizer, opts.total_itrs, power=0.9)
+        scheduler = utils.PolyLR(optimizer, len(train_loader) * opts.total_epochs, power=0.9)
     elif opts.lr_policy == 'step':
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opts.lr, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size= 5, gamma=0.1)
+    elif opts.lr_policy == 'none':
+        scheduler = None
+
 
     # Set up criterion
     if opts.loss_type == 'focal_loss':
@@ -215,7 +218,7 @@ def train(opts, fold_path, trial = None):
 
                 interval_loss = interval_loss / 10
                 print("Epoch %d, Itrs %d/%d, Loss=%f" %
-                        (cur_epochs, cur_itrs, opts.total_itrs, interval_loss))
+                        (cur_epochs, cur_itrs,  len(train_loader) * opts.total_epochs, interval_loss))
                 
                 t_metrics["train"].append( {"epoch": cur_epochs, 
                                             "itr": cur_itrs, 
@@ -269,9 +272,10 @@ def train(opts, fold_path, trial = None):
 
             model.train()
 
-            scheduler.step()
+            if scheduler is not None:
+                scheduler.step()
 
-            if cur_itrs >= opts.total_itrs:
+            if cur_epochs >= opts.total_epochs:
                 return
             
 
