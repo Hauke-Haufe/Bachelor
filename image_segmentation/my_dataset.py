@@ -69,11 +69,13 @@ class Mydataset(data.Dataset):
             v2.RandomHorizontalFlip(p=0.5), 
             #v2.RandomRotation(degrees=(-20, 20)),
             v2.RandomCrop((int(0.8 * height),  int(0.8 * width))),
-            v2.Resize((int(0.6 * height), int(0.6 * width))),
-            #v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
             v2.ToImage(),
-           ])        
+           ])  
+        jitter = v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05)
+     
         img, target = transform(img, target)
+        img =  jitter(img)
+        
 
         return img, target
 

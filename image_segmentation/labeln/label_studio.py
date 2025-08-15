@@ -488,8 +488,7 @@ def save_json(root):
 if __name__ == "__main__":
     
     project = label_project()
-    #project.revise_with_sam(2, predic=False, ids=[1354, 1342])
-    project.export_final_masks(8, "dataset/runs/run8")
+    project.revise_with_sam(1, predic=False, ids = [i for i in range(566, 617)])
 
 
     

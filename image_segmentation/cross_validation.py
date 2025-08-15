@@ -27,7 +27,7 @@ class Options():
         self.save_val_results = False # True
 
         #constants
-        self.val_interval = 50
+        self.val_interval =2
         self.total_itrs = 300
         self.val_batch_size = 10
         self.max_decrease = 0.35
@@ -38,7 +38,6 @@ class Options():
         self.lr = 0.01
         self.weight_decay = 0.01
         self.lr_policy = "step"
-        self.step_size = 0.001
         self.loss_type = 'cross_entropy'
         self.freeze_backbone = False
         self.output_stride = 8
@@ -51,6 +50,27 @@ class Options():
         self.ckpt= None 
         self.continue_training = False
 
+    def to_dict(self):
+
+        return{"batchsize": self.batch_size,
+                "output_stride":self.output_stride,
+                "background_weighting": round(float(self.class_weights[0]), 6),
+                "learning_rate": round(self.lr, 6), 
+                "weight_decay": round(self.weight_decay, 6), 
+                "loss_type": self.loss_type,
+                "lr_policy": self.lr_policy,
+                "freeze_backbone": self.freeze_backbone}
+    
+    def from_dict(self, params):
+
+        self.batch_size = params["batchsize"]
+        self.output_stride = params["output_stride"]
+        self.class_weights[0] = params["background_weighting"]
+        self.lr = params["learning_rate"]
+        self.weight_decay = params["weight_decay"]
+        self.loss_type = params["loss_type"] 
+        self.lr_policy =params["lr_policy"]
+        self.freeze_backbone = params["freeze_backbone"]
 
 def make_path(opts):
     params = [
@@ -65,7 +85,7 @@ def make_path(opts):
     ]
 
     return "_".join(params)
-class Crossvalidation:
+class Training:
 
     def __init__(self, dataset_root):
         
@@ -242,7 +262,6 @@ class Crossvalidation:
 
 def test_config():
 
-
     cv = Crossvalidation("dataset")
     opts = Options()
     opts.save_param = True
@@ -264,7 +283,7 @@ def test_config():
 
 if __name__ == "__main__":
 
-    cv = Crossvalidation("dataset")
-    cv.create_folds(5)
-    #cv.cross_validation()
+    cv = Training("dataset")
+
+    
 

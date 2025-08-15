@@ -136,7 +136,7 @@ def train(opts, fold_path, trial = None):
     if opts.lr_policy == 'poly':
         scheduler = utils.PolyLR(optimizer, opts.total_itrs, power=0.9)
     elif opts.lr_policy == 'step':
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opts.step_size, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opts.lr, gamma=0.1)
 
     # Set up criterion
     if opts.loss_type == 'focal_loss':
@@ -201,7 +201,6 @@ def train(opts, fold_path, trial = None):
             images = images.to(device, dtype=torch.float32)
             labels = labels.to(device, dtype=torch.long)
 
-            
             optimizer.zero_grad()
             outputs = model(images)
 
@@ -227,48 +226,48 @@ def train(opts, fold_path, trial = None):
 
                 interval_loss = 0.0
 
-            if (cur_itrs) % opts.val_interval == 0:
+        if (cur_epochs) % opts.val_interval == 0:
+            if opts.save_param:
+                save_ckpt(fold_path /  f'latest.pth')
+            print("validation...")
+            model.eval()
+            
+            val_score, _ = validate(opts=opts, model=model, loader=val_loader, 
+                device=device, metrics=metrics, path=fold_path)
+            print(metrics.to_str(val_score))
+
+
+            t_metrics["validation"].append({
+                "epoch": cur_epochs, 
+                "itr": cur_itrs,
+                "Overall Acc": val_score["Overall Acc"],
+                "Mean Acc":val_score["Mean Acc"],
+                "FreqW Acc":val_score["FreqW Acc"],
+                "Mean IoU":val_score["Mean IoU"],
+                "Class IoU": val_score["Class IoU"],
+            })
+
+            with open(fold_path /"metrics.json", "w") as f:
+                json.dump(t_metrics, f,  indent= 4)
+
+            # save best model
+            if val_score['Mean IoU'] > best_score: 
+                
+                best_score = val_score['Mean IoU']
                 if opts.save_param:
-                    save_ckpt(fold_path /  f'latest.pth')
-                print("validation...")
-                model.eval()
-                
-                val_score, _ = validate(opts=opts, model=model, loader=val_loader, 
-                    device=device, metrics=metrics, path=fold_path)
-                print(metrics.to_str(val_score))
+                    save_ckpt(fold_path /  f'best.pth')
+            
+            if best_score - val_score['Mean IoU'] > opts.max_decrease:
+                print("model Perfomence decrease too much")
+                return
 
+            if trial is not None:
+                trial.report(1 - val_score['Mean IoU'], step = cur_epochs)
 
-                t_metrics["validation"].append({
-                    "epoch": cur_epochs, 
-                    "itr": cur_itrs,
-                    "Overall Acc": val_score["Overall Acc"],
-                    "Mean Acc":val_score["Mean Acc"],
-                    "FreqW Acc":val_score["FreqW Acc"],
-                    "Mean IoU":val_score["Mean IoU"],
-                    "Class IoU": val_score["Class IoU"],
-                })
+                if trial.should_prune():
+                    raise TrialPruned()
 
-                with open(fold_path /"metrics.json", "w") as f:
-                    json.dump(t_metrics, f,  indent= 4)
-
-                # save best model
-                if val_score['Mean IoU'] > best_score: 
-                    
-                    best_score = val_score['Mean IoU']
-                    if opts.save_param:
-                        save_ckpt(fold_path /  f'best.pth')
-                
-                if best_score - val_score['Mean IoU'] > opts.max_decrease:
-                    print("model Perfomence decrease too much")
-                    return
-
-                if trial is not None:
-                    trial.report(1 - val_score['Mean IoU'], step = cur_epochs)
-
-                    if trial.should_prune():
-                        raise TrialPruned()
-
-                model.train()
+            model.train()
 
             scheduler.step()
 
