@@ -1,120 +1,105 @@
-from pathlib import Path
-import os 
-import json
-from collections import OrderedDict
-
+from pathlib import Path  
 import matplotlib.pyplot as plt
 import numpy as np
+import optuna
+import json
+import yaml
+import re
 
-class Evalutation:
+from cross_validation import Options
+from train import train
+
+class Evaluation:
 
     def __init__(self, crossvalidation_root):
 
-        self.root =crossvalidation_root
-        self.eval_metrics = {"Overall Acc": 1 ,"Mean Acc": 1,"FreqW Acc": 1, "Mean IoU": 1, "Class IoU":1}
-        
-        
-    def evaluate_configs(self, fold_path):
+        self.root = Path(crossvalidation_root)
+        self.studies = []
 
-        fold_path = Path(fold_path)
 
-        with open(fold_path / "index.json", "r") as f:
+        self.metrics = ["Overall Acc","Mean Acc","FreqW Acc","Mean IoU"]
+
+        for fold in self.root.iterdir():
+            study = optuna.load_study(study_name=f"fold_optimization",
+                                storage=f"sqlite:///{fold}/optuna_study.db")
+            self.studies.append(study.trials_dataframe())
+
+
+    def plot_optimization(self, fold: int):
+
+        trials = self.studies[fold]
+        completed_trials = trials[trials['state'] == 'COMPLETE']
+        values = completed_trials['value']
+        x = np.arange(len(values))
+        
+        plt.plot(completed_trials['number'], values)
+        plt.show()
+
+    def plot_best_config(self, fold):
+        
+        with open(self.root / f"{fold}"/ "index.json", 'r') as f:
             index = json.load(f)
 
-        metric_dict = {}
-        for m in self.eval_metrics.keys():
-            metric_dict[m] = {}
+        trials = self.studies[fold]
+        sorted_trials = trials.sort_values(by='value')
+        best = sorted_trials.iloc[0]
 
-        for test in  index:
-            test = Path(test)
-            with open(test/"metrics.json", "r") as f:
-                metrics = json.load(f)
-
-            for m in self.eval_metrics.keys():
-                if m =="Class IoU":
-                    metric_dict[m][str(test)] = max(metrics["validation"], key=lambda d: d[m]["1"])
-                else:
-                    metric_dict[m][str(test)]  = max(metrics["validation"], key=lambda d: d[m])
-            
-
-        for m in self.eval_metrics.keys():
-            if m =="Class IoU":
-                metric_dict[m] = OrderedDict(sorted(metric_dict[m].items(), key=lambda item: item[1][m]["1"], reverse=True))
-            else:
-                metric_dict[m] = OrderedDict(sorted(metric_dict[m].items(), key=lambda item: item[1][m], reverse=True))
-
+        path = Path(index[best['number']])
         
-        return metric_dict    
-
-    def determine_best_test(self, fold_path):
-        
-        evaluation = self.evaluate_configs(fold_path)
-        fold_path = Path(fold_path)
-
-        with open(fold_path / "index.json", "r") as f:
-            index = json.load(f)
-
-        metric_rank_dict = { config: {m: list(evaluation[m]).index(config) 
-                                      for m in self.eval_metrics.keys()} 
-                            for config in index
-        }
-        
-        overall_score = {
-            config: sum( weight * metric_rank_dict[config][m] for m, weight in self.eval_metrics.items())
-            for config in index
-        }
-
-        overall_score = dict(sorted(overall_score.items(), key=lambda item: item[1]))
-        
-        return overall_score
-
-    def plot_train_loss(self, ax, metrics):
-
-        loss = [ loss["loss"]  for loss in metrics["train"]]
-        epoch = [ loss["epoch"]  for loss in metrics["train"]]
-
-        ax.plot(np.array(epoch), np.array(loss), label = "loss")
-        return ax
-
-    def plot_class_ious(self, ax, metrics):
-
-        classes = [ label for label, _ in metrics["validation"][0]["Class IoU"].items()]
-        support = np.array([ value["epoch"]  for value in metrics["validation"]])
-
-        for label in classes:
-            loss = [ loss["Class IoU"][label] for loss in metrics["validation"]]
-            ax.plot(support, np.array(loss), label = label)
-        
-        return ax
-
-    def plot_traning(self, metrics):
-
-        fig = plt.figure()
-        ax = fig.add_subplot()
-
-        p = Path("dataset/test/bt=13_str=16_cw=0.4_lr=0.001_wd=0.01")
-
-        with open(p /"metrics.json", "r") as f:
+        with open(path /"metrics.json", 'r') as f:
             metrics = json.load(f)
 
-        ax = self.plot_train_loss(ax, metrics)
-        ax = self.plot_class_ious(ax, metrics)
+        self.plot_training(metrics)
+    
+    def plot_training(self, metrics):
         
-        ax.legend()
-        plt.show()
-        
+        train_loss = [m["loss"] for m in metrics['train']]
+        train_x = [m["itr"] for m in metrics['train']]
 
+        for metric in self.metrics:
+            eval_metric = [1 -m[metric] for m in metrics['validation']]
+            eval_x =  [m['itr'] for m in metrics['validation']]
+            plt.plot(eval_x, eval_metric, label= metric)
+
+        plt.plot(train_x, train_loss)
+        plt.legend()
+        plt.show()
+    
+    def train_best_config(self, fold):
+        
+        opts = Options()
+
+        with open(self.root / f"{fold}"/ "index.json", 'r') as f:
+            index = json.load(f)
+
+        trials = self.studies[fold]
+        sorted_trials = trials.sort_values(by='value')
+        best = sorted_trials.iloc[0]
+        path = Path(index[best['number']])
+
+        with open(path / "config.yaml", "r") as f:
+            params = yaml.safe_load(f)
+        
+        opts.from_dict(params)
+        opts.save_param = True
+        opts.continue_training = False
+        opts.total_itrs = 10000
+        config_path = self.root / f"{fold}"/ "best"
+        config_path.mkdir(exist_ok=True)
+        train(opts, config_path)
+    
 
 if __name__ == "__main__":
 
-    eval = Evalutation("dataset/folds")
-    #eval.evaluate_configs("dataset/folds/0")
-    best = eval.determine_best_test("dataset/folds/0")
-    best = eval.determine_best_test("dataset/folds/1")
-    best = eval.determine_best_test("dataset/folds/2")
-    best = eval.determine_best_test("dataset/folds/3")
+    eval = Evaluation("dataset/folds")
+    eval.train_best_config(0)
 
-    print(best)
+
+    
+
+
+
+
 
 
         

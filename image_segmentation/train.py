@@ -11,14 +11,13 @@ from lib.Deeplab.metrics import StreamSegMetrics
 
 import torch
 import torch.nn as nn
-from lib.Deeplab.utils.visualizer import Visualizer
-from PIL import Image
 from my_dataset import Mydataset
 import matplotlib.pyplot as plt
 import matplotlib
 from pathlib import Path
 import json
-import time
+
+from optuna import TrialPruned
 
 
 #todo p[ath in validate 
@@ -87,13 +86,7 @@ def validate(opts, model, loader, device, metrics, path, ret_samples_ids=None):
         score = metrics.get_results()
     return score, ret_samples
 
-def train(opts, fold_path):
-    
-    # Setup visualization
-    vis = Visualizer(port=opts.vis_port,
-                        env=opts.vis_env) if opts.enable_vis else None
-    if vis is not None:  # display options
-        vis.vis_table("Options", vars(opts))
+def train(opts, fold_path, trial = None):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device: %s" % device)
@@ -115,29 +108,38 @@ def train(opts, fold_path):
     model = network.modeling.__dict__[opts.model](num_classes=opts.num_classes, output_stride=opts.output_stride)
     utils.set_bn_momentum(model.backbone, momentum=0.01)
     
-    layers_to_freeze = ["conv1", "layer1", "layer2", "layer3"]
-    for name, module in model.backbone.named_children():
-        if name in layers_to_freeze:
-            for param in module.parameters():
-                param.requires_grad = False
-    
-    """for param in model.backbone.parameters():
-        param.requires_grad = False"""
 
     # Set up metrics
     metrics = StreamSegMetrics(opts.num_classes)
 
     # Set up optimizer
-    optimizer = torch.optim.SGD(params=[
-        {'params': model.backbone.parameters(), 'lr': 0.1 * opts.lr},
-        {'params': model.classifier.parameters(), 'lr': opts.lr},
-    ], lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
+    if opts.freeze_backbone:
+        if opts.output_stride== 16:
+            layers_to_freeze = ["conv1", "layer1", "layer2"]
+        else:
+            layers_to_freeze = ["conv1", "layer1", "layer2", "layer3"]
+
+        for name, module in model.backbone.named_children():
+            if name in layers_to_freeze:
+                for param in module.parameters():
+                    param.requires_grad = False
+
+        optimizer = torch.optim.SGD(params=model.parameters(), lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
+
+    else:   
+        optimizer = torch.optim.SGD(params=[
+            {'params': model.backbone.parameters(), 'lr': 0.1 * opts.lr},
+            {'params': model.classifier.parameters(), 'lr': opts.lr},
+        ], lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
 
     # Set up Learning rate scheduler
     if opts.lr_policy == 'poly':
-        scheduler = utils.PolyLR(optimizer, opts.total_itrs, power=0.9)
+        scheduler = utils.PolyLR(optimizer, len(train_loader) * opts.total_epochs, power=0.9)
     elif opts.lr_policy == 'step':
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opts.step_size, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size= 5, gamma=0.1)
+    elif opts.lr_policy == 'none':
+        scheduler = None
+
 
     # Set up criterion
     if opts.loss_type == 'focal_loss':
@@ -202,7 +204,6 @@ def train(opts, fold_path):
             images = images.to(device, dtype=torch.float32)
             labels = labels.to(device, dtype=torch.long)
 
-            
             optimizer.zero_grad()
             outputs = model(images)
 
@@ -217,7 +218,7 @@ def train(opts, fold_path):
 
                 interval_loss = interval_loss / 10
                 print("Epoch %d, Itrs %d/%d, Loss=%f" %
-                        (cur_epochs, cur_itrs, opts.total_itrs, interval_loss))
+                        (cur_epochs, cur_itrs,  len(train_loader) * opts.total_epochs, interval_loss))
                 
                 t_metrics["train"].append( {"epoch": cur_epochs, 
                                             "itr": cur_itrs, 
@@ -228,46 +229,55 @@ def train(opts, fold_path):
 
                 interval_loss = 0.0
 
-            if (cur_itrs) % opts.val_interval == 0:
-
+        if (cur_epochs) % opts.val_interval == 0:
+            if opts.save_param:
                 save_ckpt(fold_path /  f'latest.pth')
-                print("validation...")
-                model.eval()
+            print("validation...")
+            model.eval()
+            
+            val_score, _ = validate(opts=opts, model=model, loader=val_loader, 
+                device=device, metrics=metrics, path=fold_path)
+            print(metrics.to_str(val_score))
+
+
+            t_metrics["validation"].append({
+                "epoch": cur_epochs, 
+                "itr": cur_itrs,
+                "Overall Acc": val_score["Overall Acc"],
+                "Mean Acc":val_score["Mean Acc"],
+                "FreqW Acc":val_score["FreqW Acc"],
+                "Mean IoU":val_score["Mean IoU"],
+                "Class IoU": val_score["Class IoU"],
+            })
+
+            with open(fold_path /"metrics.json", "w") as f:
+                json.dump(t_metrics, f,  indent= 4)
+
+            # save best model
+            if val_score['Mean IoU'] > best_score: 
                 
-                val_score, _ = validate(opts=opts, model=model, loader=val_loader, 
-                    device=device, metrics=metrics, path=fold_path)
-                print(metrics.to_str(val_score))
-
-
-                t_metrics["validation"].append({
-                    "epoch": cur_epochs, 
-                    "itr": cur_itrs,
-                    "Overall Acc": val_score["Overall Acc"],
-                    "Mean Acc":val_score["Mean Acc"],
-                    "FreqW Acc":val_score["FreqW Acc"],
-                    "Mean IoU":val_score["Mean IoU"],
-                    "Class IoU": val_score["Class IoU"],
-                })
-
-                with open(fold_path /"metrics.json", "w") as f:
-                    json.dump(t_metrics, f,  indent= 4)
-
-                # save best model
-                if val_score['Mean IoU'] > best_score: 
-                    
-                    best_score = val_score['Mean IoU']
+                best_score = val_score['Mean IoU']
+                if opts.save_param:
                     save_ckpt(fold_path /  f'best.pth')
-                
-                if best_score - val_score['Mean IoU'] > opts.max_decrease:
-                    print("model Perfomence decrease too much")
-                    return
-
-                model.train()
-
-            scheduler.step()
-
-            if cur_itrs >= opts.total_itrs:
+            
+            if best_score - val_score['Mean IoU'] > opts.max_decrease:
+                print("model Perfomence decrease too much")
                 return
+
+            if trial is not None:
+                trial.report(1 - val_score['Mean IoU'], step = cur_epochs)
+
+                if trial.should_prune():
+                    raise TrialPruned()
+
+            model.train()
+
+            if scheduler is not None:
+                scheduler.step()
+
+            if cur_epochs >= opts.total_epochs:
+                return
+            
 
 if __name__ == "__main__":
     pass
