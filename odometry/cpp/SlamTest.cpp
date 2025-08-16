@@ -25,6 +25,7 @@ void computeMetricsSlam(SubDataset data, core::Device device, SlamMethod method,
     source_frame.SetDataFromImage("mask", source.mask_);
     model.UpdateFramePose(0, dataset.get_init_pose());
 
+
     for (int i = 0; i < 10; i++){
         switch (method)
         {
@@ -49,23 +50,32 @@ void computeMetricsSlam(SubDataset data, core::Device device, SlamMethod method,
     core::Tensor current_T_frame_to_world;
     float weight_threshold;
 
+    double IntergationTime = 0;
+    double TrackingTime = 0;
+    double RaycastTime = 0;
+    double total = 0;
+
     for(int i = 1; i< dataset.get_size() -1 ; i++){
         
-        weight_threshold = std::min(i*1.0f, 15.0f);
+        weight_threshold = std::min(i*1.0f, 4.0f);
         t::geometry::RGBDMImage source = dataset.get_RGBDMImage(i).To(device);
 
         source_frame.SetDataFromImage("color", source.color_);
         source_frame.SetDataFromImage("depth", source.depth_);
         
-
         source_frame.SetDataFromImage("mask", source.mask_);
+
+        auto start = std::chrono::high_resolution_clock::now();
         model.SynthesizeModelFrame(ray_cast_frame, depthscale, 0.1, depth_max, 8.0f, true, weight_threshold); 
+        auto end =  std::chrono::high_resolution_clock::now();
+        RaycastTime += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         auto image = t::geometry::Image(ray_cast_frame.GetData("color"));
         
         current_T_frame_to_world = model.GetCurrentFramePose(); 
         bool succes;
         try{ 
+            auto start = std::chrono::high_resolution_clock::now();
             switch (method){
                 case SlamMethod::WeightMaskout:
                     result = model.TrackMaskedFrameToModel(source_frame, ray_cast_frame, depthscale, depth_max, 0.07, 
@@ -79,6 +89,8 @@ void computeMetricsSlam(SubDataset data, core::Device device, SlamMethod method,
                     result =  model.TrackMaskedFrameToModel(source_frame, ray_cast_frame, depthscale, depth_max, 0.07, 
                             o_method, critirias);
                     break;}
+                auto end =  std::chrono::high_resolution_clock::now();
+                TrackingTime += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
                 succes = true;
             
         }   
@@ -90,7 +102,8 @@ void computeMetricsSlam(SubDataset data, core::Device device, SlamMethod method,
 
         if (succes){
             model.UpdateFramePose(i, current_T_frame_to_world.Matmul(result.transformation_));
-             switch (method){
+            auto start = std::chrono::high_resolution_clock::now();
+            switch (method){
                 case SlamMethod::WeightMaskout:
                     model.WeightMaskedIntegrate(source_frame, depthscale, depth_max, 8.0, 21, 15);
                     break;
@@ -100,6 +113,8 @@ void computeMetricsSlam(SubDataset data, core::Device device, SlamMethod method,
                 case SlamMethod::Maskout:
                     model.MaskedIntegrate(source_frame, depthscale, depth_max);
                     break;}
+            auto end =  std::chrono::high_resolution_clock::now();
+            IntergationTime += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         }
         else{
             model.UpdateFramePose(i, current_T_frame_to_world);
@@ -109,25 +124,15 @@ void computeMetricsSlam(SubDataset data, core::Device device, SlamMethod method,
         //     std::cout<<i<<std::endl;
         // }
 
-        //std::cout << dataset.get_timestamp(i) << std::endl;
-        auto information = t::pipelines::odometry::ComputeOdometryInformationMatrix(
-            source.depth_.To(device), ray_cast_frame.GetDataAsImage("depth"), 
-            dataset.get_intrinsics(core::Device("CPU:0")), result.transformation_, 0.1, depthscale, depth_max);
-        
-        //std::cout << dataset.get_timestamp(i) << std::endl;
-
-        graph.AddOdometryEdge(result.transformation_, information, i, i+1, false);
-        graph.AddNode(pose);
-
         pose = model.GetCurrentFramePose();
         Trajectory.push_back(pose);
     } 
 
     //io::WritePoseGraph("graph.json", graph.GetPoseGraph());
 
-    //auto pcd = model.ExtractPointCloud(7.0f);
+    auto pcd = model.ExtractPointCloud(7.0f);
 
-    //visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((pcd).ToLegacy())});
+    visualization::DrawGeometries({std::make_shared<geometry::PointCloud>((pcd).ToLegacy())});
     //t::io::WritePointCloud("p.pcd", pcd);
 
     nlohmann::json returnJson;
@@ -136,14 +141,16 @@ void computeMetricsSlam(SubDataset data, core::Device device, SlamMethod method,
     returnJson["RPE_Trans"] = dataset.ComputeRPETrans(Trajectory, 1);
     returnJson["RPE_Rot"] = dataset.ComputeRPERot(Trajectory, 1);
 
+    returnJson["total_time"] = (IntergationTime + TrackingTime) ;
+    returnJson["avg_time"] = (IntergationTime + TrackingTime) /dataset.get_size();
+    returnJson["avg_integration_time"] = IntergationTime /dataset.get_size();
+    returnJson["avg_tracking_time"] = TrackingTime /dataset.get_size();
+    returnJson["avg_raycast_time"] = RaycastTime/dataset.get_size();
+
     std::ofstream file("data/output.json");
     file << returnJson.dump(4); 
     file.close();
 
-    std::cout << "ATE Trans: " << dataset.ComputeATETrans(Trajectory, false)<< std::endl;
-    std::cout << "ATE Rot: " << dataset.ComputeATERot(Trajectory)<< std::endl;
-    std::cout << "RPE Trans: " << dataset.ComputeRPETrans(Trajectory, 1)<< std::endl;
-    std::cout << "RPE Rot: " << dataset.ComputeRPERot(Trajectory, 1)<< std::endl;
 }
 
 int main(){
