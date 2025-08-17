@@ -64,17 +64,20 @@
         \acro{SLAM}{Simultaneous Localization and Mapping}
         \acro{RGB-D}{Red-Green-Blue plus Depth}
         \acro{vSLAM}{visual SLAM}
-        \acro{CNN}{Convolutional Neural Network}
-        \acro{ASPP}{Atrous Spatial Pyramid Pooling}
         \acro{TSDF}{Truncated Signed Distance Field}
         \acro{ICP}{Itarativ Closest Point}
         \acro{SfM}{Structrue from Motion}
         \acro{RPE}{Realtive Pose Error}
         \acro{ATE}{Absolute Trajectory Error}
         \acro{P2P}{Point to Plane}
+        \acro{CNN}{Convolutional Neural Network}
+        \acro{FCN}{Fully Oonvolutional Network}
+        \acro{ASPP}{Atrous Spatial Pyramid Pooling}
         \acro{GIS}{Genric Image Segmentation}
         \acro{PIS}{Promtable Image Segmentation}
         \acro{TPE}{Tree-Structrue Parzen Estimator}
+        \acro{IoU}{Intersection over Union}
+        
     \end{acronym}
     \chapter{Einleitung}
     In modernen Milchviehbetrieben spielt die präzise Fütterung eine entscheidende Rolle für Tiergesundheit, Milchleistung und Ressourceneffizienz. Eine Möglichkeit, 
@@ -92,10 +95,11 @@
 
     \chapter{Theoretische Grundlagen}
     \label{kap:theo}
+
     \section{Problemkontext} \label{sec:problem}
     Das autonome Tracking erfolgt über ein Sensorsystem, welchers auf einem schon vorhanden Futterschiebe-Roboter installiert wird. Schieberoboter sind ein 
     gängiger Bestandteil von lokalen Milchviehbetrieben. Sie fahren in regelmäßigen Abstände an der Futterstelle vorbei und schieben verteilte Silage zusammen. 
-    Die werden Fahrten genutzt werden um die Futter-Messung parallel durchzuführen.\\\\
+    Die Fahrten werden  genutzt werden um die Futter-Messung parallel durchzuführen.\\\\
     Ein zentraler Bestandteil des Systems ist eine \ac{RGB-D}-Kamera.
     Diese erfasst pro Aufnahme sowohl Farbinformationen als auch zugehörige Tiefenwerte für jeden Pixel.
     Die Farbinformationen dienen der Bildsegmentierung und ermöglichen damit die Erkennung der Tiere in der Szene.
@@ -117,30 +121,30 @@
     und zur Bewegungsbestimmung herangezogen werden.
     In dieser Arbeit wird jedoch der Schwerpunkt auf visuelle Odometrie gelegt, bei der Bilddaten kontinuierlich abgeglichen werden \cite{10577209}\\\\
     Die genanten Methoden besitzen alle das Problem, dass statische Umgebungen vorausgesetzt werden. Das Feld des dynamischen \ac{vSLAM} stellt die Erweiterung 
-    und Anpassung von Methoden da auf dynamische Umgebungen. Dabei nehmen Methoden des maschinellen Lernen einen größer werdenden Anteil ein.\cite{10577209}\\\\
+    und Anpassung von Methoden auf dynamische Umgebungen da. Dabei nehmen Methoden des maschinellen Lernen einen größer werdenden Anteil ein.\cite{10577209}\\\\
     Eine Anpassung der visuellen Odometrie Algorithmus's für dynamische Szenen, durch die Hilfe neuronaler Netze ist ein zentraler Punkt der Arbeit.\\\\
-    Neben dem tracking der Sensor-Position spielt die Rekonstruktion eine wichtige Rolle. Dabei werden die Bilddaten mithilfe der Sensorpostion in ein 
-    Speichermedium integriert. Die Representation kann verschiedene Formen annehmen kann annehmen, wie Punktwolken (direkt Darstellung asl 3D-Punkte), 
-    Meshes (Polygon basiert), Surfels oder hirachische Strukturen wie Octrees. Zunehmend werden auch neuronale Darstellungen erforscht
-    \cite{annurev:/content/journals/10.1146/annurev-control-040423-030709}.\\\\
+    Neben dem Tracking der Sensor-Position spielt die Rekonstruktion eine wichtige Rolle. Dabei werden die Bilddaten mithilfe der Sensorpostion in ein 
+    Speichermedium integriert. Geläufige Representation sind Punktwolken (direkt Darstellung asl 3D-Punkte), 
+    Meshes (Polygon basiert), Surfels oder auch hierarchische Strukturen wie Octrees. Zunehmend werden auch neuronale Darstellungen erforscht
+    \cite{anurev}.\\\\
     Die Erstellung solcher Modelle wird durch dynamische Objekte deutlich erschwert. Daher ist eine angepasste Rekonstruktion ein weiterer Bestandteil dieser Arbeit.
     Die Kombination der angepassten Integrationsmethode mit der modifizierten Odometrie führt zum \ac{TSDF}-Tracking, welches in dieser Arbeit besonders 
     eingehend untersucht wird.
 
     \section{visuelle Odometrie}
-    Die Problemstellung, die visuellen Odometrie versucht zu lösen, ist: Zu einem Bildpaar $(I_s,I_t)$ die Relativbewegung des Sensors, bestehend aus Translation 
+    Die Problemstellung, die visuelle Odometrie löst, ist folgende: Zu einem Bildpaar $(I_s,I_t)$ die Relativbewegung des Sensors, bestehend aus Translation 
     und Rotation, zwischen den beiden Aufnahmezeitpunkten zu schätzen. 
     Aus dem sukzessiven Bestimmen solcher Teilbewegungen kann die gesamte Bewegung des Sensors (Bewegungs-Trajektorie) annäherungsweise bestimmt werden. 
     Dabei gibt es verschiedene Ansätze.\\\\
     Zum einem gibt es Methoden die Feature-Extraction nutzen, um aus Bilder besondere Bildmerkmale zu extrahieren, in Form von hoch dimensionalen 
     Representation von Features, und diese dann iterative abzugleichen. Feature Methoden werden häufig genutzt um zeitlich weiter
     entfernte Bilder zu vergleichen.\cite{opencv_matcher_tutorial,Mur_Artal_2015}\\\\
-    Ein weitere Klasse von Methoden ist die der dichte Odometrie. Dabei werden alle Pixel in die Optimierung miteinbezogen. Ihr Anwendungsgebiet ist 
+    Ein weitere Klasse von Methoden ist die der dichte Odometrie. Sie optimiert direkt auf den Pixel ohne zusätzliche Darstellungen. Ihr Anwendungsgebiet ist 
     das Abgleichen von Bildern mit hoher Frequenz, jedoch mit kleinerer zeitlichen Differenz. Der Schwerpunkt liegt hier nur auf der dichte visuelle Odometrie.\\\\ 
     \textbf{Bemerkung:} \emph{Im folgenden wird visuelle Odometrie synonym mi der dichten visuellen Odometrie verwendet}\\\\
 
     \subsection{Rigid-Body-Motion}
-    Rigid-Body-Motion ist das Grundlegende Konzept, dass die unverzerrten Bewegung von festen zusammenhängende Objekten im Raum beschreibt. 
+    Rigid-Body-Motion ist das Grundlegende Konzept, dass die unverzerrten Bewegung von festen zusammenhängenden Objekten im Raum beschreibt. 
     Mathematisch kann sie beschrieben werden durch $SE(3)$. \cite{Murray1994}
     \begin{defi}
         $SE(3)$ ist gegeben durch 
@@ -149,7 +153,7 @@
         \end{equation}
         Die Komposition von Abbildungen definiert eine Verknüpfung auf der Menge. $SO(3)$ stellt dabei die 3-dimensionale orthogonale Gruppe da(vgl. \cite{Murray1994}).
     \end{defi}
-    \begin{remark}
+    \begin{remark} \label{bem:hom_coords}
     Es kann verifiziert werden, dass $SE(3)$ durch eine Matrixgruppe beschrieben werden kann. \[
         SE(3)  \simeq 
             \left\{
@@ -162,18 +166,18 @@
             \right\}
     \]Dies erlaubt eine numerische Beschreibung von Rigid-Body-Motion über lineare Abbildungen \cite{Murray1994}
     \end{remark} \noindent
-    Die Gruppe stellt Bewegungen als Kombination zwischen Rotation und Translation da. Das Auszeichnende Merkmal dabei ist, das Abstände und Orientierung von Punkten
+    Die Gruppe stellt Bewegungen als Kombination zwischen Rotation und Translation da. Das Auszeichnende Merkmal dabei ist, dass Abstände und Orientierung von Punkten
     durch die Abbildung erhalten bleiben.\cite{Murray1994}\\\\
-    Im folgender wird oft über eine starre Umgebungen oder starre Szene geredet. Damit ist nicht gemeint das die Szene unbewegt ist, sondern 
-    das Veränderungen nur über Rigid-Body-Motion erfolgen.
+    Im folgender wird oft über eine starre Umgebungen oder starre Szene geredet. Damit ist nicht gemeint, dass die Szene unbewegt ist, sondern 
+    ihre Veränderungen wird durch Rigid-Body-Motion beschrieben.
 
     \subsection{Notation}
     \ac{RGB-D}-Bilder können durch Abbildungen $I_i: \Omega \to [0,1]^3 \times \mathbb{R}_+, \hspace{0.5em}\Omega \subset \mathbb{Z}^2$ beschrieben werden. 
     Im Kontext der Bewegungsbestimmung werden Bilder in Paaren betrachtet $(I_s, I_t)$. $I_s$ wird als Ursprungsbild und $I_t$ als Zielbild bezeichnet. Pixel 
     Koordinaten, kurz Pixel, werden durch Elemente aus $\Omega$ dargestellt.\\\\
-    $I_i^d: \Omega \to \mathbb{R}_+$ stellt die Funktion da, die nur den Tiefen-Anteil jedes Pixels berücksichtigt und 
-    $I_i^g: \Omega \to [0,1]$ die zu jedem Pixel einen Graustufenwert zuordnet, berechnet aus den Farbwerten. F"ur eine Erleichterung der Notation hilft es eine 
-    Funktion zu definieren, die einen Pixel plus Tiefen-Wert als 3 dimensionalen Vector darstellt.  $ d_i: \Omega \to \mathbb{R}^3,\hspace{1em} d_i(u,v) 
+    $I_i^d: \Omega \to \mathbb{R}_+$ stellt die Funktion da, die nur den Tiefen-Anteil jedes Pixels berücksichtigt.
+    $I_i^g: \Omega \to [0,1]$ Pixel bildet einen Farbpixel auf einen Graustufenwert ab. Zur Vereinfachung der Notation wird eine Funktion definiert, die einen Pixel 
+    zusammen mit seinem Tiefenwert als dreidimensionalen Vektor darstellt:  $ d_i: \Omega \to \mathbb{R}^3,\hspace{1em} d_i(u,v) 
     \mapsto (u,v,I_i^d(u,v))^T$
 
     \subsection{Problem Formulierung}
@@ -184,9 +188,9 @@
     Unter der Annahme einer statischen Szene lassen sich die in zwei aufeinanderfolgenden Aufnahmen beobachteten Punkte durch genau eine starre Transformation in SE(3) 
     miteinander in Beziehung setzen.\\\\
     Damit kann das Problem der Kamerabewegung auf das Bestimmen dieser Transformation zwischen den entsprechenden Punktmengen zurückgeführt werden.}\\\\
-    Die die Motivation stellt das Problem geometrisch da. Die konkrete Formulierung des Problems erfolgt aber über die Pixel in den Bilder. Diese Darstellung stimmt 
-    mit den durch den Sensor gelieferte Daten übereinstimmt.\\\\
-    Das bestimmten der Rigid-Body-Motion erfolgt über ein Optimierungsproblems, welches durch die gemessenen Daten gegeben ist.
+    Die Motivation stellt das Problem auf eine geometrisch Art da. Die konkrete Formulierung des Problems erfolgt aber über die Pixel in den Bilder. Diese Darstellung stimmt 
+    mit den durch den Sensor gelieferten Daten übereinstimmt.\\\\
+    Das bestimmen der Rigid-Body-Motion erfolgt über ein Optimierungsproblems, welches durch die gemessenen Daten gegeben ist.
     \begin{defi}\label{def:odom}
         Sei  $(I_s, I_t)$ ein Paar von RGB-D-Bildern. Das Odometrie Optimierungsproblems ergibt sich durch
         \[\min_{T \in SE(3)} \sum_{x \in \Omega} r(x, T) \]
@@ -198,10 +202,10 @@
     Ein Frage die sich dabei stellt ist: Wie wird der Übergang von 2-dimensionalen Pixel (Bildkoordinaten) mit Tiefen-Channel zu 3-dimensionalen Punkten 
     (Kamerakoordinaten) und zurück modelliert.\\\\
     Dies erfolgt mit den Pinhole-Kameramodell. Es stellt ein vereinfachtes Modell einer Bildaufnahme da. Dabei ist die Kamera im Koordinaten
-    Ursprung positioniert. Dabei zeigt z-Achse zeigt nach vorne. Projektionsebene liegt in der Ebene 
-    $\{(x,y,1), x,y \in \mathbb{R}\}$. Der erste Schritt der Aufnahme eines synthetischen Bildes ist, es die Punkte in die Ebene zu transformieren. Der
+    Ursprung positioniert. Die Projektionsebene wird durch die Menge $\{(x,y,1), x,y \in \mathbb{R}\}$ gegeben. 
+    Der erste Schritt der Aufnahme eines synthetischen Bildes ist, es die Punkte in die Ebene zu transformieren. Der
     Schritt heißt Perspektivische Teilung.
-    Daraufhin wird die Kamera Intrinsischen Matrix angewandt 
+    Daraufhin wird die Kamera Intrinsische Matrix angewandt.
     \[
     K =  \begin{pmatrix}
         f_x & 0 & -c_x \\[6pt]
@@ -209,7 +213,8 @@
         0 & 0 & 1
         \end{pmatrix},
     \]    
-    wobei Brennweiten $f_x, f_y$ und die Optischen Zentren $c_x, c_y$. Sie stellt den Übergang von Punkten in der Ebene zu Pixelkoordinaten da.
+    Die Matrix $K$ beruht auf festen Kamerakonstanten den Brennweiten $f_x, f_y$ und die Optischen Zentren $c_x, c_y$. Sie stellt den Übergang von Punkten 
+    in der Ebene zu Pixelkoordinaten da.
     Somit ist die gesamte Abbildung von Kamerakoordinaten in Bildkoordinaten gegeben durch \cite{djema2023densevisualodometryusing}
     \[  
        P: \mathbb{R}^3 \to \mathbb{R}^2, \hspace{1em} \begin{pmatrix} x\\y\\z \end{pmatrix} \mapsto \Pi K \frac{1}{z} \begin{pmatrix} x\\y\\z \end{pmatrix}
@@ -225,12 +230,11 @@
     \[
         \omega: \Omega \times \mathbb{R} \to \mathbb{R}^2, \hspace{2em} \omega (x,T) := P(T(P^{-1}(x)))
     \]
-    F"ur eine Vereinfachung der Notation kann $Tx = Ax + b, \hspace{0.5em} A \in SO(3), b \in \mathbb{R}^3$ angesehen werden.
-    $T$ kann auch in homogenen Koordinaten dargestellt werden, doch dann müssen noch hin und zur"uck konvertiert werden.
+    F"ur eine Vereinfachung der Notation wird $Tx = Ax + b, \hspace{0.5em} A \in SO(3), b \in \mathbb{R}^3$ beschrieben, anstatt über die 
+    Matrix Form in Bemerkung \ref{bem:hom_coords}.
     \begin{remark}
         Betrachtet man Warping-Funktion fällt auf, dass im Allgemeinen $\omega(x,T) \notin \Omega$.
-        Wenn die einzelnen Komponenten keine ganzen Zahlen sind werden sie gerundet oder es wird interpoliert. Auch werden in der Warping-Funktion
-        normalerweise die Punkte gegen das Viewing-Volume der Ziel-Kamera geclipped, was die Punkte aus der Rechnung entfernt werden.
+        Wenn die einzelnen Komponenten keine ganzen Zahlen sind werden sie gerundet oder es wird interpoliert.
     \end{remark}
     \begin{remark}
         Seien $I_s$ und $I_t$ zwei Aufnahmen derselben Szene zu Zeitpunkten $s$ und $t$, 
@@ -265,16 +269,15 @@
             r_{depth}(x,T)= (I_t^d(\omega(d_s(x), T)) - I_s^d(x))^2
         \]
 
-        Sei $\delta in (0,1)$ Dann ist der Hybrid-Fehler definiert durch 
+        Sei $\delta \in (0,1)$. Dann ist der Hybrid-Fehler definiert durch 
         \[
             r_{hybrid}(x,T)= \delta r_{photo}(x, T) + (1-\delta)r_{depth}(x,T)
         \]
     \end{defi} 
     
     \subsubsection{PointToPlane Fehler}
-    Ein oft genutzter geometrischer fehler ist der \ac{P2P}. Dieser besitzt eine bessere Konvergenzgeschwindigkeit zu anderen Tiefen
-    bassierten Fehlern \cite{rusinkiewicz2001efficient}.\\\\
-    Dazu wird jedem Punkt in den Kamerakoordinaten von $I_t$ eine Normale bestimmt, die den Tangentialraum der gemessenen Geometrie in jenem Punkt
+    Ein oft genutzter geometrischer Fehler ist der \ac{P2P}.
+    Dazu wird zu jedem Punkt in den Kamerakoordinaten von $I_t$ eine Normale bestimmt, die den Tangentialraum der gemessenen Geometrie in jenem Punkt
     beschreibt. Mithilfe von den Normalen kann ein Abstand zu den Tangentialräumen (affine Hyperebenen) bestimmt werden.\cite{Park_2017_ICCV, Zhou2018}.
     \begin{defi}
         Sei $n:\mathbb{R}^3 \to \mathbb{R}^3, \hspace{1em} x \mapsto n(x):= n_x$ die Abbildung die einem Punkt eine Normale zuteil. 
@@ -288,7 +291,7 @@
     \end{defi}
 
     \section{Voxel-Block-Grid TSDF Tracking}
-    Eine direkt Anwendung der visuelle Odometrie ist das \ac{TSDF}-Tracking. Es stellt eine Fusion von Rekonstruktions und Tracking Algorithmen da.
+    Eine direkt Anwendung der visuellen Odometrie ist das \ac{TSDF}-Tracking. Es stellt eine Fusion von Rekonstruktions und Tracking Algorithmen da.
     Dabei wird ein internes Modell konstruiert und die Bilder werden auf diesen Modell getrackt. Dies soll den aufbauenden Fehler durch aufeinanderfolgenden visuelle Odometrie entgegenwirken.
     \subsection{VoxelBlockGrid}
     Die Representation des internen Modells erfolgt über ein Voxel Block Gitter (Voxel-Block-Grid). 
@@ -302,10 +305,10 @@
         \item \emph{Truncated:}  Abstände, die größer als ein definierter Schwellwert sind, werden abgeschnitten und nicht gespeichert.
     \end{itemize}
     Ein \ac{TSDF} ist eine glatte Darstellung einer Oberfläche. 
-    Des weiteren ist es möglich effizient durch Raymartsching (Raycasting) synthetische Bilder zu der Szene zu erzeugen, was sich für das Tracking als 
+    Des weiteren ist es möglich, effizient durch Raymarching (Raycasting) synthetische Bilder zu der Szene zu erzeugen, was sich für das Tracking als 
     nützlich erweist.\cite{dong2023ashmodernframeworkparallel}\\\\  
-    Ein weiteres zentrales Element des Voxel-Block-Grids ist eine Trennung von lokalen und globaler Geometrie. Dafür wird die Szene ist ein grobes Gitter, 
-    dem Block-Gitter aufgeteilt. Jeder Block stellt eine lokale Ansammlung von Voxel-Gittern mit höherer räumlicher Auflösung da. Dies erlaubt effektives 
+    Ein weiteres zentrales Element des Voxel-Block-Grids ist eine Trennung von lokaler und globaler Geometrie. Dafür werden Voxel in sogenannte Blöcke
+    gruppiert. Jeder Block stellt eine lokale Ansammlung von Voxel-Gittern mit höherer räumlicher Auflösung da. Dies erlaubt effektives 
     und effizientes lokales operieren auf dem Gitter.
     \begin{remark}
     Das grobe Block-Gitter, sowie das feine Voxel-Gitter werden in der Implementation durch Hashmaps organisiert. Dies kann speicher und 
@@ -327,57 +330,54 @@
     Durch die Nutzung des Kamera Sichtfeldes, findet eine sogenannte Blockaktivierung statt. Dabei werden nur die Voxel der Blöcke, die im Kamera Sichtfeld liegen
     in die Berechnung einbezogen. Dadurch wird lokal und effizient auf dem Gitter operiert.
     \begin{remark} \label{bem:weight_integration}
-    In der Anwendung wird eine Sequenz von \ac{RGB-D}-Bildern integriert. Dabei werden Voxel mehrfach getroffenen. Das Vorgehen dabei ist
-    ein Updaten des Abstandswertes. Dabei wird häufig eine Gewichtung der gemessenen Abstandswerte vorgenommen. Daraus wird ein kleinste Quadrate Problem konstruiert, was 
-    den Abstand als Minimum einer gewichtet Summe der einzelnen Abstände beschreibt. Das Problem kann iterativ mit jedem neuem Abstandswert gelöst werden. 
-    \cite{dong2023ashmodernframeworkparallel}
+    In der Anwendung wird eine Sequenz von \ac{RGB-D}-Bildern integriert. Werden Abstandswerte mehrfach in Voxel integriert. Anstatt den
+    Wert mit dem neu integrierten zu überschreiben wird ein kleinste Quadrate Problem konstruiert und gelöst. Der Ansatz biete die Möglichkeit 
+    die Integration zu gewichten. \cite{dong2023ashmodernframeworkparallel}
     \end{remark}
 
     \subsection{TSDF-Tracking}
     Ein VoxelBlockGrid verbunden mit der Integration von \ac{RGB-D}-Bildern kann für eine Verbesserung des Tracking der Kamera genutzt werden. Dabei wird mithilfe 
     von Raycasting und der letzten bestimmten Kameraposition ein synthetisches Bild erzeugt (siehe Abb. \ref{fig:bild1}). Diese Bilder haben den Vorteil, dass sie auf Grundlage einer glatten
-    und konsistenten Darstellung der Geometrie entstanden sind. Real gemessene Sensor Daten besitzen, aufgrund von Imperfektionen der Sensorik rauschen. Das wirkt
-    sich negativ auf das Lösen des Optimierungsproblems aus. \\\\
-    Auch kann das Driften der Positionen verbessert werden. Das Modell gibt einen Referenzpunkt an dem sich orientiert werden kann.\cite{Zhou2018}
+    und konsistenten Darstellung der Geometrie entstanden sind. Glattere Daten führen zu einer Verbesserung der visuellen Odometrie. \\\\
+    Auch kann das Driften der Positionen verbessert werden. Das Modell gibt einen Referenzpunkt, an dem sich orientiert werden kann.\cite{Zhou2018}
 
-    \chapter{Masken basiertes Tracking und Szenen Rekonstruktion}
-    Die visuelle Odometrie und auch das Erstellen eines Voxel-Block-Grids der Szenen ist nur möglich, wenn die gemessene Szene statisch ist. 
-    In dem Kontext der Rekonstruktion der Futterstelle (siehe \ref{sec:problem}) ist dies jedoch nicht gegeben. Das heißt zusätzlich befinden sich dynamische Objekte, 
-    mit eigenen Bewegungs-Trajektorien, in der Szene. Somit ist die beobachtete Geometrie nicht mehr star.
-    \begin{remark}
-    Odometrie ist fundamental eine Optimierung über Rigid-Body-Motion. Das heißt im geometrische Sinne wird versucht die Transformation
-    der Geometrie durch eine starre Bewegung zu approximieren. Wenn die Transformation nicht starr ist, ist das Modell Fehlerhaft. Auch die Integration 
-    in ein Grid wird dadurch beeinflusst. Dies führt zu fehlerhafter und artefalthaltiger Geometrie in dem Modell, was auch das \ac{TSDF}-Tracking verschlechtert.
-    \end{remark} \noindent
-    \textbf{Idee:} \emph{Wenn eine Untermenge der Punkte sich starr verhält, kann versucht werden nur über diese Menge an Punkten im Odometrie 
-    Optimierungsproblems zu optimieren. Auch kann versucht werden nur die Menge in das Szenen-Modell integriert werden.}\\\\
-    Im Folgenden werden die starren Untermengen über Menge von Pixeln im Ursprungs- und Zielbild beschrieben. Sie stellen die korrespondierenden Pixel zu der 
-    starren Menge da. Idealerweise sind sie durch die Projection $P$ der Punkte der Menge gegeben. Die Pixelmengen sind im folgenden  als Eingabe in 
-    den Algorithmus gegeben und werden mit $M_s, M_t \subset \Omega$ bezeichnet.
+    \chapter{Masken basiertes Tracking und Szenen Rekonstruktion} \label{kap:maskout}
+    Die visuelle Odometrie und auch das Erstellen eines Voxel-Block-Grids der Szenen ist grundlegend and Voraussetzung gekoppelt, dass die gemessene Szene statisch ist. 
+    In dem Kontext der Rekonstruktion der Futterstelle (siehe \ref{sec:problem}) ist dies nicht gegeben. Die Kühe stelle dynamische Objekte da, mit unabhängigen
+    Bewegungs-Trajektorien.
+    \begin{remark}\noindent
+    Odometrie ist fundamental eine Optimierung über Rigid-Body-Motion. Im geometrische Sinne wird eine Transformation
+    der Geometrie durch eine Rigid-Body-Motion approximiert. Ist die Transformation nicht starr, ist das Modell Fehlerhaft.\\\\
+    IBei der Modellerstellung kann es durch fehlerhafte Trajektorien zu einem verzerrten Warping des Modells kommen. Selbst bei einer exakten 
+    Trajektorie führen unabhängig bewegte Objekte zu verfälschter Geometrie und zu zeitlichen Schlieren.
+    \end{remark}
+    \textbf{Idee:} \emph{Durch Aufteilung der gemessenen Punkte in starre Teilmengen kann gezielt die Voraussetzung der starren Umgebung wiederhergestellt.
+    Dafür ist eine Anpassung der Algorithmen nötig, die Einzuschränkung erlaubt.}\\\\
+    Im Folgenden werden die starren Untermengen über Menge von Pixeln im Ursprungs- und Zielbild beschrieben. Sie repräsentieren starre Geometrie. 
+    Die Pixelmengen sind im folgenden als fester Eingabe Parameter in den Algorithmen gegeben. Die Mengen werden mit $M_s, M_t \subset \Omega$ bezeichnet.
 
     \section{maskierte visuelle Odometrie}
-    Damit die visuelle Odometrie auf die Einbindung von Masken angepasst werden kann, ist es nötig das zugrunde legende Optimierungsproblem zu betrachten und 
-    wie es gelöst wird.
+    Die Anpassung der visuellen Odometrie benötigt ein grundlegendes Verständnis des zugrunde liegenden Optimierungsproblem's  und dem Aufbau des 
+    Lösungs-Algorithmus's.
 
     \subsection{Optimierung visueller Odometrie}
-    Die Besonderheit des Problems \ref{def:odom}  ist die Fehlerfunktion.
-    Sie besitzt als Definitionsbereich eine Gruppe besitzt. Gängige elementare Optimierungsverfahren im $\mathbb{R}^n$ basieren auf der Berechnung von
-    Ableitungen (Ableitungen höherer Ordnung), um Abstiegsrichtungen der Fehlerfunktion zu finden. Anhand der Abstiegsrichtung wird lokal
-    ein Schritt getätigt. Somit wird iterativ versuch eine lokale Lösung zu finden.
-    In dem Fall einer Gruppe ist jedoch weder trivial, was mit einer Ableitung, Abstiegsrichtung und Schritt gemeint ist. \\\\
-    Es stellt sich heraus, dass $SE(3)$ bestimmte Glattheits-Eigenschaften besitzt. Sie kann als glatte Untermannigfaltigkeit des $\mathbb{R}^{16}$ angesehen werden. 
-    Dies ermöglicht Methoden der Differenzial Geometrie nutzen um Konzepte aus dem $\mathbb{R}^n$ zu übertragen auf $SE(3)$ zu übertragen. 
+    Bei der Betrachtung des in \ref{def:odom} gegebenen Problems ist erkenntlich, dass das Optimierungsdomain eine Gruppe ist.
+    Gängige elementare Optimierungsverfahren im $\mathbb{R}^n$ basieren auf der Berechnung von
+    Ableitungen (Ableitungen höherer Ordnung), für das Finden von Abstiegsrichtungen der Fehlerfunktion. Anhand von Abstiegsrichtungen werden lokal
+    Schritte getätigt um die Funktion iterativ yu minimieren.
+    In dem Fall einer Gruppe ist jedoch weder klar, was mit einer Ableitung, Abstiegsrichtung und einem Schritt gemeint ist. \\\\
+    $SE(3)$ als Gruppe und Menge besitzt bestimmte Glattheits-Eigenschaften. Sie kann als glatte Untermannigfaltigkeit des $\mathbb{R}^{16}$ angesehen werden. 
+    Dies ermöglicht Methoden der Differenzial Geometrie nutzen um Konzepte aus dem $\mathbb{R}^n$ zu übertragen auf sie zu übertragen. 
     Auf diese Theorie wird jedoch in dieser Arbeit nicht genauer eingegangen. Eine mathematisch genaue Betrachtung eines Teils der Theorie ist zu finden in 
     \cite[Kap.9]{Lueck2005}\cite[Kap.8.4]{Absil2008}\cite[Kap.2] {Murray1994}\cite[Apd.A]{Murray1994}\\\\
-    Das Problem stellt ein verallgemeinertes nichtlineares kleinste Quadrate Problem da. In der Anwendung wird es entweder Gauss-Newton oder Levenberg-Marquard
-    Iterationen angewendet um Ableitungen höherer Ordnungen zu vermeiden. Eine genauer Beschreibung dieser Algorithmen und der Optimierungstheorie hinter 
-    ähnlichen Problemen ist  in\cite[Kap.8.4]{Absil2008} beschrieben.\\\\
+    Mithilfe der Theorie können gängige Optimierungsverfahren übertragen werden. Die benutzte Problemformulierung erlaubt es allgemeine kleinste Quadrate 
+    Methoden auf es anzuwenden. Konkret wird eine erweiterte Version des Gauss-Newton Verfahrens angewendet (vgl. \cite[Kap.8.4]{Absil2008})\\\\
     Im weiteren wird weiterhin der Begriff der Jacobimatrix genutzt, obwohl er nur das Analog zu dem mathematischen Objekt darstellt.
-    Schrittrichtungen sind selber Matrizen, die eine Infinitesimale Rotation und Translation darstellen (siehe \cite[Kap.2] {Murray1994}). Als Schrittfunktion dient 
-    die Matrixexponentialfunktion.
+    Schrittrichtungen sind selber Matrizen, die eine Infinitesimale Rotation und Translation darstellen . Als Schrittfunktion 
+    dient die Matrixexponentialfunktion (vgl. \cite[Kap.2] {Murray1994}).
     \begin{remark}
     In den Buch \cite[Kap.2] {Murray1994} ist eine konkrete physisch motivierte Herleitung der Form der Abstiegsrichtungen zu finden.
-    Dabei wird die Matrixexponentialfunktion durch das lineare Differenzialgleichungs Systeme mit genanten Abstiegsmatrizen motivierte.
+    Dabei wird die Matrixexponentialfunktion durch das lineare Differenzialgleichungs System mit genanten Abstiegsmatrizen motivierte.
     \end{remark}
     \begin{algorithm}[t]
         \SetAlgoLined
@@ -385,7 +385,7 @@
         \KwOut{Angen"aherte Transform $T$ von $I_j$ zu $I_i$}
         $T \gets T_0$\;
         \Repeat{Konvergenzkriterium erf"ullt}{
-        \textbf{Parallel for each pixel} $x$ in $\Omega$:
+        \textbf{Parallel for each pixel} $x$ in $\Omega$:\\
         \Indp
             $J, r \gets CalcJacobian(x, T)$\\ 
         \Indm
@@ -399,9 +399,9 @@
         \Return $T$\;
         \caption{Gauss-Newton Verfahren f"ur  visuelle Odometrie (vgl.\cite[Kap.8.4]{Absil2008}\cite{Zhou2018,Park_2017_ICCV})}\label{alg::GaussNewton}
     \end{algorithm} \noindent
-    Der Algorithmus zum Lösen der Odometrie ist beschrieben in \ref{alg::GaussNewton}. Dabei wird die Linearität der Jacobimatrix stark ausgenutzt um sie für 
-    jeden Pixel separat zu berechnen. Die Matrizen-Anteile werden in einer Matrix parallel gesammelt und das GaussNewton Gleichungssystemen wird gelöst.
-    Die Jacobimatrizen für die konkreten Fehler sind gegeben durch folgenden Formeln (vgl. \cite[S.146, Fom.28-30]{Park_2017_ICCV}). 
+    Der Algorithmus zum Lösen der Odometrie ist beschrieben in \ref{alg::GaussNewton}. Er nutzt die Linearität der Jacobimatrix akkumulativ aus Teilberechnungen
+    der Jacobimatrizen der Pixel zu berechnen. Die Aufteilung der Rechnung bietet den Zugang das Problem auf bestimmte Mengen von Pixeln einzuschränken.\\\\
+    Die konkreten Jacobimatrizen für die Fehler sind gegeben durch folgenden Formeln (vgl. \cite[S.146, Fom.28-30]{Park_2017_ICCV}). 
     \begin{align*}
         \label{jacobian}
         J_{r_{p2p}}(x,T)=&n_{x^*}^{T}J_T(P^{-1}d_s(x))+ n_{x^*}^{T}J_T \\\\
@@ -413,33 +413,32 @@
     $\nabla I_s^d,\nabla I_s^g$ sind die Gradienten der Bildfunktionen, $J_P$ die Jacobimatrix für die Projektionsmatrix $P$ und $J_T$ die Jacobimatrix 
     in $SE(3)$ in dem Punkt $T$.\\\\
     Die Ausdrücke  $\nabla I_s^g$ und $\nabla I_s^d$ werden über sogenannte Sobel-Filter berechnet. Sie stellen Convolution zu den Sobel-Kernen da
-    und approximieren den Gradienten. $J_P$ kann analytische durch die Kamera Intrinsische Werte berechnet werden. Für den Ausdruck $J_T$ existiert auch eine analytische 
-    Representation die hier jedoch nicht angegeben wird.
+    und approximieren Bild-Gradienten. $J_P$ kann analytische durch die Kamera Intrinsische Werte berechnet werden. Für den Ausdruck $J_T$ existiert analytische 
+    Representation die hier jedoch nicht angegeben wird (siehe \cite{Forster_2017}).
     \begin{remark}\label{bem:diff}
-    Für die Optimierung muss die Annahme getroffenen, dass die Kamera Punkte auf einer differenzierbare Oberfläche 
-    aufnimmt. Nur durch diese Annahme ist es sinnvoll über normalen in Punkten zu sprechen, da sonst nicht der Tangentialraum definiert werden kann. $\nabla I_s^g$ 
-    und $\nabla I_s^d$ sind auch an diese Annahme gebunden. In der Anwendung werden die Elemente stumpf approximiert und der Algorithmus wird angewendet.
+    Durch die Berechnung von Bild-Gradienten und Normalen wird implizit die Annahme der Differenzierbarkeit von aufgenommener Oberfläche und 
+    des Aufnahme-Prozess's getroffen. Das ist in generellen realen Aufnahmen nicht gegeben, was zu einer schlechten Konvergenz des Optimierungs-Algorithmus 
+    führen kann.
     \end{remark}
     \begin{remark}\label{bem:multiscale}
-    Um die Konvergenz des Algorithmus zu verbessern, wird eine Multiskalen-Implementierung eingesetzt.
-    Dabei wird eine sogenannte Bildpyramide der Eingabebilder über nn Stufen erzeugt.
+    Um die Konvergenz des Algorithmus's \ref{alg::GaussNewton} zu verbessern, wird eine Multiskalen-Implementierung eingesetzt.
+    Dabei wird eine sogenannte Bildpyramide der Eingabebilder über n Stufen erzeugt.
     Die Auflösungen der Stufen unterscheiden sich jeweils um den Faktor 2.
     Die Verarbeitung beginnt auf der niedrigsten Auflösungsebene, da hier grobe Bewegungen effizient erfasst werden können.
     Die in dieser Stufe geschätzten Parameter dienen als Initialisierung für die nächsthöhere Auflösungsebene.
-    Auf diese Weise werden die Ergebnisse mit jedem Schritt in der Pyramide sukzessive verfeinert. \cite{djema2023densevisualodometryusing}
+    Auf diese Weise werden die Ergebnisse mit jedem Schritt in der Pyramide sukzessiv verfeinert. \cite{djema2023densevisualodometryusing}
     \end{remark}
     
     \subsection{Masken Einbindung}
-    Eine zentrale Frage ist, wie die Masken in den Optimierungsprozess integriert werden.
-    Die Ursprungsmaske $M_s$ kann unmittelbar berücksichtigt werden: Für Pixel $x \notin M_s$ werden weder Ableitungen noch Residuen berechnet, sodass diese störenden Punkte 
-    nicht in den Rekonstruktionsraum projiziert werden. Damit gehen sie nicht in das akkumulierte Gleichungssystem (siehe \ref{alg::GaussNewton}) ein.\\\\
-    Die Zielmaske $M_t$ bleibt zwar unverändert, dennoch muss in jeder Iteration geprüft werden, ob die durch die Warping-Funktion verschobenen Pixel innerhalb der 
+    Die Einbindung der Bildmasken findet direkt in der parallelen Berechnung der Teil-Jacobimatrizen statt. 
+    Dabei kann die Ursprungsmaske $M_s$ unmittelbar integriert werden: Für Pixel $x \notin M_s$ werden weder Ableitungen noch Residuen berechnet, sodass invalide Punkte 
+    keinen Einfluss auf das Gauss-Newton-Gleichungssystem haben (siehe \ref{alg::GaussNewton}).\\\\
+    Die Zielmaske $M_t$ bleibt unverändert, dennoch muss in jeder Iteration geprüft werden, ob die durch die Warping-Funktion verschobenen Pixel innerhalb der 
     durch $M_t$ definierten gültigen Bereiche liegen.
-    Durch die Verschiebung kann es vorkommen, dass ursprünglich gültige Bildbereiche auf ungültige Regionen abgebildet werden.
-    Nur wenn die Transformation $T$ exakt der tatsächlichen Bewegung entspricht, werden valide Pixel konsequent auf valide Pixel abgebildet. Während der Optimierung ist dies 
-    jedoch nicht gewährleistet.\\\\
+    Durch die Verschiebung können gültige Bildbereiche auf ungültige abgebildet werden. Nur wenn die Transformation $T$ exakt der tatsächlichen Bewegung entspricht,
+    werden valide Pixel konsequent auf valide Pixel abgebildet. Während der Optimierung ist dies nicht gewährleistet.\\\\
     Die Lösung des Problems ist es nur valide Pixel aus $I_s$, die durch T auf valide Pixel in $I_t$ abgebildet werden in die Optimierung einzubeziehen. 
-    Die maskierte Version des Algorithmus's \ref{alg::GaussNewton} ergibt sich aus der Anpassung der Funktion `CalcJacobian'.
+    Die maskierte Version des Algorithmus's \ref{alg::GaussNewton} ergibt sich durch eine Anpassung der Funktion \glqq CalcJacobian \grqq in dem Algorithmus.
     \begin{algorithm}[h]
         \KwIn{Pixel $x$, Transform $T$, Masken $M_s, M_t$}
         \KwOut{Ableitung $J$}
@@ -459,32 +458,32 @@
             }
         }
         \Return $J, r$\;
-        \caption{CalcJacobianMaskout}
+        \caption{maskierte Version der CalcJacobian Funktion aus dem Algorithmus \ref{alg::GaussNewton}}
 
     \end{algorithm}
     
     \begin{remark}
-    Bei Berechnung von $n_x,\nabla I_t^g, \nabla I_t^d$ muss vorsichtig behandelt werden. Wenn die Randpunkte der starren Geometrie 
-    betrachtet werden, haben lokale Punkte immer Einfluss auf die Berechnung von $n_x,\nabla I_t^g, \nabla I_t^d$. Wenn der Einfluss von Störregionen
-    komplett aus der Optimierung entfernt werden soll, müssen die Ableitung von Randpunkten mit Vorsicht berechnet oder gleich 0 gesetz werden.
+    Die Berechnung von $n_x,\nabla I_t^g, \nabla I_t^d$ muss vorsichtig behandelt werden. Wenn Randpunkte von starren Geometrie 
+    betrachtet werden, haben lokale Messdaten Einfluss auf die Berechnung von $n_x,\nabla I_t^g, \nabla I_t^d$. Wenn der Einfluss von Störregionen
+    vollständig in der Optimierung entfernt werden soll, müssen die Ableitung von Randpunkten mit gesondert berechnet werden.
     \end{remark}
 
-    \section{Maskout TSDF Integration}
-    Das in Abschnitt \ref{sec:integration} angegeben Integration-Vorgehen kann einfach durch die Einbindung von Masken angepasst werden. Wenn ein Transformierter Voxel in 
-    das Bild projiziert wird, kann im Integration-Verfahren der Distanzwert entsprechen gewichtet werden. Das erfolgt wie in der Bemerkung \ref{bem:weight_integration}
-    erläutert.\\
+    \section{maskierte TSDF Integration}
+    Das in Abschnitt \ref{sec:integration} angegeben Integration-Vorgehen kann direkt durch die Einbindung von Masken angepasst werden. Wenn ein Voxel
+    auf einen invaliden Bildbereich transformiert wird, kann im Integration-Verfahren der Distanzwert entsprechen gewichtet werden. Das erfolgt wie in der Bemerkung 
+    \ref{bem:weight_integration} erläutert.\\
     \begin{algorithm}[H]
     \caption{maskierte \ac{TSDF}-Integration in aktivierte Voxel-Blöcke}
-    \KwIn{Aktive Blockmenge $A$, Tiefenbild $I_t$, Kamerapose $T$, Trunkationsdistanz $\mu$, Maske $M_t \subset \Omega$}
+    \KwIn{Aktive Blockmenge $A$, Tiefenbild $I_t$, Welt Kameraposition $T$, Trunkationsdistanz $\mu$, Maske $M_t \subset \Omega$}
     \ForEach{Block $b \in A$}{
         \ForEach{Voxel $v \in b$}{
-            $p_w \gets$ Weltposition des Voxelzentrums\;
-            $p_c \gets T^{-1} \cdot p_w$\;
-            \If{$p_c$ außerhalb des Clipping volume}{continue}
-            $(u,v) \gets$ Projektion von $p_c$ ins Bild\;
-            \If{$(u,v)$ inerhalb von $M_t$}{$w_{meas} \gets 0$}
+            $p_w \gets$ Weltposition des Voxels\;
+            $p_c \gets KT^{-1} \cdot p_w$\tcp*[r]{Transformation in Kamerakoordinaten}\ 
+            \If{$p_c$ außerhalb des Sichtfeldes}{continue}
+            $(u,v) \gets$ Projektion von $p_c$ in Bildkoordinaten\;
+            \If{$(u,v)$ inerhalb von $M_t$}{$w_{meas} \gets 0$\tcp*[r]{setzt das Gewicht des Abstandswertes gleich 0}}
             $sdf \gets \mathrm{clamp}(z_{meas} - p_c.z, -\mu, \mu) / \mu$\;
-            \If{$|sdf| > 1$}{continue}
+            \If{$|sdf| > 1$}{continue\tcp*[r]{Truncation}}
             $tsdf_{neu} \gets \frac{tsdf_{alt} \cdot w_{alt} + sdf \cdot w_{meas}}{w_{alt} + w_{meas}}$\tcp*[r]{Lösen des weighting Problems \ref{bem:weight_integration}}\
             $w_{neu} \gets \min(w_{alt} + w_{meas}, w_{max})$\tcp*[r]{Gewichtungswert update}\
             update\_voxel($v$, tsdf$_{neu}$, $w_{neu}$)\;
@@ -492,11 +491,10 @@
     }
     \end{algorithm}
     \begin{remark}\label{bem:weight_mask}
-    Da in der Anwendung die Masken durch ein neuronales Netz generiert werden, ist keine Pixel genaue Segmentierung zu erwarten. Um das Problem zu lösen können die 
-    binären Masken durch Unsicherheits-Bilder ersetzt werden. Der im Voxel gespeicherte Gewichtungswert kann als Vertrauen in die Geometrie interpretiert werden und 
-    wenn er unter einem bestimmten Schwellenwert ist im Modell ignoriert werden.
+    Da in der Anwendung die Masken durch ein neuronales Netz generiert werden, ist keine pixelgenaue Segmentierung zu erwarten. Um das Problem zu lösen, können die 
+    binären Masken durch Unsicherheit's-Bilder ersetzt werden. Der im Voxel gespeicherte Gewichtungswert kann als Vertrauen in die Geometrie interpretiert werden.  
     \end{remark} \noindent
-    Der Masken basierte \ac{TSDF}-Tracking Algorithmus ergibt sich daraus wie folgt.\\\\
+    Der Masken basierte \ac{TSDF}-Tracking Algorithmus ergibt sich aus maskierte visueller Odometrie und maskierte Integration.\\\\
     \begin{algorithm}[H]
         \label{alg:tsdf_track}
         \caption{maskiertes TSDF-Tracking}
@@ -509,45 +507,43 @@
         \Return $T_t, V$\;
     \end{algorithm}
 
-    \begin{remark}
-    In der Optimierung werden $\nabla I_s^d,\nabla I_s^g, n_x$ im Zielbild bestimmt. Aus diesem Grund werden die synthetisch erzeugten Bilder als Zielbild 
-    im Algorithmus \ref{alg::GaussNewton} benutzt. Es ist auch keine Maske Zielbild benötigt, da es aus dem bereinigten internen Modell entstanden ist.
+    \begin{remark} \label{bem:tsdf_systh_pic_smooth}
+    In der Optimierung werden $\nabla I_s^d,\nabla I_s^g, n_x$ im Zielbild bestimmt. Die synthetisch erzeugten Bilder werden als Zielbilder gewählt, 
+    da sie das in Bemerkung \ref{bem:diff} verbessern.
     \end{remark}
     \section{Auswertung}
-    Die grundlegenden Algorithmen aus dem Kapitel \ref{kap:theo} sind bereits in einer Modulare Form in der Opensource Bibliothek Open3D implementiert. Das Softwaresystem
-    stellt optimierte und parallelisierte Algorithmen und Datenstrukturen, für das Arbeiten mit 3D Daten in vielseitiger Form bereit.\\\\
+    Die grundlegenden Algorithmen aus dem Kapitel \ref{kap:theo} sind in einer Modulare Form in der Opensource Bibliothek Open3D implementiert. Das Softwaresystem
+    stellt optimierte und parallelisierte Algorithmen und Datenstrukturen, für das Arbeiten mit 3D Daten in vielseitiger Form bereit (siehe \cite{Zhou2018}).\\\\
     Das Tensor-Api bietet ein Backend für das Interfacing mit Maschine-Learning Bibliotheken wie PyTorch und TensorFlow bereit. Dies erleichtert das Pipelining und 
-    Erstellen von \ac{SLAM}-Systemen verbunden mit Methoden des maschinellen.\cite{Zhou2018}\\\\
-    Die Implementation der angepassten Algorithmen ist direkt im Tensor-Api von Open3D integriert, was eine einfache Einbindung eines Segmentierungsmodells ermöglicht.
-    Alle Algorithmen liegen in einer parallelisierter Version als vektorisierten CPU code und GPU CUDA-Kernels bereit.
+    Erstellen von \ac{SLAM}-Systemen verbunden mit Methoden des maschinellen Lernens.\cite{Zhou2018}\\\\
+    Die Implementation der angepassten Algorithmen ist direkt im Tensor-Api von Open3D integriert.
+    Alle Algorithmen liegen in einer parallelisierter Version als multithreaded CPU code und GPU CUDA-Kernels bereit.
     \subsection{Testdatensatz}
     Im Kontext der Rekonstruktion von der Futterstelle von Kühe (siehe \ref{sec:problem}), stehen keine präsisen wahren Trajektorien für 
     die Evaluation zur Verfügung. Als Test wird deshalb ein \ac{RGB-D}-Slam Benchmark der Technischen Universität München genutzt \cite{sturm12iros}\\\\
     Dieser enthält eine Vielzahl unterschiedlichen, mit einer \ac{RGB-D} Kamera aufgenommenen Szenen, die gezielt unterschiedliche Schwierigkeiten
-    des Slam versuchen zu simulieren. Der hier relevante Teil des Datensatzes ist der `Dynamic Objects' Teil. Dort wird eine Tisch-Szene gefilmt, mit Menschen
-    bewegten Menschen. Dabei werden folgende Szenen betrachtet:
+    des Slam simulieren. Der hier relevante Teil des Datensatzes ist der `Dynamic Objects' Teildatensatz. In diesem wird eine Tisch-Szene, mit Menschen
+    bewegten Menschen aufgenommen. Folgende Szenen werden für die Evaluation genutzt:
     \begin{itemize}
-        \item \emph{static xyz:} Die Kamera bewegt sich durch Translations-Bewegung und filmt einen statischen Tisch-Szene
-        \item \emph{static rpy:} Die Kamera bewegt sich durch Rotation-Bewegung und filmt einen statischen Tisch-Szene
+        \item \emph{static xyz:} Die Kamera bewegt sich durch Translations-Bewegung und filmt eine statische Tisch-Szene
+        \item \emph{static rpy:} Die Kamera bewegt sich durch Rotation-Bewegung und filmt eine statische Tisch-Szene
         \item \emph{walking static:} Die Kamera bewegt sich nicht und filmt Tisch-Szene mit bewegenden Menschen
         \item \emph{walking xyz:} Die Kamera bewegt sich durch Translations-Bewegung und filmt Tisch-Szene mit bewegenden Menschen
         \item \emph{walking rpy:} Die Kamera bewegt sich durch Rotations-Bewegung und filmt Tisch-Szene mit bewegenden Menschen
     \end{itemize}
     Der Datensatz stellt keine Masken für die Menschen in den Bildern zur Verfügung. Aus diesem Grund wurden automatisch Masken für die Menschen erzeugt, mithilfe des 
-    Segmentierungsmodell Detectron2. \cite{wu2019detectron2} Dabei liegen die Masken in unbearbeiteten From vor.
+    Segmentierungsmodell Detectron2 \cite{wu2019detectron2}.  Dabei liegen die Masken in unbearbeiteten From vor.
 
     \subsection{Metriken}
     Fur das Evaluieren von \ac{SLAM} Algorithmen werden mehrere Metriken genuzt. Dabei wird eine Referenztrajektorie (Ground Truth) $\{P^{gt}_t| t \in I\}$ 
-    mit einer geschätzten Trajektorie $\{P^{est}_t| t \in I\}$ verglichen. $I:= \{0, \ldots, n\}$ die Menge der Zeitindizes der aufeinanderfolgenden Messungen 
-    (z. B. Bildframes). \\\\
-    Für den Vergleich der Position lassen sich im Wesentlichen zwei Fehlerarten messen: Translationsfehler und Rotationsfehler.
+    mit einer geschätzten Trajektorie $\{P^{est}_t| t \in I\}$ verglichen. $I:= \{0, \ldots, n\}$ die Menge der Zeitindizes der aufeinanderfolgenden Messungen.\\\\
+    Für den Vergleich der Position können zwei Fehlerarten betrachtet werden: Translations- und Rotationsfehler.
     Der Unterschied zwischen zwei Posen lässt sich durch eine Fehlertransformation darstellen, aus der sowohl der Translations- als auch 
-    der Rotationsanteil berechnet werden kann.
+    der Rotationsfehler berechnet werden kann.
 
     \subsubsection{ATE}
-    Der \ac{ATE} misst die Genauigkeit der gesamten Trajektorie. Zu jedem Zeitpunkt i wird die Fehlermatrix $P_i^{est}(P_i^{gt})^{-1}$ betrachtet. 
-    Aus dieser Transformation werden separat die Rotations- und Translationsanteile extrahiert (vlg. \cite{sturm12iros}): 
-     \begin{align*}
+    Der \ac{ATE} misst die Genauigkeit der gesamten Trajektorie. Zu jedem Zeitpunkt i wird die Fehlermatrix $P_i^{est}(P_i^{gt})^{-1}$ betrachtet (vlg. \cite{sturm12iros}): 
+    \begin{align*}
         ATE_{rot}(\{P^{gt}_t\}, \{P^{est}_t\}) &= \frac{1}{|I|}\sum_{i = 1}^{n} rot(P_i^{est}(P_i^{gt})^{-1})\\
         ATE_{trans}(\{P^{gt}_t\}, \{P^{est}_t\}) &= \frac{1}{|I|}\sum_{i = 1}^{n} trans(P_i^{est}(P_i^{gt})^{-1})
     \end{align*}
@@ -557,7 +553,7 @@
     \end{remark}
 
     \subsubsection{RPE}
-    Der \ac{RPE} ist ein Maß für den Drift eines \ac{SLAM}-Algorithmus. Er beschreibt den Fehler, der in den relativen Bewegungen zwischen aufeinanderfolgenden 
+    Der \ac{RPE} ist ein Maß für den Drift eines \ac{SLAM}-Algorithmus's. Er beschreibt den Fehler, der in den relativen Bewegungen zwischen aufeinanderfolgenden 
     Zeitpunkten entsteht. Hierzu werden die relativen Transformationen der Ground-Truth- und der Schätztrajektorie verglichen (vlg. \cite{sturm12iros}):
     \begin{align*}
         RPE_{rot}(\{P^{gt}_t\}, \{P^{est}_t\}) = \frac{1}{|I|} \sum_{i = 1}^{n} rot ((P_{i-1}^{gt})^{-1}P_{i}^{gt}\left((P^{est}_{i-1})^{-1}P^{est}_i\right)^{-1})\\
@@ -565,13 +561,13 @@
     \end{align*}
 
     \subsection{maskierte Odometrie Auswertung} \label{sec:aus_vis_odom}
-    Die Testkonfiguration basiert auf dem reinen Tracking mit dem Algorithmus der visuellen Odometrie-Algorithmus, mit einer gewählten Fehlerfunktion und Maskierung's
-    Variante. Die im Kapitel \ref{Fehlerfunktion} vorgestellen Fehlerfunktionen werden im folgenden Verglichen.
-    Der Algorithmus wird hier in einer Multiskalen-Architektur eingesetzt (vlg. Bem. \ref{bem:multiscale}). Dafür werden drei Bild-Pyramidenstufen verwendet, 
-    mit jeweils zehn Iterationen pro Stufe. Dabei wurden mehrere Tracking-Durchläufe simuliert, jedoch liegt dabei die Run-to-Run Varianz unter $0.1 \%$ 
-    für \ac{RPE} und \ac{ATE}. Deshalb können die Werte als deterministisch angesehen werden.\\\\
-    Das genutzte Gerät bei den Versuchen ist die Grafikkarte. Dies hat den Grund, dass die Laufzeit erheblich schneller im Vergleich zu dem CPU ist. 
-    Die Grafikkarte und auch Allgemein ein CUDA taugliches ist die Zielhardware für die genanten Algorithmen.\\\\
+    Die Testkonaufbau besteht aus der Trajektorie-Erstellung mit der visuellen Odometrie. Dazu werden Konfigurationen mit verschiedenen Fehlerfunktionen 
+    (siehe \ref{Fehlerfunktion}) und Maskierungen betrachtet.
+    Der Algorithmus wird in einer Multiskalen-Architektur eingesetzt (vlg. Bem. \ref{bem:multiscale}). Dafür werden drei Bild-Pyramidenstufen verwendet, 
+    mit jeweils zehn Iterationen pro Stufe. Dabei wurden mehrere Tracking-Durchläufe simuliert, jedoch liegt die Run-to-Run Varianz unter $0.1 \%$ 
+    für \ac{RPE} und \ac{ATE}. Im folgenden wird deshalb die visuelle Odometrie als deterministische betrachtet.\\\\
+    Das genutzte Gerät bei den Versuchen ist die Grafikkarte. Sie stellt die geeignete Hardware für die Verarbeitung von Bildern da und liefert 
+    eine Geschwindigkeits-Verbesserung von bis zu 10 \%.
     \subsubsection{Laufzeit}
     \begin{figure}[h]
         \centering
@@ -579,49 +575,42 @@
         \caption{durchschnittliche Laufzeit  visueller Odometrie. Vergleich von statischer und dynamischer Umgebung}
         \label{fig:avg_Laufzeit}
     \end{figure} \noindent
-    Aus der Grafik \ref{fig:avg_Laufzeit} lässt sich schließen, dass jede Variante des Algorithmus es möglich ist schneller, als die für das dichte Tracking
-    übliche Bildrate von 30 FPS, zu laufen. 
-    Dabei ist die Laufzeit der Intensität's und Hybrid Fehlerfunktion deutlich höher als die des \ac{P2P}. Dies kann durch eine erhöhte Speicher und 
-    Speicherbandbreiten erklärt werden. Auch ist der Rechenaufwand zum Bestimmen der Gradientenbildern über die Sobel-Filter pro Pyramiden-Stufe, ein Faktor.\\\\
+    In der Grafik \ref{fig:avg_Laufzeit} ist zu erkennen, dass jede betrachtete Konfiguration in Echtzeit läuft (für dichtes visuelles Tracking ist eine 
+    Framerate von 30 Fps üblich).
+    Die Laufzeit der Intensität's und Hybrid Fehlerfunktion deutlich höher als die des \ac{P2P}. Dies kann durch einen erhöhten Belastung des Speicher erklärt werden. 
+    Auch ist der Rechenaufwand zum Bestimmen der Gradienten-Bildern über die Sobel-Filter pro Pyramiden-Stufe, ein Faktor.\\\\
     Der Unterschied zwischen der maskierten Variante und der Open3D Implementation ist dagegen kleiner. Das kann mit dem kleineren Speicheraufwand der Masken 
     erklärt werden. Diese werden als 1-Byte pro Pixel Buffer abgespeichert.\\\\
-    In statischen Szenen ist die Laufzeit der maskierten Variante geringfügig größer. Jedoch führt die Verringerung der Jacobimatrix Berechnungen 
-    bei dem \ac{P2P} in dynamischen Szenen zu einem Laufzeit Ausgleich. Die deutliche Speicher Beanspruchung führt für den Intensity und Hybrid-Fehler
-    zu keinen großen Veränderungen.
-    \begin{remark}
-    In der Laufzeit ist ein nichtlinearer Anstieg im Vergleich zu Speicherverbrauch zu erkennen zwischen 
-    \ac{P2P} und den anderen Fehlern. Dies kann mit verbesserten Caching versucht werden zu erklären, da weniger Daten aus
-    verschiedene Datenbuffer pro Kernel benötigt werden.
-    \end{remark}
-    
+    In statischen Szenen ist die Laufzeit der maskierten Variante geringfügig gering. In den statischen Szenen ist ein leichter Trend der Verringerung der 
+    Laufzeit in den maskierten Varianten zu erkennen. Ein Entfallen von Jacobimatrix Berechnungen kann ein Grund für das Verhalten liefern.
+
     \subsubsection{Drift Analyse}
     Visuelle Odometrie bildet einen zentralen Baustein zur Bewegungsbestimmung aus Bilddaten, ist jedoch nicht direkt mit einem \ac{SLAM}-System vergleichbar. 
-    Dies zeigt sich auch in Tabelle~\ref{tab:ATE_odom_eval}: Eine durchschnittliche Abweichung von rund einem halben Meter ist für eine präzise Rekonstruktion 
-    ungeeignet. Für die Bewertung eines solchen Algorithmus ist daher der \ac{RPE} angebracht.\\\\
-    In den Daten \ref{tab:RPE_odom_eval} ist ein klarer Trend erkennbar: Beim Translationsfehler weist das \ac{P2P}-Verfahren einen geringeren Drift auf, unabhängig davon, 
-    ob der Bewegung eine Translation oder Rotation zugrunde liegt.\\\\
-    Für den Rotationsdrift zeigt sich ein ähnliches Muster, allerdings weniger ausgeprägt, sodass dies nicht zwingend als Beleg für eine höhere rotatorische 
-    Robustheit des \ac{P2P} gewertet werden kann.
-    Dagegen sprechen insbesondere Szenen mit starker Rotation und ohne dynamische Objekte („static rpy“), in denen das \ac{P2P}-Verfahren deutlich schlechter 
-    abschneidet.\\\\
+    In Tabelle~\ref{tab:ATE_odom_eval} ist eine starke Abweichung der Trajektorie zu erkennen. Für die Bewertung eines solchen Algorithmus ist der \ac{RPE} 
+    angebracht.\\\\
+    In den Daten \ref{tab:RPE_odom_eval} ist ein klarer Trend erkennbar: Beim Translationsfehler weist das \ac{P2P}-Verfahren einen geringeren Drift auf, 
+    unabhängig von der grundlegenden Bewegung. \\\\
+    Für den Rotationsdrift zeigt sich ein ähnliches Muster, allerdings weniger ausgeprägt. Die Beobachtung ist nicht als ein Beleg für eine höhere rotatorische 
+    Robustheit des \ac{P2P} zu sehen.
+    Dafür sprechen die Szenen mit starker Rotation und ohne dynamische Objekte („static rpy“), in denen das \ac{P2P}-Verfahren deutlich schlechter 
+    performt.\\\\
     \begin{figure}[ht]
         \centering
         \includegraphics[width=\textwidth]{pics/rel_imp_walking_rpy.png}
         \caption{Prozentuale Verbesserung des RPE durch maskierten Odometrie}
         \label{fig:rel_imp_odom_RPE}
     \end{figure}   
-    Auf den statischen Szenen verhalten sich die maskierten Methode gleich zu den unmaskierten. Dies liegt daran, dass die Iteration ohne 
-    heraus maskierte Pixel zu den unmaskierten degenerieren.\\\\
+    Auf den statischen Szenen verhalten sich die maskierten Methoden gleich zu den unmaskierten.\\\\
     In den dynamischen Szenen zeigt sich eine deutliche Verbesserung des \ac{RPE} (siehe Abb.~\ref{fig:rel_imp_odom_RPE}). Eine Ausnahme bilden die Rotationsszenen: 
     Hier weist ausschließlich das \ac{P2P}-Verfahren eine Verbesserung auf. \\\\
-    Aus den dynamischen Szenen mit unbewegter Kamera lässt sich ableiten, dass das Maskieren zu einer stabileren Variante des Algorithmus führt.
-    Unter dieser Annahme könnte das Verhalten in den Rotationsszenen als ein generelles Problem der visuellen Odometrie bei starker Rotation interpretiert werden.
-    Unterstützt wird diese Annahme durch den in diesen Szenen erhöhten translationalen Drift.
+    Aus den dynamischen Szenen mit unbewegter Kamera lässt sich ableiten, dass das Maskieren zu einer stabileren Variante des Algorithmus darstellt.
+    Unter dieser Annahme kann das Verhalten in den Rotationsszenen als ein generelles Problem der visuellen Odometrie bei starker Rotation interpretiert werden.
+    Unterstützt wird diese Annahme durch den in diesen Szenen erhöhten translationalen Drift und Verhalten der Methoden auf der „static rpy“ Szenen.
     
     \subsection{TSDF-Tracking Auswertung}
     Der Testaufbau für das \ac{TSDF}-Tracking ist ähnlich zu dem der visuellen Odometrie.
-    Dabei wird für die in dem Algorithmus \ref{alg:tsdf_track} genutzte visuelle Odometrie sie selbe Konfiguration genutzt. Das Raycasting Verfahren ist 
-    dabei das Standart-Verfahren aus \cite{dong2023ashmodernframeworkparallel}. Die Vergleichs-Version des \ac{TSDF}-Tracking in Open3D nutzt zudem auch ein
+    Dabei wird für die, in dem Algorithmus \ref{alg:tsdf_track} genutzte, visuelle Odometrie die selbe Konfiguration genutzt. Für das Raycasting wird das 
+    Standart-Verfahren aus \cite{dong2023ashmodernframeworkparallel,Zhou2018} genutzt. Die Vergleichs-Version des \ac{TSDF}-Tracking in Open3D nutzt zudem auch einen
     Gewichtungswert pro Voxel um die Stabilität zu erhöhen. Auch in diesem Aufbau wird das Tracking mehrfach auf der gleichen Szene simuliert.
     
     \subsubsection{Laufzeit}
@@ -631,35 +620,33 @@
         \caption{Durchschnittliche Laufzeit des \ac{TSDF}-Trackings}
         \label{fig:tsdf_avg_time}
     \end{figure}\noindent
-    Ein Großteil der Laufzeit pro Iteration wird von dem Tracking in Anspruch genommen (vgl. Abb. \ref{fig:tsdf_avg_time}). Dementsprechend ist die das 
-    Verhältnis der Laufzeiten fur die verschiedenen Fehlerfunktionen vergleichbar zu Abb. \ref{fig:avg_Laufzeit}. \\\\
+    Ein Großteil der Laufzeit pro Iteration stellt das Tracking durch visuelle Odometrie da (vgl. Abb. \ref{fig:tsdf_avg_time}). Dementsprechend ist das 
+    Verhältnis der Laufzeiten für die verschiedenen Fehlerfunktionen vergleichbar zu Abb. \ref{fig:avg_Laufzeit}. \\\\
     Ein weiteres bobachtes Phänomen ist: Die durchschnittliche Raycasting und Integration Zeit unterscheidet sich zwischen statischer und dynamischer
     Szene. Ein Grund für das Verhalten kann durch die erhöhte Anzahl von aktivierten Blocks und Voxel gefunden werden. In den dynamischen Szenen entsteht
     mehr fehlerhafte Geometrie, die einen negativen Einfluss auf die Rechenzeit des Raycasting under Integration haben. \\\\
-    Auch jeder \ac{TSDF}-Algorithmus Variante ist das Echtzeit-Tracking mit einer Bildrate von 30 FPS möglich (auf dem GPU). 
 
     \subsubsection{Tracking-Verlust}
-    Wenn die Daten in den Tabllen \ref{tab:RPE_odom_eval} und \ref{tab:RPE_tsdf_eval} betrachtet werden, fällt auf: Es bestehen starke Schwankungen 
-    in \ac{ATE} und \ac{RPE} selbst auf den statischen Szenen. Besonders in den ATE-Werten \ref{tab:ATE_tsdf_eval} sind großen Schwankungen auf der gleichen Szene
+    In den Daten der Tabllen \ref{tab:RPE_odom_eval} und \ref{tab:RPE_tsdf_eval} ist ein Phänomen zu beaobachten: Es bestehen starke Schwankungen 
+    in \ac{ATE} und \ac{RPE} selbst auf den statischen Szenen. Besonders in den ATE-Werten \ref{tab:ATE_tsdf_eval} sind großen Schwankungen auf gleichen Szene
     zu beobachten.\\\\
-    Dies ist auf ein generelles Problem des Trackings mit einem \ac{TSDF}-VoxelBlockGrid zurückzuführen, dem Tracking-Verlust. 
+    Das ist ein Symptom eines generellen Problem des Trackings mit einem \ac{TSDF}-VoxelBlockGrid, dem Tracking-Verlust. 
     Der Voxel Weighting-Mechanismus, der für die Konsistenz des Modells zuständig ist, kann zu einem Verlust der Referenz von Kamera zu Modell führen.
     Durch schnelle Bewegungen kann es passieren, dass Kamerasichtfeld auf noch invalide Geometrie gerichtet ist. Dadurch entstehen unvollständige 
-    synthetische Bilder. Das Tracking auf Bildern mit nur wenig validen Pixel kann zu starken Drift, sowie singulären Gleichungssystemen in der visuellen 
-    Odometrie führen.\\\\
-    Das Verlieren der Referenz für dazu, dass die Kameraposition beliebig driftet bis es wieder ein Modell erstellt wird auf dem getrackt werden kann. Das Ergebnis
-    der Rekonstruktion ist dabei Menge von getrackten Fragmenten in unterschiedlichen Orientierung und Abständen.\\\\
-    Ein Kriterium um einen Tracking-Loss direkt aus den Daten abzulesen, ist eine hohe Varianz in dem \ac{ATE}. Durch das nahezu zufällige Driften entstehen stark
-    unterschiedliche Trajektorien.
+    synthetische Bilder. Das Tracking auf Bildern mit einer geringen Anzahl valider Pixel kann zu starken Drift, sowie singulären Gleichungssystemen in der 
+    visuellen Odometrie führen.\\\\
+    Das Verlieren der Referenz für dazu, dass die Kameraposition beliebig driftet bis, wieder eine Referenz zu Geometrie gefunden werden kann. Das Ergebnis
+    der Rekonstruktion ist dabei Menge von getrackten Fragmenten, in unterschiedlichen Orientierung und Abständen.\\\\
+    Ein Kriterium um einen Tracking-Loss direkt aus den Daten abzulesen, ist eine hohe Varianz in dem \ac{ATE}, durch das nahezu zufällige Driften von Trajektorien.
     \subsubsection{Fehlerfunktionen}
-    Wenn die \ac{RPE} und \ac{ATE} Werte auf den statischen Sznen verglichen werden, ist deutlich zu erkennen, das der \ac{P2P}-Fehler sich am stabilsten verhält. 
-    Dies ist gut an der Varianz des \ac{ATE} zu erkennen. Der Intensität's-Fehler ist stark anfällig fur einen Tracking-Verlust (auf jeder Szene). 
-    Dies ist auch zu erwarten. Die synthetisch erstellten Bilder simulieren nicht mit akkurate Licht- und Schatten und somit ist ein Vergleich von diesen
+    Anhand der Betrachtung der \ac{ATE}-Varianz ist erkennbar, dass der Intensität's-Fehler anfällig für Tracking-Verlust ist. 
+    Die schlechte Performance ist auch erwartbar. Die synthetisch erstellten Bilder simulieren nicht mit akkurate Licht- und Schatten und somit ist ein Vergleich von diesen
     nicht sinnvoll.\cite{dong2023ashmodernframeworkparallel}\\\\
     Ähnliche Probleme sind auch in der Hybrid-Methode zu erkennen. Durch das Einbeziehen der Tiefendaten wird das Tracking verbessert, jedoch tritt auch in 
     der Basis Szenen \glqq static rpy\grqq ein Tracking-Loss auf. Beide Fehlerfunktionen sind nicht für das \ac{TSDF}-Tracking geeignet.\\\\
-    Die Fehlerfunktion, die von dem Model profitiert ist die \ac{P2P}. Aus der Abb. \ref{fig:p2p_rel_RPE} ist eine deutlicher Verbesserung des 
-    Drifts zu erkennen. Im folgenden wird für das Tracking nur noch der \ac{P2P} betrachtet.
+    Die Fehlerfunktion, die von dem Model profitiert ist die \ac{P2P}. Die \ac{RPE}- und \ac{ATE}-Werte der statischen Szenen zeigen, dass der \ac{P2P}-Fehler im 
+    Vergleich zu den anderen Verlustfunktionen eine stabile und präzise Schätzung liefert. Aus der Abb. \ref{fig:p2p_rel_RPE} ist eine deutlicher Verbesserung des 
+    Drifts zu erkennen. Aufgrund der Beobachtung wird im folgenden wird explicit nur der \ac{P2P} genauer in dynamischen Szenen betrachtet.
     \begin{figure}[h]
         \centering
         \includegraphics[width=\textwidth]{pics/compose_RPE_com.png}
@@ -668,13 +655,13 @@
     \end{figure}
 
     \subsubsection{Dynamische Szenen}
-    In dynamischen Szenen kommt ein weiterer Faktor dazu, der zu einem Tracking-Verlust führen kann. Die Qualität des Trackings hängt stark von der der 
-    geraycasteten-Bilder ab. Wenn das \glqq Standard\grqq \ac{TSDF}-Tracking auf den dynamischen Szenen angewendet wird führt dies zu einer Verschlechterung des 
-    interne Modell an dem sich das System orientiert (vgl. Abb. \ref{fig:bilder_nebeneinander}).\\\\
+    Die Betrachtung des \glqq Standard\grqq \ac{TSDF}-Tracking auf den dynamischen Szenen zeigt eine Verschlechterung gegenüber der reinen visuellen Odometrie.
     Aus den Varianzwerten des \ac{ATE} auf den dynamischen Szenen ist erkenntlich, dass das \glqq Standard\grqq \ac{TSDF}-Tracking auf jeder das Tracking 
-    verliert. Am besten ist dies auf der Szene
-    \glqq walking static\grqq zu erkennen. Trotz keiner Kamera Bewegung entsteht ein Tracking-Verlust. Im der Abb. \ref{fig:bild2} ist eine Verschiebung der Szene
-    deutlich zu erkennen. \\\\
+    verliert. Am besten ist dies auf der Szene\glqq walking static\grqq zu erkennen. Trotz keiner Kamera Bewegung entsteht ein Tracking-Verlust. Im der Abb. \ref{fig:bild2} ist eine 
+    Verschiebung der Szene deutlich zu erkennen.\\\\
+    Die Qualität des Trackings ist stark an die der geraycasteten-Bilder gekoppelt. Fehlerhafte Geometrie die durch bewegende Objekte in das interne 
+    Modell eingeführt wird verschlechtert die Referenzpunkte (vgl. Abb. \ref{fig:bilder_nebeneinander}). Der positive Effekt der synthetischen Bilder ist somit nicht mehr 
+    vorhanden und es wird zusätzlich das Tracking behindert.\\\\
     \begin{figure}[ht]
         \centering
         \begin{subfigure}[t]{0.45\textwidth}
@@ -706,104 +693,113 @@
         \caption{Integrations Algorithmen Vergleich}
         \label{fig:bilder_nebeneinander}
     \end{figure}
-    Die maskierte Variante des \ac{P2P} Trackings gelingt es selbst auf den dynamischen Szene eine Tracking-Loss zu vermeiden. Dabei steht die dynamische 
-    Roationsbewegungen-Szene hervor. Die Verbindung aus rotation und bewegter Szene erschwert das Tracken immens. Wie schon in Section \ref{sec:aus_vis_odom}
-    betrachtet hat der visuelle Odometrie Algorithmus Schwierigkeiten auf der Rotations-Szene.
+    Die maskierte Variante des \ac{P2P} Trackings ist es als einzigen Konfiguration des \ac{TSDF}-Tracking möglich auf den dynamischen Szene eine Tracking-Loss. 
+    Dabei steht die dynamische Roationsbewegungen-Szene hervor. Die Verbindung aus Rotation und bewegter Szene erschwert das Tracken immens.
+    Wie schon in Section \ref{sec:aus_vis_odom} betrachtet besitzt der visuelle Odometrie Algorithmus Schwierigkeiten auf der Rotations-Szene.
 
     \subsection{Bewertung}
-    Die beschrieben Experimente zeigen deutlich das der \ac{P2P} den Intensität's und Hybrid Fehler überlegen ist. Das ist leicht in der visuelle Odometrie
-    zu erkennen. Inder Laufzeit ist die Fehlerfunktion auch deutlich überlegen. 
-    Das Muster setzt sich auch aud das \ac{TSDF}-Tracking fort. Die Trend ist jedoch erwartbar, da die synthetischen Bilder das Tracking per Graustufen behindert.\\\\
-    Die  maskierten  Varianten der Methoden stellen eine deutliche Verbesserung in den einzelnen Algorithmen da. Besonders ist dieser Trend bei dem \ac{TSDF}-Tracking
-    zu erkennen. Es ermöglicht erst eine Fortsetzung des Verfahrens.\\\\
+    Die beschrieben Experimente zeigen deutlich das der \ac{P2P} den Intensität's und Hybrid Fehler überlegen ist. Ähnliche Beobachtung wurden auch in 
+    \cite{rusinkiewicz2001efficient} getätigt.
+    Inder Laufzeit ist die \ac{P2P} Fehlerfunktion auch deutlich überlegen. 
+    Das Muster setzt sich auch aud das \ac{TSDF}-Tracking fort. Dieser Trend ist jedoch erwartbar, da die synthetischen Bilder das Tracking per Intensität's Werten 
+    behindert.\\\\
+    Die  maskierten Varianten der Methoden stellen eine Verbesserung in den einzelnen Algorithmen da. Besonders ist dieser Trend bei dem \ac{TSDF}-Tracking
+    zu erkennen. Es ermöglicht erst eine Fortsetzung des Verfahrens auf dynamische Szenen.\\\\
     Die Ergebnisse zeigen jedoch auch, dass weder die visuelle maskierte Odometrie noch das \ac{TSDF}-Tracking ein zuverlässiges und robustes Tracking gewährleisten.
     Wie in Tabelle~\ref{tab:ATE_odom_eval} ersichtlich, ist die reine Odometrie stark fehleranfällig.
-    Das maskierte \ac{TSDF}-Tracking mit der \ac{P2P}-Fehlerfunktion bietet zwar eine deutliche Verbesserung, leidet jedoch unter hoher Instabilität:
+    Das maskierte \ac{TSDF}-Tracking mit der \ac{P2P}-Fehlerfunktion bietet eine deutliche Verbesserung, leidet jedoch unter hoher Instabilität:
     Bei langsamer Bewegung und geringer Rotation arbeitet es zuverlässig, während stark dynamische Bewegungen zu einem vollständigen Trackingausfall führen.\\\\ 
-    Somit stellen beide Verfahren für sich genommen kein robustes \ac{SLAM}-System dar.
+    Somit stellen beide Verfahren kein robustes \ac{vSLAM}-System dar.
     Sie können jedoch als Komponenten in einem System eingesetzt werden, das mehrere Tracking-Algorithmen kombiniert und deren Ergebnisse fusioniert.
-    Ein solches Zusammenspiel unterschiedlicher Verfahren mit jeweils eigenen Stärken und Schwächen ist charakteristisch für leistungsfähige \ac{SLAM}-Systeme.
-    Ein möglicher Ansatz dabei wäre das Tracking durch die visuell basierenden Fehlerfunkionen zu überwachen um einen möglichen Trackingverlust zu erkennen.
-    Das führ jedoch in das diverse und umfangreiche Feld der vSLAM-Systeme welche hier nicht betrachtet werden.\\\\
-    Für den Einsatz im Stahlumfeld ist das \ac{TSDF}-Tracking trotz der genannten Einschränkungen geeignet. Der Roboter auf dem das System montiert ist bewegt 
-    sich mit einer Transitiven Bewegung. Auch ist die Geschwindigkeit des des Roboters gering. In diesem stellt es eine gute Methode da. 
+    Ein solches Zusammenspiel unterschiedlicher Verfahren mit jeweils eigenen Stärken und Schwächen ist charakteristisch für leistungsfähige \ac{SLAM}-Systeme.\\\\
+    Ein möglicher Ansatz wäre das Tracking durch die visuell basierenden Fehlerfunkionen zu überwachen, um einen möglichen Trackingverlust zu erkennen.
+    Das führt jedoch in das diverse und umfangreiche Feld der vSLAM-Systeme, welches nicht genauer betrachtet werden.\\\\
+    Für den Einsatz im Stahlumfeld ist das \ac{TSDF}-Tracking trotz der genannten Einschränkungen geeignet. Der Roboter, auf dem das System montiert ist bewegt 
+    sich mit einer Transitiven Bewegung. Auch ist die Geschwindigkeit des des Roboters gering. Somit treten die Hauptkomponenten für eine Tracking-Verlust 
+    nicht auf. Die Tiere stellen dabei ein teilweise kontrollierbaren Faktor dar, welchem mit maskierten Tracking und Integration entgegenwirkt werden kann.
 
     \chapter{Semantische Bild Segmentierung}\label{sec:SemSeg}
-
     In dem Gebiet des \ac{vSLAM} sind Deep Learning Methoden essenziell für das Tracking in dynamischen Umgebungen. Dabei sind Bild-Segmentierungs Netzwerke ein 
-    wichtiger Bestandteil.\\\\
-    Bei der Bildsegmentierung wird unterschieden zwischen der \ac{GIS} und \ac{PIS}. Das automatische Generieren von Masken dynamischer Objekten fällt ind das 
-    Gebiet des \ac{GIS} (vgl. \cite{zhou2024imagesegmentationfoundationmodel}). 
-    Grundlegende Problemstellungen sind dabei:
+    wichtiger Bestandteil. Speziell bei der Rekonstruktion der Futterstelle sind Masken, als Eingabe in die maskierten Algorithmen nötig (siehe \ref{kap:maskout}).\\\\
+    Bei der Bildsegmentierung wird unterschieden zwischen der \ac{GIS} und \ac{PIS}. Während \ac{PIS} speziell für promptfähige Modelle entwickelt ist, die 
+    ihre Segmentierung auf textuellen oder exemplarischen Eingaben basieren, beschreibt \ac{GIS} das automatische Klassensegmentieren ohne zusätzliche 
+    Benutzereingaben (vgl. \cite{zhou2024imagesegmentationfoundationmodel}). Das automatische Generieren von Kuh-Masken fällt in das Gebiet des \ac{GIS}.
+    Grundlegende  Problemstellungen des \ac{GIS} sind (vgl. \cite{zhou2024imagesegmentationfoundationmodel, csurka2023semanticimagesegmentationdecades}):
     \begin{itemize}
         \item \textbf{Semantische Segmentierung:} Jeder Pixel in einem Bild wird ein Klassenlabel zugeteilt
         \item \textbf{Instanzen Segmentierung:} Pixel werden in zusammenhängende Regionen gruppiert
         \item \textbf{Panoptic Segmentation:} Verbindung Instanzen und semantischer Segmentierung
     \end{itemize}
-    Bei der Rekonstruktion der Futterstelle ist es nicht erforderlich zwischen den Kühen zu unterscheiden, deshalb wird hier die Semantischen 
-    Segmentierung betrachtet.
+   
 
     \section{Datensatz}
-    Der Datensatz ist eine Menge an Kamerafahrten, die mit an einem Tag in einem Stall aufgenommen wurden. Dabei wird in jeder Kamerafahrt eine Lauf des 
-    Schieberoboters simuliert. Sie unterschieden sich untereinander in der Orientierung des Sensors zu der Futterstelle.\\\\
-    Die Bilder stellen hoch dynamische Szenen da, mit vielen sich im Hintergrund und Vordergrund bewegenden Kühen. Viele Kühe sind dabei Großteil verdeckt oder 
-    klein in dem Hintergrund. Auch herrschen teilweise schlechte Lichtverhältnisse, die die Qualität der Bilder mindert.
-    Insgesamt besteht der Datensatz aus 6 Läufen und insgesamt 350 Bildern. Die Auflösung der Bilder in dem Datensatz ist 640x480.\\\\ 
+    Der Datensatz besteht aus einer Menge an Kamerafahrten, die in dem selben Stall aufgenommen wurden. Dabei wird in jeder Kamerafahrt ein Fahrt des 
+    Schieberoboters simuliert. Sie unterschieden sich untereinander in der Orientierung des Sensors zu der Futterstelle und in dem Sichtfeld.\\\\
+    Die Aufnahmen stellen hoch dynamische Szenen da, mit vielen sich im Hintergrund und Vordergrund bewegenden Kühen. Viele Kühe sind dabei verdeckt oder 
+    klein in dem Hintergrund sichtbar. Die Lichtverhältnisse variieren, wodurch die Qualität der Bilder gemindert wird.
+    Insgesamt besteht der Datensatz aus 6 Kamera-Läufen und insgesamt 350 Bildern. Die Auflösung der Bilder in dem Datensatz ist 640x480.\\\\ 
     Die in dem Datensatz annotierten Klassen sind:
     \begin{itemize}
         \item \textbf{Kühe:} Für das Maskieren in den Tracking und Rekonstruktion-Algorithmen
         \item \textbf{Silage:} Als Grundlage in der Futtermessung
         \item \textbf{Background:} Die restliche Szene
     \end{itemize}\noindent
-    Durch die Unterschiede der Kamera-Positionierung herrscht in bestimmten Kamerafahrten eine starke Klassen-Ungleichheit. Dabei stellt der Hintergrund und die Silage
+    Durch Unterschiede in der Kamera-Positionierung besteht in bestimmten Kamerafahrten eine starke Klassen-Ungleichheit. Dabei stellt der Hintergrund und die Silage
     einen Großteil der Pixel da. In anderen Kamerafahrten dominieren die Kühe als Klasse die Bilder.
 
     \subsection{Annotation}
     Die Annotation stellt einen aufwendigen Teil in der Erstellung des Datensatzes da. Für die semantische Segmentierung muss eine Klassifikation pro Pixel annotiert 
-    werden. Aufgrund des hohen Aufwandes werden schon existierende Segmentierung in den Labeling Prozess mit eingebunden.\\\\
-    Die einfache Nutzung von \ac{GIS} Segmentierungsmodell führt zu Schwierigkeiten. Aufgrund der Komplexität der gefilmten Szene,
-    sowohl als auch der spezifischen Anforderungen der Klassen, ist viel manuelles Postprocessing nötig.\\\\
-    Für effektiveres Labeln können \ac{PIS} Segmentierungs-Modells genutzt werden. Konkret wurde das SAM2 \cite{ravi2024sam2segmentimages} verwendet. Das Modell 
-    bietet die Möglichkeit Segmentierung aufgrund von Promts zu erreichen. Dafür können Punkte, Bounding-Boxes und Vorsegmentierung als Input in das Modell gegeben 
-    werden um Regionen zu spezifizieren. Dies erlaubt ein flexibles und schnelles Segmentieren von selbst schwer semantisch zu erkennenden Regionen.\\\\
-    Selbst mit dem flexiblen Labeling Setup ist noch manuelles Postprocessing nötig, für schwer zu erkennende Regionen.
-    Die Segmentierungen sind nicht pixelgenau. Aufgrund ungünstiger Lichtverhältnisse lassen sich Kühe im Hintergrund teilweise nur schwer oder gar nicht erkennen.
+    werden. Um den Prozess zu erleichtern ist die Nutzung von existierende Segmentierungs-Modellen im Labeling Prozess essenziell.\\\\
+    Die unmittelbare Nutzung von \ac{GIS} Segmentierungsmodell ist nicht möglich. Aufgrund der Komplexität der gefilmten Szene,
+    sowohl als auch der spezifischen Anforderungen der Klassen, ist viel manuelles Postprocessing für die Masken nötig.\\\\
+    Für effektiveres und interaktives Labeln können \ac{PIS} Segmentierungs-Modells genutzt werden. Konkret wurde das SAM2 \cite{ravi2024sam2segmentimages} 
+    verwendet. Das Modell 
+    bietet die Möglichkeit Segmentierung aufgrund von visuellen Promts zu erreichen. Dafür können Punkte, Bounding-Boxes und Vorsegmentierung als Input in 
+    das Modell gegeben werden. Somit ist ein flexibles und schnelles Segmentieren von selbst schwer semantisch zu erkennenden Regionen möglich.\\\\
+    Trotz dem flexiblen Labeling Setup ist manuelles Postprocessing nötig.\\\\
+    Die Segmentierungen sind nicht pixelgenau. Aufgrund ungünstiger Lichtverhältnisse lassen sind Kühe im Hintergrund schwer oder gar nicht erkennen. Teile
+    der Bilder stellen nicht erkennbare Regionen da in denen eine Annotation nicht möglich ist.
 
     \subsection{Evaluation und Trainingsdatensatz}
-    Der Datensatz weist einige Herausforderungen auf. Bilder aus demselben Durchlauf sind aufgrund temporaler Überschneidungen stark miteinander korreliert.
-    Daher ist bei der Trennung in Trainings- und Evaluationsdaten besondere Vorsicht geboten.
-    Ein akkurates Vorgehen wäre, Trainings- und Evaluationsdatensatz aus Aufnahme aus verschiedenen Ställen zu verwenden. Das ist jedoch zu diesem
-    Zeitpunkt nicht möglich, da bislang nur an einem Tag in einem einzigen Stall aufgezeichnet wurde. Zukünftig ist geplant, den Datensatz in dieser Hinsicht 
-    zu diversifizieren.\\\\
-    Auf dem momentanen Datensatz ist ein sauberes Vorgehen eine direkte Trennung der Kamerafahrten. 
-    Das dabei erstehende Problem ist, dass eine Imbalance zwischen der Anzahl der Bilder in den einzelnen Läufen besteht.
-    Das führt dazu, dass eine faire Trennung nicht ohne große Variation der große des Evaluationsdatensatz oder einem Verlust von annotierten Bilder möglich ist.\\\\
-    Die deshalb gewählte Trennung besteht aus einer Unterteilung in den Kamerafahrten. Damit die Trainings und
-    Evaluationsdatensatz nicht zu stark korrelieren werden zeitliche Pufferzonen eingebaut. Diese Lösung ist nicht optimal, da trotzdem starke Zusammenhänge 
-    zwischen Splits bestehen.
-    
-    \subsection{Crossvalidation}
-    Die Wahl der Splits beinflusst stark zeitliche Position der Evaluation's-Bilder. Um diesen Faktor zu gut wie möglich zu kontrollieren wird
-    ein Teilung mithilfe von 5-Folds Crossvalidation festgelegt. Dabei werden die temporalen Abschnitte zufällig in jeder Fahrt gewählt, ohne das dabei
+
+    Der Datensatz weist Herausforderungen auf. Bilder aus demselben Durchlauf sind aufgrund temporaler Überschneidungen stark miteinander korreliert.
+    Daher ist bei der Trennung in Trainings- und Validationsdaten besondere Vorsicht geboten.
+    Ein akkurates Vorgehen wäre, für Trainings- und Validationsdatensatz Aufnahme aus verschiedenen Ställen zu verwenden. Das ist jedoch zu diesem
+    Zeitpunkt nicht möglich. Zukünftig ist geplant, den Datensatz in dieser Hinsicht zu diversifizieren.\\\\
+    Eine perfekte Trennung der Daten ohne Korrelation zwischen Splits ist nicht möglich. Der Hintergrund, sowie die Futterstelle bleiben unverändert 
+    zwischen Aufnahmen. Das bestmögliche Vorgehen auf dem Datensatz, in seinen derzeitigen Zustand ,ist eine Trennung anhand der einzelnen Kamerafahrten.\\\\
+    Aufgrund einer Imbalance zwischen der Anzahl der Bilder in den einzelnen Läufen ist dieses Vorgehen bringt das Vorgehen Probleme mit sich.
+    Eine faire Trennung ist nicht ohne große Variation der Große von Validationsdatensatze oder einem großen Verlust von annotierten Bilder möglich.\\\\
+    Die gewählte Trennung besteht aus einer Unterteilung in den einzelnen Kamerafahrten. Damit die Trainings und
+    Evaluationsdatensatz nicht stark korrelieren werden zeitliche Pufferzonen eingebaut. Die Lösung ist nicht optimal, da starke Zusammenhänge 
+    zwischen Splits fortbestehen.\\\\
+    Die Wahl der Splits beinfluss die zeitliche Position der Validations-Bilder. Um diesen Faktor zu kontrollieren wird
+    ein Teilung mithilfe von 5-Folds Crossvalidation festgelegt. Dabei werden die temporalen Abschnitte zufällig in jeder Fahrt gewählt, ohne dass dabei
     einen eine Menge von Bildern mehrfach als Validationsdatensatz vorkommt.\\\\
-    Der Testdatensatz stellt eine extra annotierte Fahrt da, die nicht in die Crossvalidation eingeht. Jedoch stammt er von dem selben Tag und Stall, was die 
-    Genrealisierbarkeit, der auf ihm erzielten Ergebnisse deutlich infrage stellt.
+    Dieses Vorgehen ist nicht akzeptabel für einen Testdatensatz. Daher stellt dieser eine eigenen Kamerafahrt da, mit zeitlichen Abstand zwischen zu den anderen. 
+    Ein großes Problem ist: Die Test-Aufnahme stammt von dem selben Tag und Stall. Es bestehen somit strake Korrelation, was die Genrealisierbarkeit der erzielten Ergebnisse 
+    deutlich infrage stellt.
 
     \subsection{Augmentation}
     Aufgrund der kleinen Große des Datensatzes werden die Bilder im Training konstant augmentiert. Dafür wird eine zufälliger Spiegelung und eine zufälliger
     Verkleinerung um 20 \% des Bildbereiches auf ein Bild angewendet (vlg. \cite{chen2017rethinkingatrousconvolutionsemantic,HaitzHuebnerUlrich2022}).  
-    Auch wird die Helligkeit und der Kontrast zufällig variiert. Dies soll die schwankende Lichtverhältnisse im Stall emulieren.
+    Auch wird die Helligkeit und der Kontrast zufällig variiert. 
 
-    \section{Architektur}
-    Eine klassische Herangehensweise semantische Segmentierung zu erreichen ist es, bewehrte Modelle aus der Bildklassifikation zu modifizieren.\\\\
-    Die hier genutzte Architektur ist die DeeplabV3plus. Dabei stellt ein \ac{CNN} die Grundlage
-    bzw. den sogenannten Backbone da. Die Idee ist, dass das Backbone Netzwerke die sogenannte Feature Extraction (das effiziente erkennen von
-    hochdimensionen Bildstrukturen) effizient durchführt, aufgrund welcher die Pixel klassifizierte werden.
-    \cite{chen2018encoderdecoderatrousseparableconvolution}
-
-    \subsection{CNN}
-    Für diese Idee muss zuerst die Architektur und Funktionsweise von CNN's verstanden werden. Die grundlegende Operation, die CNN's ihren Namen gibt, 
-    ist die Convolution (Faltung). Diese stellt eine Möglichkeit da, lokal Bild Information zu erfassen.
+    \section{Model-Architektur}
+    Für die semantischen Segmentierung von Bildaufnahmen existieren zahlreiche Ansätze. Eine weit verbreitete Herangehensweise basiert auf 
+    überwachtem Lernen, wobei insbesondere Architekturen auf Grundlage von \ac{CNN}'s häufig eingesetzt werden. Darüber hinaus wurden verschiedene Erweiterungen 
+    entwickelt, die beispielsweise Attention-Mechanismen, Conditional Random Fields oder Recurrent Neural Networks einbeziehen. In jüngerer 
+    Zeit haben zudem Transformer-Modelle zunehmend an Bedeutung gewonnen (vgl. \cite{csurka2023semanticimagesegmentationdecades,
+    zhou2024imagesegmentationfoundationmodel, minaee2020imagesegmentationusingdeep}).\\\\
+    Als Architektur wird DeepLabV3+ gewählt, eine aktuelle Weiterentwicklung der DeepLab-Familie. Diese Modelle basieren auf dem Konzept der 
+    Atrous Convolutions und integrieren moderne Erweiterungen wie Encoder-Decoder-Strukturen mit separierbaren Faltungen 
+    \cite{chen2018encoderdecoderatrousseparableconvolution,chen2017rethinkingatrousconvolutionsemantic}. 
+    DeepLabV3+ stellt eine weit verbreitete Architektur dar, die sowohl in der Forschung als auch in 
+    zahlreichen industriellen Anwendungen erfolgreich eingesetzt wird (vgl. \cite{csurka2023semanticimagesegmentationdecades, 
+    minaee2020imagesegmentationusingdeep}). Die Grundlage von Deeplab bildet ein abgepasstes \ac{FCN}. \\\\
+    \subsection{CNN-Backbone}
+    Um die Deeplab Architektur zu verstehen muss zuerst die Funktionsweise von \ac{FCN}'s verstanden werden.  
+    \ac{FCN} basieren auf der Convolution (Faltung) als zentrale Operation. 
     \begin{defi}
     Sei $\Omega := \{0, \ldots , W-1\} \times \{ 0, \ldots, H-1\} \times  \{ 0, \ldots,C_{in}\}$, dann wird ein Bild (Feature Map), mit Auflösung $H\times W$ 
     und $C_{in}$ Featurechannels, definiert durch $I: \Omega \to \mathbb{R}$.\\\\
@@ -818,17 +814,18 @@
     mit $C_{out}$ Feature Channels.\cite{pytorch_Convolution}
     \end{defi} 
     \begin{remark}
-    Wenn sich die Definition einer Bildfaltung angeschaut wird fällt auf, dass die Abbildung nicht für alle $(x,y,c)$ definiert ist.
-    Dies passiert dadurch, dass für die $(x,y)$ am Rand des Bildes $(x-i+a,y-j+b) \notin  \{0, \ldots , W-1\} \times \{ 0, \ldots, H-1\}$.
-    Effektiv verkleinert sich also die Auflösung des Output Bildes $I * K$. Dies wird in der Praxis durch Padding, das Erweitern des 
-    Definitionsbereiches des Input Bildes durch Default Werte, gelöst. \cite{pytorch_Convolution}    
+    Betrachtet man die Definition der Bildfaltung, so zeigt sich, dass diese nicht für alle Pixelkoordinaten 
+    $(x,y,c)$ definiert ist. An den Bildrändern ragt das Faltungsfenster über den eigentlichen Bildbereich hinaus. In der Praxis wird dieses 
+    Problem durch Padding gelöst, bei dem der Definitionsbereich des Eingabebildes durch Standardwerte erweitert wird. Dadurch bleibt die Auflösung 
+    nach der Faltung erhalten und verkleinert sich nicht schrittweise \cite{pytorch_Convolution}.    
     \end{remark}\noindent
-    Die Faltung mit einem Kern $K$ stellt eine gewichtet Summe über die Feature Channel einer lokalen Umgebung $k_w, k_h$ da. Dies passiert
-    für jeden Output Feature Channel. Damit soll es den Modellen ermöglicht werden unterschiedliche Aspekte des Bildes zu extrahieren.\\\\
-    Ziel ist es die Anzahl der Output Channels  eines neuen Bildes zu erhöhen, damit über die Channels ein Klassifikation gemacht 
-    werden kann. Dies ist jedoch nicht ohne weiteres möglich da der Speicherplatz linear in den Channel Ansteigt. Deshalb ist die Strategie 
-    von CNN's die Auflösung $H\times W$ zu reduzieren und gleichzeitig die Anzahl der Feature Channels zu erhöhen. Hierzu werden sogenannte strided 
-    Convolutions genutzt.
+    Die Faltung mit einem Kern $K$ stellt eine gewichtet Summe über die Input-Feature Channels eines lokalen Fenster's der Große $k_w \times k_h$ dar. 
+    Durch den Kern $K$ werden $C_{out}$ viele Gewichtungen separat durchgeführt.\\\\
+    Einzelne Convolution-Schichten in einem \ac{FCN} bestehen jeweils aus einem zu lernenden Kern $K$. Das allgemeine Prinzip besteht darin, die Anzahl der 
+    Feature-Channels sukzessive zu erhöhen, indem Faltungen mit zunehmender Ausgabedimension $C_{out}$ angewendet werden. Eine kontinuierliche Erhöhung der 
+    Kanalanzahl ist jedoch nicht praktikabel, da der Speicherbedarf bei hochaufgelösten Feature-Maps stark ansteigt.
+    Daher wird die Kanalanzahl typischerweise nur bei gleichzeitiger Verringerung der räumlichen Auflösung der Feature-Maps erhöht. Eine Methode 
+    für das Verkleiner'n der Auflösung sind strided Convolutions.
     \begin{defi}
     Sei I ein Feature-Map und $K$ ein Faltungskern. Weiter seien $s_h, s_w \in \mathbb{N}$, dann ist die 
     strided Bildfaltung zu dem Kernel K definiert durch 
@@ -837,27 +834,30 @@
     \]
     \end{defi}\noindent
     Die Werte $s_h, s_w$ stellen die Schrittweiten der Mittelpunkte des Kernelfenster da. Mit geschickter Wahl von Padding und Schrittweiten wird 
-    die Auflösung der Bilder halbiert und gleichzeitig die Anzahl der feature Channels verdoppelt. Der Faktor um den Auflösung reduziert 
-    wird, wird als der Outputstride bezeichnet. Viele Modelle haben eine Outputstride von 32 und größer. Auf diesen Feature-Maps mit kleiner Auflösung und vielen 
-    Features-Channels wird dann eine Klassifikation durchgeführt.
+    die Auflösung halbiert und gleichzeitig die Anzahl der Feature Channels verdoppelt. Der Faktor um den Auflösung reduziert 
+    wird, wird als der Outputstride bezeichnet. Eine Outputstride von 32 und größer ist geläufig. 
+    \begin{remark}
+    In \ac{FCN} werden neben strided Convolutions auch Pooling Layers genutzt um die Auflösung zu verkleinern. Bei einem Pooling-Layer wird auf Fenstern
+    Durchschnitt's Werte oder Maxima berechnet der Channels berechnet.
+    \end{remark}
 
     \subsection{Encoder}
-    Der Encoder von Deeplab besteht zum großen Teil aus dem Backbone Model. Dieses liegt jedoch in modifizierter Form vor.
-    Das Problem welches auftritt, wenn das unveränderte Backbone Model genutzt wird ist, dass der Outputstride sehr groß ist. Um also auf die originale Auflösung zurück 
-    zukommen muss die Klassifikation dementsprechend hochskaliert werden, was zu einer groben Akkuratheit der Pixel führt. Um das Problem zu umgehen wird versucht den 
-    Outputstride so klein wie möglich zuhalten.
+    Der Encoder von Deeplab besteht großteils aus dem Backbone Model. Dieses liegt in modifizierter Form vor. 
+    Das Problem welches auftritt, wenn das unveränderte Backbone Model genutzt wird ist, dass der Outputstride groß ist. Um auf die originale Auflösung 
+    zukommen müssen die  Features dementsprechend hochskaliert werden, was zu einer groben Akkuratheit der Pixel Klassifikation führt. 
+    Das Vorgehen besteht darin den Outputstride des Backbone-Modells niedrig zu halten.
     \subsubsection{Atrous Convolutions}
-    Dies bringt jedoch Probleme mit sich. Convolutions in späteren Schichten haben die die Eigenschaft, dass sie durch die Verringerung
-    der Auflösung größere Bildbereiche wahrnehmen. Um das Verhalten zu emulieren werden sogenannte Atrous Convolutions genutzt. 
+    Ein niedriger Outputstride führt zu unerwünschten Folgen. Convolutions in späteren Schichten haben die die Eigenschaft, dass durch die Verringerung
+    der Auflösung, größere Bildbereiche durch Convolution-Fenster wahrgenommen nehmen. Um das Verhalten zu emulieren werden sogenannte Atrous Convolutions genutzt. 
     \begin{defi}
     Sei I ein Bild und $K$ ein Faltungskern. Weiter seien $r_h, r_w \in \mathbb{N}$, dann ist die 
     Atrous Bildfaltung zu dem Kernel K definiert durch 
     \[
     (I * k)(i, j, c) = \sum_{i =0}^{k_h-1}\sum_{j=0}^{k_w-1} \sum_{d = 0}^{C_{in}-1}I(x-i*r_h +a, y-j*r_w+b, d)K(i,j,d,c)
     \]
-    \end{defi}
-    Atrous Convolutions simulieren eine Ausbreitung des Faltungsfensters. Ab einem bestimmten Outputstride werden stridet Convolution durch 
-    die entsprechenden Atrous Convolution ersetzt \cite{chen2017rethinkingatrousconvolutionsemantic}.
+    \end{defi}\noindent
+    Atrous Convolutions simulieren eine Ausbreitung des Faltungsfensters. Ab einem festen Outputstride werden strided Convolution durch 
+    entsprechenden Atrous Convolution ersetzt \cite{chen2017rethinkingatrousconvolutionsemantic}.
     \begin{remark}
     \label{bem:backboneparam}
         In der Implementation werden vortrainierte Parameter von dem Backbone Model genutzt werden (vgl. \cite{chen2017rethinkingatrousconvolutionsemantic,HaitzHuebnerUlrich2022}). 
@@ -871,12 +871,17 @@
     \subsubsection{Seperable Convolutions}
 
     \subsubsection{Astrous Spatial Pyramid Pooling}
-    Eine weitere Strategie um Features auf unterschiedlichen Skalen zu lernen, ist das \ac{ASPP}. Dabei wird auf die letzte Feature
-    Map mehrere separable Atrous Convolution mit unterschiedlichen Raten und Padding in parallel angewendet. Zudem wird noch eine 1x1 Convolution $(k_w = k_h = 1)$
-    und ein 2x2 Average Pooling Layer angewendet. Das Padding in den Atrous Convolution wird dabei so gewählt, dass die Auflösung der Feature Map erhalten
-    bleibt. Der Output des Pooling Layers wird dabei auf die Auflösung hoch interpoliert. Der Output wird aneinander gehängt und Mithilfe von einer 
-    weiteren 1x1 Convolution werden die Feature Channels auf runter projiziert.\cite{chen2017rethinkingatrousconvolutionsemantic}
-    
+    Eine Innovation die spätere Deeplab-Architekturen anwenden, ist das \ac{ASPP}. Ein generelles Vorgehen in Segmentierungs-Modellen sind
+    Bild-Pyramiden Module. Sie sollen die Intrinsische Lokalität von Convolution entgegen wirken, indem mehren Bildskalen gleichzeitig betrachtet werden
+    (vlg. \cite{csurka2023semanticimagesegmentationdecades}). 
+    Deeplab nutzt dabei Atrous-Convolutions um Multiskalen-Daten zu erfassen \cite{chen2017rethinkingatrousconvolutionsemantic}. Dafür werden
+    mehrere separable Atrous Convolution mit unterschiedlichen Raten und Padding in parallel angewendet auf eine Feature Map angewandt (siehe \ref{fig:deeplabv3plus}). 
+    Zudem wird eine 1x1 Convolution und ein 2x2 Average Pooling Layer genutzt. \\\\
+    Das Padding in den Atrous Convolution wird dabei so gewählt, dass die Auflösung der Feature Map erhalten bleibt.
+    Der Output des Pooling Layers wird auf die dieselbe Auflösung hoch interpoliert. Somit haben alle Outputs 
+    die gleiche Auflösung und können verkettet werden. Durch eine $1\times 1$ Convolution werden die Multiskalen Feature-Channel
+    kombiniert und projiziert \cite{chen2017rethinkingatrousconvolutionsemantic}
+
     \begin{figure}[ht]
         \centering
         \includegraphics[width=0.9\linewidth]{pics/Arc.png}
@@ -886,23 +891,19 @@
 
     \subsection{Decoder} 
 
-    Frühere Deeplab Models hatten nur einen primitiven Decoder, der die Ergebnisse des \ac{ASPP} Modules nur Bilinear auf die originale
-    Auflösung hoch interpoliert. In den Paper \cite{chen2018encoderdecoderatrousseparableconvolution} wird ein komplexerer Decoder präsentiert, 
-    der den Process des Hochskalierens erleichtert.\\\\
-    Die Idee ist eine Feature Map aus dem Backbone Model mit höherer Auflösung und groberen Features zu speichern während der Inference 
-    und dann diese bei der Hochskalierung zu nutzen. Ziel dabei ist es schärfere lokale Segmentierung zu erreichen. 
-    Dafür wird die Faturemap mit einem Outputstride von 4 genommen, die sogenannten Low-Level-Features \cite{chen2018encoderdecoderatrousseparableconvolution}. 
-    Das \ac{ASPP} Module bleib wie es ist und wird bei einem Outputstride von 8 oder 16 angewendet \ref{fig:deeplabv3plus}.\\\\
-    Die Ergebnisse werden Bilinear hoch interpoliert, bis auf den Outputstride 4. Die Anzahl der Feature-Channels in den Low-Level-Features wird durch
-    eine 1x1 Convolution reduziert und darauf hin mit den hochskalierten High-Level-Features aneinander gehängt.\\\\ 
-    Eine darauf folgenden 3x3 Convolution, auf den kombinierten Feature soll eine Verfeinerung der High-Level-Features Auflösung durch die 
-    Low-Level-Features erreichen. Erst dann wird die finale Klassifikation der Features durch eine 1x1 Convolution erreicht.
-
+    In früheren Deeplab Modelen hwurde die Ergebnisse des \ac{ASPP} Modules Bilinear auf die originale
+    Auflösung hoch interpoliert. Eine Verfeinerung der Vorhersagen wurde mithilfe von CRF's erreicht. 
+    Folgende Deeplab Modelle nutzen nicht mehr CRF's sondern setzen auf einen Decoder
+    für eine Bildregionen-Verfeinerung \cite{chen2018encoderdecoderatrousseparableconvolution,chen2017rethinkingatrousconvolutionsemantic}.\\\\
+    In dem Decoder werden vorherige Featuremaps (Low-Level-Features) genutzt um die hoch interpolierten Outputs des \ac{ASPP}-Moduls (High-Level-Features) 
+    zu verfeinern. Dazu werden die High- und Low-Level Features verkettet und mithilfe von $3\times3$ Convolutions fusioniert. 
+    Auf den erzeugten Feature's wird eine per Pixel Klassifikation durchgeführt mithilfe einer 1x1 Convolution (siehe Abb. \ref{fig:deeplabv3plus}).\\\\
+    Ziel dieses Prozesses ist es, eine präzisere Klassifikation insbesondere an den Objekt- und Regionsrändern zu ermöglichen.
 
     \section{Trainingskonfiguration}
-    Für das Training des Model wurde eine modulare Implementation von dem Deeplabv3plus Model in Pytorch gewählt \cite{Deeplabv3plus_PyTorch}. Das Repository erlaubt
-    es vortrainierten Parameter einfach für verschiedene Backbone Modelle zu laden. Dabei stehen die Modelle ResNet, MobilenetV2, Xception, und Hrnet zu Verfügung.
-    Somit ist es möglich folgenden Experimente mit unterschiedlichen Modell einfach fortzusetzen.\\\\
+    Für das Training des Model wird eine modulare Implementation von dem Deeplabv3plus Model in Pytorch genutzt \cite{Deeplabv3plus_PyTorch}. Das 
+    Repository erlaubt es vortrainierten Parameter einfach für verschiedene Backbone Modelle zu laden. Dabei stehen die Modelle ResNet, MobilenetV2, 
+    Xception, und Hrnet zu Verfügung.\\\\
     Als Backbone-Model für die Experimente wurde das ResNet-50 gewählt. Es handelt sich um ein neuronales Netz, das auf Standard-Convolutions basiert.
     Im Gegensatz dazu setzen Modelle wie MobileNetV2 oder Xception auf Depthwise-Separable-Convolutions, was zu deutlich weniger Parametern und geringerem 
     Rechenaufwand führt. Die ResNet Architektur wird auch als Backbone in dem Paper \cite{chen2017rethinkingatrousconvolutionsemantic,HaitzHuebnerUlrich2022} 
@@ -912,24 +913,22 @@
     auch ressourcenschonendere Backbones zu untersuchen, die sich für effiziente Systeme besser eignen.\\\\
     Das ResNet50 ist eine kleinere Version des ResNet Modells, mit 50 Schichten, was es ermöglicht es auf Verbraucher freundlichen Hardware zu Trainieren. Die 
     vortrainierten Parameter stammen aus dem Torchvision Modul und wurden auf dem ImageNet-1k Datensatz \cite{deng2009imagenet} trainiert.
-    Dabei wurden nur die Parameter von einem Datensatz genutzt, da in \cite{HaitzHuebnerUlrich2022} kein starker Einfluss durch den Datensatz auf festgestellt werden
-    konnte.
 
     \subsection{Hyperparameter}
-    Die Konfiguration fur Training des Modells bietet eine Vielzahl von zu wählenden Parameter. Diese  Hyperparameter werden nicht durch den Traningsprozess optimiert,
-    sondern müssen im Vorhinein gewählt werden.
+    Die Konfiguration des Training bietet eine Vielzahl von zu wählenden Parameter, die sogenannten Hyperparameter. Sie müssen vor dem Training eines 
+    Modells festgelegt werden.
     \subsubsection{Loss}
-    Für die Bildsegmentierung, sowie allgemein Klassifikation-Problemen ist der Cross-Entropy-Loss eine gängige Fehlerfunktion 
-    (siehe \cite{chen2017rethinkingatrousconvolutionsemantic}).
+    Für die Bildsegmentierung, sowie allgemein Klassifikation-Probleme ist der Cross-Entropy-Loss eine gängige Fehlerfunktion 
+    (vlg. \cite{chen2017rethinkingatrousconvolutionsemantic,csurka2023semanticimagesegmentationdecades}).
     \begin{defi}
-    Sei $C \subset \mathbb{N}$ die Menge der Klassen. Weiter $x_i, i \in C$ die Ausgabe des Modells zu der Klasse $i$. 
-    Weiter sei $w_i$ eine Gewichtung der Klasse $i$. Der Cross-Entropy-Loss für die Ausgabe $x$ des Modells yu dem Label $y$ ist definiert durch
+    Sei $C \subset \mathbb{N}$ die Menge der Klassen. Weiter bezeichnet $x_i, i \in C$ den Vorhersagewert des Modells für die Klasse $i$.
+    $w_i$ sit die Gewichtung der Klasse $i$ in der Verlustfunktion. Der Cross-Entropy-Loss für die Ausgabe $x$ des Modells für das Label $y$ ist definiert 
+    durch
     \begin{equation}\label{def:cross_entr}
         l_{cross}(x,y) = -w_{y} log\left(\frac{exp(x_{y})}{\sum_{c=1}^{C}exp(x_{c})}\right)
     \end{equation}
     \end{defi}\noindent
-    Der Gewichtungswert wird für das manuelle Ausgleichen von Klassenungleichgewichten genutzt. In dem Fall des Datensatzes wird nur die Hintergrund 
-    Gewichtung angepasst mit der Range $[0.1,1]$.\\\\
+    Der Gewichtungswert wird für das manuelle Ausgleichen von Klassenungleichgewichten genutzt. \\\\
     Ein weiterer Loss, der besonders in der Bild-Segmentierung genutzt wird ist der Focal-Loss.
     \begin{defi}
     Sei die Notation gleicht zu der in \ref{def:cross_entr}. Dann ist der Focal-Loss gegeben durch (vgl.\cite{lin2018focallossdenseobject}). 
@@ -937,39 +936,35 @@
         l_{FL}(x,y) = -\alpha (1-p)^{\gamma}log (p)
     \end{equation} 
     \end{defi}\noindent
-    Der Focal-Loss stellt eine adaptive Gewichtung des Cross-Entropy-Losses da, bei dem Pixel mit hoher vorhergesagter Confidence geringer und Pixel mit 
-    niedriger Confidence hoher gewichtet werden. Der Vorteil ist, dass automatisch der einen Fokus auf schwer zu klassifizierende Pixel gelegt wird. Dabei 
-    kann dies bei ungenauer Pixel Annotation zu Trainingsschwierigkeiten führen.
+    Der Focal-Loss stellt eine adaptive Gewichtung des Cross-Entropy-Losses da, bei dem Pixel mit hoher vorhergesagter Confidence geringer gewichtet 
+    werden als Pixel mit niedriger Confidence. Somit wird automatisch der Fokus auf schwer zu klassifizierende Pixel gelegt wird.
     \subsubsection{Weight-Decay}
-    Der Weight-Decay stellt eine Regularisierung des Modells im Training da, um Overfitting zu vermeiden. Dabei wird ein Regularisierungsterm in die Fehlerfunktion
-    hinzugefügt, der eine Gewichtung der Norm des Modell-Parameter darstellt.  
+    Der Weight-Decay stellt eine Regularisierung des Modells im Training da, um Overfitting zu vermeiden. Dabei wird ein Regularisierungsterm in die
+    Fehlerfunktion eingefügt, der eine Gewichtung der Norm des Modell-Parameter darstellt.  
     \begin{equation}
         l_{L2}(x,y) = l(x,y) + \lambda ||W||^2
     \end{equation}
-    $W$ stellt den Vektor mit allen trainierebaren Parametern des Modells da. $\lambda$ ist der Weight-Decay Faktor gewählt wird. Er stellt die Gewichtung zwischen 
-    Fehlerfunktion und Größe des Modell Modells da. Dadurch soll die Komplexität eines Modells betraft werden um Overfitting  auf dem Trainingsdatensatz zu vermeiden.
+    $W$ stellt den Vektor mit allen trainierebaren Parametern des Modells da. $\lambda$ ist der Weight-Decay Faktor. 
+    Er ist ein Strafterm für die Komplexität des Modells.
 
     \subsubsection{Optimierer}
-    Für das Training wurde der AdamW-Optimierer eingesetzt. AdamW ist ein Variantenoptimierer auf Basis von Adam, bei dem das Weight-Decay korrekt vom 
+    Für das Training wurde der AdamW-Optimierer eingesetzt. AdamW ist ein Optimierer auf Basis von Adam, bei dem das Weight-Decay korrekt vom 
     Gradientenupdate entkoppelt ist \cite{loshchilov2019decoupledweightdecayregularization}. Er stellt einen robusten Optimierer für Tiefe \ac{CNN}'s
-    da. Dabei ist im Gegensatz zu oft dem genutzten Momenten basierte Stochastic-Gradient-Decent ein geringe Wahl von Hyperparameter nötig. Hier wird 
-    nur die Lernrate optimiert.
+    da. Im Gegensatz zu dem häufig genutzten Moment basierte Stochastic-Gradient-Decent Optimizer, ist ein geringe Wahl von Hyperparameter nötig.
 
     \subsubsection{Backbone Training}
-    Aufgrund der Größe des Datensatzes ist es nicht nicht sinnvoll ein Tiefes Convolutionelles Modell zu Trainieren. Um das Problem zu umgehen wird versucht
-    die vortrainierte Parameter effektiv zu nutzen. Dazu wird für das Backbone-Modell die Lernrate um einen Faktor von 0.1 verringert. Diese Strategie wird auch
-    in den Paper \cite{chen2017rethinkingatrousconvolutionsemantic} genutzt.\\\\
-    Eine andere Herangehensweise ist es die Parameter aus dem Training komplett zu entfernen. Dabei muss beachtet werden nur die Parameter zu entfernen die auch
-    unverändert auf der jeweiligen Feature-Map operieren. Wenn also eine Erhöhung eine strided Convolution durch eine Atrous-Convolution vertauscht wird, operieren
-    die Erweiterten Convolutions auf dem gleiche Sichtfenstern, aber auch auf einer größeren Feature-Map (Bem. \ref{bem:backboneparam}). Aus diesem Grund sollten sie in 
-    das Training einbezogen werden.
+    Aufgrund der Größe des Datensatzes ist es nicht sinnvoll ein Tiefes Convolutionelles Modell auf ihm neu zu trainieren. Aus diesem Grund wird versucht
+    die vortrainierte Parameter unverändert zu lassen. Dafür wird für das die Lernrate für die Parameter des Backbone-Modells verringert 
+    (vlg. \cite{chen2017rethinkingatrousconvolutionsemantic}).\\\\
+    Eine andere Herangehensweise ist es die Parameter aus dem Training auszuschließen. Dabei muss beachtet werden nur die Parameter zu entfernen die auch
+    unverändert auf der jeweiligen Feature-Map operieren. Wie schon in der Bemerkung \ref{bem:backboneparam} erwähnt, werden bestimmte Parameter des 
+    Backbone-Modells in Atrous-Convolutions verwendet. Aufgrund des veränderten Control-Flow des Modells sollten sie auch mittrainiert werden.
     \subsubsection{Outputstride}
-    Für die Konfiguration des Backbone-Models muss auch der Outputstride festgelegt werden. Dabei stehen 8, 16 praktisch zur Auswahl. Ist der Outputstride zu klein 
-    steigt der Rechenaufwand, sowie der Speicherverbrauch dramatisch an \cite{chen2017rethinkingatrousconvolutionsemantic}. Ist er zu klein kann es zu unpräzisen
-    Versagen führen, da der Up-Sampeling Faktor zu groß ist, selbst mit Hilfe der hinzugefügten Decoders.
-
+    Für die Konfiguration des Backbone-Models hat die Wahl des Outputstride ein starken Einfluss. Ist großer Outputstride erhöht den 
+    Rechenaufwand und Speicherverbrauch \cite{chen2017rethinkingatrousconvolutionsemantic}. Ist er zu klein sind mehr Interpolationsschritte nötig.
+    Der Outputstride wird aus praktischen Gründen auf 16 festgelegt (vlg. \cite{chen2017rethinkingatrousconvolutionsemantic}). 
     \subsection{Hyperparameter Optimierer}
-    Aufgrund des kleinen Trainingsdatensatzes ist die Konfiguration der Parameter schwer im Vorhinein eingrenzen durch fehlende Referenz Experimente.
+    Aufgrund des kleinen Trainingsdatensatzes ist die Konfiguration der Parameter schwer im Vorhinein eingrenzen, durch fehlende Referenz Experimente.
     Die Konfiguration Bereiche sind große gewählt um Preconditioning des Trainings zu vermindern. Für die Bestimmung einer guten Konfiguration wird
     eine Kombination aus Exploration und Exploitation genutzt.\\\\
     Für die Hyperparameter-Optimierung wird eine Kombination aus einem Random-Search- und einem TPE-Sampler eingesetzt.
@@ -977,19 +972,140 @@
     Suchräumen auswählt \cite{akiba2019optunanextgenerationhyperparameteroptimization}. Dies bildet die Initialphase der Optimierung, in der der Parameterraum breit 
     abgedeckt wird. \\\\
     Anschließend kommt der TPE-Sampler (Tree-structured Parzen Estimator) zum Einsatz, ein bayesianisches Optimierungsverfahren, das auf Basis der bereits 
-    getesteten Konfigurationen gezielt vielversprechende Bereiche weiter untersucht \cite{watanabe2023treestructuredparzenestimatorunderstanding}.
+    getesteten Konfigurationen gezielt vielversprechende Bereiche weiter untersucht \cite{watanabe2023treestructuredparzenestimatorunderstanding}. 
+    Dabei wird versucht eine bestimmte Metrik zu optimieren.
     Die Implementierung beider Algorithmen sowie die Steuerung des gesamten Optimierungsprozesses erfolgt mithilfe des Hyperparameter-Optimierungsframeworks 
-    Optuna \cite{akiba2019optunanextgenerationhyperparameteroptimization}.
+    Optuna \cite{akiba2019optunanextgenerationhyperparameteroptimization}.\\\\
+    Die Parameterräume für die genutzten Parameter sind in der Tabelle \ref{tab:pram_sear} angegeben.
+
+    \begin{figure}[h] 
+    \centering
+    \begin{tabular}{l*{3}{c}}
+    \toprule
+    \textbf{Parameter} & \textbf{Range} & \textbf{Skalierung}\\
+    \midrule
+        Lernrate &  $[1^{-2}, 1^{-5}]$& logarithmisch \\
+        Batch-Size& $[3, 15]$& uniform\\
+        Background-Weight& $[0.1, 1]$ & uniform\\
+        Weigth-Decay& $[1^{-2}, 1^{-6}]$  & logarithmisch \\
+        Loss & [Focal, Cross-Entropy] & -\\
+        Backbone-Training & [True, False] & -\\
+    \bottomrule
+    \end{tabular}
+    \caption{Suchraum der Hyperparameter für Optuna}
+    \label{tab:pram_sear}
+    \end{figure}
 
     \section{Traningsergebnisse}
 
     \subsection{Metriken}
 
+    Die Bewertung der semantischen Segmentierung erfordert Metriken, die eine Vielzahl paralleler Vorhersagen berücksichtigen, da jeder Pixel einem eigenen 
+    Klassifikationsproblem entspricht. 
+    In der verwendeten Notation bezeichnet $C$ die Anzahl der Klassen. $n_i^j$ beschreibt die Anzahl der Pixel, die zu der Klasse $i$ gehören und als Klasse $j$ vorhergesagt wurde. 
+    $t_i$ steht für die Gesamtzahl der Pixel der Klasse $i$, während $G$ die Gesamtzahl aller Vorhersagen beschreibt.\cite{csurka2023semanticimagesegmentationdecades}
+    \subsubsection{Accuracy}
+    Eine der gebräuchlichsten Metriken für Klassifikationsaufgaben ist die Accuracy.
+    Im Kontext der semantischen Segmentierung wird die Pixel Accuracy verwendet. Sie beschreibt das Verhältnis der korrekt klassifizierten Pixel zur Gesamtzahl 
+    aller Pixel im Bild.
+    \begin{equation}
+        Pixel Accuracy: \frac{1}{G} \sum_{i} n_i^i
+    \end{equation}
+    Die Mean Accuracy beschriebt dagegen die Akkuratheit der Vorhersagen in den einzelnen Klassen (vlg.\cite{csurka2023semanticimagesegmentationdecades}).
+    \begin{equation}
+        Mean Accuracy: \frac{1}{C} \sum_{i} \frac{n_{i}^i}{t_i}
+    \end{equation}
     \subsubsection{IOU}
+    In der semantischen Segmentierung ist nicht immer eine pixelgenaue Vorhersage erforderlich. Häufig steht vielmehr die korrekte Identifikation ganzer 
+    Bildregionen im Vordergrund. Der \ac{IoU} dient dabei als Maß zur Bewertung der Übereinstimmung zwischen vorhergesagten und tatsächlichen Segmenten. 
+    Er berücksichtigt sowohl False Positives als auch False Negatives und hat sich als Standardmetrik für die Evaluation semantischer Segmentierungsverfahren 
+    etabliert.\\\\ 
+    Der Class \ac{IoU} beschreibt das Verhältnis von richtig vorhergesagten Pixel der Klasse $c$ zu der Anzahl die insgesamt als $c$ vorhergesagt wurden.
+    \begin{equation}
+        Class IoU(c) = \frac{n^c_{c}}{t_c + \sum_{j}^{C} n^j_{c} - n^c_{c}} 
+    \end{equation}
+    Der Mean \ac{IoU} setzt sich als Durchschnitt über die einzelnen Class Iou zusammen. Bei dem Frequency-weighted-\ac{IoU} bietet ein Maß der generellen Genauigkeit
+    der Bildvorhersage Regionen.\cite{csurka2023semanticimagesegmentationdecades}
+    \begin{align}
+        Mean IoU:& \frac{1}{C} \sum_{i} Class IoU(i)\\
+        Freqency Wieghted IoU: & \frac{1}{G} \sum_{i} t_i Class IoU(i)
+    \end{align}\noindent
+
+    Als Objective-Funktion der Hyperparameter-Optimierung wird Mean-\ac{IoU}. Aufgrund der Imbalance zwischen Hintergrund und den restlichen Klassen, kann 
+    
+    
+    Metriken nicht gut die Akkuratheit auf den Rest der Labels. Da der \ac{IoU} die Standart-Metrik für die semantische Sgemntierung darstellt wird, ist das 
+    Ziel des Hzperparemter optimierers den Mean-\ac{IoU} zu maximieren.
+   
+    \subsection{Ergebnisse}
+    Das Modell
+
+
+
+
+
+    Einen Startpunkt der Hyperparemter Analyse bietet das FANOVA Verfahren genutzt. Die Methode fitted eine Random-Forrest-Regressions Model auf der Objektiven Funktion in der
+    Hyperparameter Optimierung. Durch eine Analyse des Modells wird Wichtigkeit der Parameter bestimmt 
+    (vgl. \cite{akiba2019optunanextgenerationhyperparameteroptimization, pmlr-v32-hutter14}).
+    \begin{remark}
+    Die Werte die FANOVA liefert dürfen nicht als Hyper-Parameter Importance interpretiert werden. Das Modell wird aufgrund des Trainingsverlaufes des TPE-Samplers gefitted, was die 
+    gegeben Parameterkonfiguration beeinflusst. Es gibt dadurch ein Einblick in das Verhalten des TPE-Trainings.
+    \end{remark}
+    Anovat plot
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.1\linewidth]{pics/Arc.png}
+        \caption{ANova }
+    \end{figure}
+
+    Hyperparmter optimierung 
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=\linewidth]{pics/optimization.png}
+        \caption{Optimierung verlauf}
+    \end{figure}
+
+
+    lerningplot 
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.1\linewidth]{pics/Arc.png}
+        \caption{Traningsverlauf}
+    \end{figure}
+
+    Traning Plot
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.1\linewidth]{pics/Arc.png}
+        \caption{Traningsverlauf}
+    \end{figure}
+    
+    \begin{table}[ht]
+        \centering
+        \caption{Test Metriken }
+        \label{tab:test_results}
+        \setlength{\tabcolsep}{5pt} 
+        \renewcommand{\arraystretch}{1.3}
+        \begin{tabular}{l*{5}{c}}
+            \toprule
+            \textbf{Mean IoU [\%]} & \textbf{FreqW IoU [\%]} & \textbf{Mean Acc [\%]} & \textbf{Pixel Acc [\%]} & \textbf{Cow IoU [\%]}\\
+            \midrule
+            &&&&&\\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+
+
+    \chapter{Auswertung}
+    Ziel der Arbeit war es, ausgewählte Rekonstruktions- und Tracking-Algorithmen im Kontext von Stallumgebungen zu verbessern. 
+    Hierfür wurden die Verfahren gezielt angepasst, wobei die Erstellung geeigneter Masken einen wesentlichen Schwerpunkt darstellte, 
+    da sie die Grundlage für die Anwendung der Algorithmen bildet.\\\\
+    Die Anpassungen führten insbesondere in dynamischen Umgebungen zu einer deutlichen Verbesserung. Besonders hervorzuheben ist dabei 
+    das TSDF-Tracking in Kombination mit dem Point-to-Point-Fehler und der Maskierung, das stabile Ergebnisse liefert.
 
     \clearpage
     \appendix
-    
+
     \chapter{Rohdaten}
 
     \begin{landscape}
@@ -1022,7 +1138,7 @@
         \caption{RPE TSDF-Tracking mit 3 Pyramiden Level per 10 Iterationen und gewichteter Integration}
         \label{tab:RPE_tsdf_eval}
         \setlength{\tabcolsep}{5pt} 
-        \renewcommand{\arraystretch}{1.3}
+        \renewcommand{\arraystretch}{1.7}
         \resizebox{1.4\textwidth}{!}{
             \input{tabellen/tsdf_RPE_var.tex}
         }
@@ -1032,7 +1148,7 @@
         \caption{ATE  TSDF-Tracking mit 3 Pyramiden Level per 10 Iterationen und gewichteter Integration}
         \label{tab:ATE_tsdf_eval}
         \setlength{\tabcolsep}{5pt} 
-        \renewcommand{\arraystretch}{1.5}
+        \renewcommand{\arraystretch}{1.7}
         \resizebox{1.4\textwidth}{!}{
             \input{tabellen/tsdf_ATE_var.tex}
         }
