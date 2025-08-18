@@ -24,8 +24,9 @@ def setup_venv():
         venv.EnvBuilder(with_pip=True).create(str(venv_dir))
 
     pip = venv_dir / ("Scripts" if os.name == "nt" else "bin") / "pip"
-    run([str(pip), "install", "--upgrade", "pip"])
-
+    python = venv_dir / ("Scripts" if os.name == "nt" else "bin") / "python"
+    run([str(python), "-m", "pip", "install", "--upgrade", "pip"])
+   
     req = ROOT / "requirements.txt"
     if req.is_file():
         run([str(pip), "install", "-r", str(req)])
