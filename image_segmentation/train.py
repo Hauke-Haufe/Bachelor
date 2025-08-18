@@ -17,7 +17,7 @@ import matplotlib
 import numpy as np
 from optuna import TrialPruned
 
-from image_segmentation.utils.my_dataset import Mydataset
+from my_dataset import Mydataset
  
 def get_dataset(path):
     """

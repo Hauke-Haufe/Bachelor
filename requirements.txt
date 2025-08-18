@@ -36,3 +36,4 @@ torchvision
 tqdm
 typing_extensions
 tzdata
+visdom

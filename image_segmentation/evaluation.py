@@ -15,9 +15,9 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 
-from image_segmentation.utils.cross_validation import Options
+from image_segmentation.cross_validation import Options
 from train import train, validate
-from image_segmentation.utils.my_dataset import Mydataset
+from image_segmentation.my_dataset import Mydataset
 import pandas as pd
 
 from torchvision.transforms import v2
