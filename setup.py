@@ -34,7 +34,7 @@ def setup_venv():
 
 def clone_deeplab():
     print("[3/5] Cloning DeepLabV3Plus-Pytorch...")
-    lib_dir = ROOT / "imagesegmentation" / "lib"
+    lib_dir = ROOT / "image_segmentation" / "lib"
     deeplab_dir = lib_dir / "deeplab"
     if not deeplab_dir.exists():
         run(["git", "clone", "https://github.com/VainF/DeepLabV3Plus-Pytorch.git", "tmp_deeplab"], cwd=lib_dir)
