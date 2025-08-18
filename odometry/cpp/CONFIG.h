@@ -84,6 +84,7 @@ inline core::Device get_device(std::string choosen_method) {
 
 inline std::unordered_map<std::string, SubDataset> dataset_map = {
     {"static_xyz", SubDataset::static_xyz}, 
+    {"static_rpy", SubDataset::static_rpy},
     {"walking_xyz", SubDataset::walking_xyz},
     {"walking_halfsphere", SubDataset::walking_halfsphere},
     {"walking_rpy", SubDataset::walking_rpy}, 

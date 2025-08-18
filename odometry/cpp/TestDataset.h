@@ -10,6 +10,7 @@ namespace fs = std::filesystem;
 
 enum class SubDataset{
     static_xyz,
+    static_rpy,
     walking_xyz,
     walking_halfsphere,
     walking_rpy,
@@ -23,11 +24,12 @@ class Tum_dataset{
     public:
 
     std::unordered_map<SubDataset, std::string> dataset_paths = {
-        {SubDataset::static_xyz,        "data/rgbd_dataset_freiburg1_xyz"},
-        {SubDataset::walking_xyz,       "data/rgbd_dataset_freiburg3_walking_xyz"},
-        {SubDataset::walking_halfsphere,"data/rgbd_dataset_freiburg3_walking_halfsphere"},
-        {SubDataset::walking_rpy,       "data/rgbd_dataset_freiburg3_walking_rpy"},
-        {SubDataset::walking_static,    "data/rgbd_dataset_freiburg3_walking_static" }
+        {SubDataset::static_xyz, "data/TUMDataSet/rgbd_dataset_freiburg1_xyz"},
+        {SubDataset::static_rpy, "data/TUMDataSet/rgbd_dataset_freiburg1_rpy"},
+        {SubDataset::walking_xyz,       "data/TUMDataSet/rgbd_dataset_freiburg3_walking_xyz"},
+        {SubDataset::walking_halfsphere,"data/TUMDataSet/rgbd_dataset_freiburg3_walking_halfsphere"},
+        {SubDataset::walking_rpy,       "data/TUMDataSet/rgbd_dataset_freiburg3_walking_rpy"},
+        {SubDataset::walking_static,    "data/TUMDataSet/rgbd_dataset_freiburg3_walking_static" }
     };
 
     Tum_dataset(SubDataset dataset);
@@ -70,9 +72,13 @@ class Tum_dataset{
         return color_file_paths[i];
     }
 
-    double ComputeATE(std::vector<core::Tensor> Trajectory, bool align);
+    double ComputeATETrans(std::vector<core::Tensor> Trajectory, bool align);
 
-    double ComputeRPE(std::vector<core::Tensor> Trajectory, int delta);
+    double ComputeRPETrans(std::vector<core::Tensor> Trajectory, int delta);
+
+    double ComputeATERot(std::vector<core::Tensor> Trajectory);
+
+    double ComputeRPERot(std::vector<core::Tensor> Trajectory, int delta);
     
     private:
 
