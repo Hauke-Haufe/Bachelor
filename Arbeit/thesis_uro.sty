@@ -1,0 +1,170 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{thesis_uro}[2021/08/23 Thesis Uni Rostock Package]
+
+\RequirePackage[T1]{fontenc}	%Erweiterter ASCII-Zeichensatz
+\RequirePackage[utf8]{inputenc} %Eingabekodierung
+\RequirePackage{lmodern}	%Modernisierung der Standardscrift Computer Roman
+\RequirePackage[ngerman]{babel}	%Sprachpaket mit dt. Sprachunterstützung geladen
+\RequirePackage[babel,german=quotes]{csquotes} %Paket für Anführungszeichen, \enquote{Bla}
+\RequirePackage{amsmath,amssymb,amsthm} %zusätzliche Mathepakete
+\RequirePackage{siunitx}	%Paket für Maßzahl mit Einheit
+%\RequirePackage{xcolor}		%Paket um Farben zu definieren (wird schon von tikz geladen)
+%\RequirePackage{graphicx}	%Paket um externe Grafiken einzubinden (wird schon von tikz geladen)
+\RequirePackage{tikz}	%Paket zum Erstellen von Grafiken (T_ikZ i_st k_ein Z_eichenprogramm)
+	\usetikzlibrary{calc,positioning}	%TikZ-Bibliotheken 
+\RequirePackage{subcaption} %Abbildungen nebeneinander darstellen
+\RequirePackage{caption} %Paket zum Formatieren von Tabellen- bzw. Bildunterschriften
+%\RequirePackage{setspace} %Paket für Zeilenabstand
+\RequirePackage{colortbl} % Hintergrundfarben in Tabellen
+\RequirePackage{booktabs,multirow}	%Zusatzpakete für Tabellen
+
+%Zusätzliche Pakete welche in Thesis_kurz_thebibliography nicht benötigt wurden
+\RequirePackage{listings}	%Paket um Programmcode einzubinden
+\RequirePackage{empheq}     %für Kästen um Formel ohne die Nummerierung mit im Rahmen zu haben ansonsten Paket framed angucken
+\RequirePackage{pdfpages} %Paket zum Einbinden von PDF-Seiten
+\RequirePackage{algorithm2e} % ein Beispiel f\"ur ein Pseudo-Code-Paket.
+\RequirePackage[printonlyused,withpage]{acronym}  %Paket, um Abkürzungsverzeichnis zu erstellen
+\RequirePackage{pgfplots} %Paket, um Diagramme mit LaTeX zu erzeugen, basiert auf TiKZ
+	\pgfplotsset{compat=1.12}
+\usetikzlibrary{fit,backgrounds}%weitere TikZ-Bibliotheken
+\RequirePackage{scrhack} %Korr. Verzeichnisse
+%Literaturverzeichnis
+\RequirePackage[backend=biber]{biblatex} %biblatex mit biber laden
+\ExecuteBibliographyOptions{
+sorting=nyt, %Sortierung Autor, Titel, Jahr
+bibwarn=true, %Probleme mit den Daten, die Backend betreffen anzeigen
+isbn=false, %keine isbn anzeigen
+url=false %keine url anzeigen
+}
+
+%hyperref immer als letztes Paket laden
+\RequirePackage[pdftex,plainpages=false,pdfpagelabels]{hyperref} % Links im PDF: Click auf grüne oder rote Kästchen, welche nicht im Ausdruck erscheinen
+
+\renewcommand{\algorithmcfname}{Algorithmus}
+\renewcommand{\listalgorithmcfname}{Algorithmenverzeichnis}
+\renewcommand{\lstlistlistingname}{Verzeichnis der Listings}
+\renewcommand{\abstractname}{Zusammenfassung}
+
+\pagestyle{headings}
+
+%Farbschema Uni Rostock
+\DeclareOption{uni}{\definecolor{colorscheme}{cmyk}{1.00, 0.75, 0.00, 0.00}%
+										\def\fak{Universit\"at Rostock}}
+\DeclareOption{inf}{\definecolor{colorscheme}{cmyk}{0.40, 0.00, 1.00, 0.00}%
+										\def\fak{Interdisziplinäre Fakult\"at}}
+\DeclareOption{msf}{\definecolor{colorscheme}{cmyk}{1.00, 0.30, 0.00, 0.00}%
+										\def\fak{Fakult\"at f\"ur Maschinenbau und Schiffstechnik}}
+\DeclareOption{ief}{\definecolor{colorscheme}{cmyk}{0.90, 0.30, 0.00, 0.00}%
+										\def\fak{Fakult\"at f\"ur Informatik und Elektrotechnik}}
+\DeclareOption{mnf}{\definecolor{colorscheme}{cmyk}{0.00, 1.00, 1.00, 0.40}%
+										\def\fak{Mathematisch-Naturwissenschaftliche Fakult\"at}}
+\DeclareOption{mef}{\definecolor{colorscheme}{cmyk}{0.45, 1.00, 0.50, 0.20}%
+										\def\fak{Universitätsmedizin}}
+\DeclareOption{juf}{\definecolor{colorscheme}{cmyk}{0.00, 1.00, 0.80, 0.00}%
+										\def\fak{Juristische Fakult\"at}}
+\DeclareOption{wsf}{\definecolor{colorscheme}{cmyk}{0.10, 0.00, 0.00, 0.40}%
+										\def\fak{Wirtschafts- und Sozialwissenschaftliche Fakult\"at}}
+\DeclareOption{auf}{\definecolor{colorscheme}{cmyk}{1.00, 0.00, 1.00, 0.50}%
+										\def\fak{Agrar- und Umweltwissenschaftliche Fakult\"at}}
+\DeclareOption{thf}{\definecolor{colorscheme}{cmyk}{0.15, 0.90, 1.00, 0.05}%
+										\def\fak{Theologische Fakult\"at}}
+\DeclareOption{phf}{\definecolor{colorscheme}{cmyk}{0.80, 1.00, 0.00, 0.00}%
+										\def\fak{Philosophische Fakult\"at}}
+
+\ExecuteOptions{uni}
+\ProcessOptions\relax
+
+%Bsp. Farbdefinition
+\definecolor{mycolor}{gray}{.7}   %z.B. ein Grauton
+\definecolor{hellgrau}{rgb}{0.8,0.8,0.8} % Farbe
+\definecolor{hellgelb}{rgb}{1,1,0.9}
+\definecolor{colKeys}{rgb}{0,0,1}
+\definecolor{colIdentifier}{rgb}{0,0,0}
+\definecolor{colComments}{rgb}{1,0,0}
+\definecolor{colString}{rgb}{0,0.5,0}
+%Definition für Listings
+\lstset{
+    float=hbp,
+    basicstyle=\footnotesize,
+    identifierstyle=\color{colIdentifier},
+    keywordstyle=\color{colKeys},
+    stringstyle=\color{colString},
+    commentstyle=\color{colComments},
+    columns=flexible,
+    tabsize=2,
+    frame=single,
+    extendedchars=true,
+    showspaces=false,
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny,
+    breaklines=true,
+    backgroundcolor=\color{hellgelb},
+    breakautoindent=true
+}
+
+%Variablen Titelseite
+\newcommand{\institut}[1]{\def\varinstitut{#1}}
+\newcommand{\arbeit}[1]{\def\vararbeit{#1}}
+\newcommand{\autor}[1]{\def\varautor{#1}}
+\newcommand{\betreuerGutachter}[1]{\def\varbetreuer{#1}}
+\newcommand{\gutachter}[1]{\def\vargutachter{#1}}
+\newcommand{\autorInfo}[1]{\def\varautorinfo{#1}}
+\newcommand{\matrNr}[1]{\def\varmatrnr{#1}}
+\newcommand{\titel}[1]{\def\vartitel{#1}}
+\newcommand{\untertitel}[1]{\def\varuntertitel{#1}}
+
+%Def. Titelseite
+\newcommand{\mytitle}{%
+\begin{sffamily}
+\begin{tikzpicture}[remember picture,overlay,shift=(current page.south west)] 
+\begin{scope}[x={(current page.south east)},y={(current page.north west)}] 
+	\node [right] at (2cm,27cm) {\includegraphics[width=12cm]{pics/UNI-Logo_Siegel_4c_115mm}};
+	\draw[line width=2pt,colorscheme,rounded corners=2ex] (0cm,0cm) +(2cm,0cm) --(2cm,23.5cm) -- (19cm,23.5cm) -- (19cm,0cm);
+	\coordinate (A) at (3.7cm,20cm);
+	\node at (A) [below right] {\parbox{.85\textwidth}{\noindent\bfseries\sffamily{\Huge\raggedright \textcolor{colorscheme}{\vartitel}\par}%
+		\vspace{16mm}\noindent\mdseries\sffamily{\Large\raggedright \textcolor{colorscheme}{\@ifundefined{varuntertitel}{}{\varuntertitel}}\par}}};
+	\coordinate (B) at (3.7cm,3cm);
+	\node at (B) [above right] {\parbox{.85\textwidth}{%
+		\noindent\begin{tabular}{@{}l@{\qquad}p{.52\textwidth}}
+    Name: & {\Large\varautor}\\[2pt]
+    Matrikelnummer: & \varmatrnr\\[1ex]
+		Abgabedatum: & \@date\\[5ex]
+    Betreuer und Gutachter: & {\varbetreuer\newline\vspace{-1ex}}\\
+    Gutachter: & \vargutachter
+  \end{tabular}}};
+		\fill[colorscheme] (0cm,0cm) +(2cm,0cm) rectangle (19cm,2cm);
+	\path (3.7cm,1.5cm) [right,white] node{\Large\sffamily\textbf{\strut\vararbeit\ \@ifundefined{varinstitut}{}{am \varinstitut}}};
+	\path (3.7cm,.8cm) [right,white] node{\Large\sffamily\textbf{\strut\fak}};
+\end{scope}
+\end{tikzpicture}
+\end{sffamily}
+}
+  
+\def\eigenstaenigkeitserklaerung{
+  \addchap*{Erklärung}
+    Ich versichere hiermit, dass ich die vorliegende Arbeit
+    selbstständig angefertigt
+    und ohne fremde Hilfe verfasst habe. Dazu habe ich keine außer den von
+    mir angegebenen Hilfsmitteln
+    und Quellen verwendet und die den benutzten Werken inhaltlich und
+    wörtlich entnommenen
+    Stellen habe ich als solche kenntlich gemacht. Ich versichere, dass die eingereichte elektronische Fassung mit den gedruckten Exemplaren übereinstimmt.
+		
+		
+  \vspace{2cm}\noindent Rostock, den \@date\\[8ex] $\ol{\text{\varautor}}$
+}
+\makeatother
+
+\newcommand{\zusammenfassung}[1]{
+  \thispagestyle{empty}
+  \KOMAoption{headsepline}{false}
+   \begin{abstract}
+     #1
+   \end{abstract}
+  \KOMAoption{headsepline}{true}
+  \cleardoublepage
+}
+
+
+\endinput

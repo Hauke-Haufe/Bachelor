@@ -1,12 +1,9 @@
-import os
 import torch.utils.data as data
+from torchvision.transforms import v2
 import numpy as np
 from PIL import Image
-from torchvision.transforms import v2
-from pathlib import Path
-import matplotlib.pyplot as plt
-import time
 
+from pathlib import Path
 
 def voc_cmap(N=256, normalized=False):
     def bitget(byteval, idx):
@@ -85,5 +82,4 @@ class Mydataset(data.Dataset):
 
     @classmethod
     def decode_target(cls, mask):
-        """decode semantic mask to RGB image"""
         return cls.cmap[mask]

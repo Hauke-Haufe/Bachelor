@@ -10,9 +10,6 @@ import torch.nn.functional as F
 
 import tkinter as tk
 
-import matplotlib.pyplot as plt
-
-
 def convert_mask_to_sam_logits(mask_binary, target_size=(256, 256), fg_value=10.0, bg_value=-10.0):
     """
     Convert binary mask to SAM-compatible mask_input (logits format).
@@ -40,12 +37,34 @@ def convert_mask_to_sam_logits(mask_binary, target_size=(256, 256), fg_value=10.
 
     return mask_logits[0,0]
 
-#helper class for tkinter
-class LWSContext():
 
+class LWSContext():
+    """
+    Context object for the Label-with-SAM application.
+
+    This class holds global state shared between the GUI and SAM predictor,
+    including the loaded model, masks, classes, zoom, and image.
+
+    Parameters
+    ----------
+    sam_version : int, default=2
+        Which SAM version to use:
+        - 1 → SAM v1 
+        - 2 → SAM v2 
+
+    Methods
+    -------
+    get_masks() -> list
+        Return a list of masks with their associated class names.
+    set_image(Image: PIL.Image.Image)
+        Set the current working image.
+    set_mask(mask: dict)
+        Add a mask, initialize its selection/logits, and append to context.
+    clear_masks()
+        Remove all stored masks.
+    """
 
     def __init__(self, sam_version = 2):
-
 
         if sam_version == 1:
             from segment_anything import sam_model_registry, SamPredictor
@@ -99,8 +118,49 @@ class LWSContext():
         self.masks = []
         
 class LabelwithSam:
+    """
+    Label-with-SAM GUI for interactive Annotation of images
 
+    Interface
+    --------
+    - Sets up keybindings and mousebindings:
+        * Left click: add point
+        * Right click: toggle input mode
+        * d: delete last point
+        * q: clear all points
+        * Ctrl+Left click: select/unselect mask
+        * Ctrl+d: delete selected masks
+        * s: generate mask from prompts
+        * Number keys: assign class IDs
+        * Mouse wheel / Ctrl+Up / Ctrl+Down: zoom
+        * r: reset for new mask
+        * v: toggle element visibility
+        * f: toggle focus mode
+    - Control buttons:
+        * "Finish" → advance to next image 
+        * "End" → close application 
+    """
+    
     def __init__(self, ctx: LWSContext):
+        """
+        Initialize the Label-with-SAM GUI.
+
+        Parameters
+        ----------
+        ctx : LWSContext
+            Context object containing:
+            - sam : the SAM model instance
+            - masks : existing masks
+            - image : current image to label
+            - classes : mapping of class IDs to labels
+            - zoom_factor : initial zoom factor
+
+        Notes
+        -----
+        - Calls `self.render()` once at startup.
+        - Not tested on Linux may not work with Keybinds and windows Status 
+        - Blocks with `mainloop()` until the window is closed.
+        """
 
         self.root =  tk.Tk() 
         self.ctx = ctx
@@ -126,9 +186,6 @@ class LabelwithSam:
         #---------set start Parameters---------
         #--------------------------------------
 
-        #self.sam = sam_model_registry["vit_h"](checkpoint="data/sam_vit_h.pth")
-        #self.sam = sam_model_registry["vit_b"](checkpoint="data/sam_vit_b.pth")
-        #self.sam = sam_model_registry["vit_l"](checkpoint="data/sam_vit_l.pth")
         self.sam = ctx.sam
 
         self.masks = ctx.masks
@@ -169,7 +226,7 @@ class LabelwithSam:
 
         #zooming 
         self.zoom_factor = ctx.zoom_factor
-        self.zoom_step = 0.1  # step for each scroll
+        self.zoom_step = 0.1  
         self.min_zoom = 0.1
         self.max_zoom = 5.0
         self.canvas.bind("<MouseWheel>", self.on_mousewheel)
@@ -198,7 +255,7 @@ class LabelwithSam:
         self.root.mainloop()
 
 
-    def init_segment(self):
+        """"def init_segment(self):
 
         cfg = get_cfg()
         cfg.merge_from_file(model_zoo.get_config_file(
@@ -229,12 +286,12 @@ class LabelwithSam:
             self.masks.append({"mask":sam_masks[0], "selected": False, "logits": logits[np.argmax(scores), :, :], "class": 1})
         
         self.render()
+    """
 
     #--------------------------------------
     #gui functionality
     #--------------------------------------
     def on_mousewheel(self, event):
-        # Determine zoom direction
         if event.delta > 0 or event.num == 4:
             self.zoom_factor = min(self.max_zoom, self.zoom_factor + self.zoom_step)
         elif event.delta < 0 or event.num == 5:
@@ -408,7 +465,6 @@ class LabelwithSam:
             for mask in self.masks:
                 overlay = Image.new("RGBA", self.img.size, (0, 0, 0, 0))
 
-                # Define overlay color (e.g., red) and alpha (transparency)
                 if mask["selected"]:
                     overlay_color = (0, 255, 0, 100)
                 else:
@@ -417,8 +473,6 @@ class LabelwithSam:
                     else:
                         overlay_color = (0,0,0,0)
 
-                # Convert the binary mask to a uint8 image with RGBA color where mask==1
-                # mask must be shape (H, W)
                 mask_rgba = np.zeros((*mask["mask"].shape, 4), dtype=np.uint8)
                 mask_rgba[mask["mask"] == 1] = overlay_color
 
@@ -444,16 +498,6 @@ class LabelwithSam:
             self.tk_img = ImageTk.PhotoImage(self.img.resize(new_size, Image.LANCZOS))
             self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
             self.canvas.config(width=self.tk_img.width(), height=self.tk_img.height())
-
-
-if __name__ == "__main__":
-
-    ctx = LWSContext()
-
-    for image in Path("data/data_set/run1").iterdir():
-        ctx.set_image(Image.open(image))
-        label = LabelwithSam(ctx)
-        masks = label.get_mask()
 
 
 

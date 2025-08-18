@@ -2,128 +2,83 @@ import random
 import os 
 from pathlib import Path
 import shutil
-
-import torch
-import re
 import json
 import yaml
-
-from train import train
-
-import optuna
 from functools import partial
 
-class Options():
+from train import train
+from options import Options
 
-    def __init__(self):
+import optuna
 
-        clases = {"backgroud": 0, "cow": 1, "heu": 2}
-
-        #model
-        self.model = "deeplabv3plus_resnet50"
-        self.num_classes = 3
-        
-        self.dataset = "Cow_segmentation"
-        self.save_val_results = False # True
-
-        #constants
-        self.val_interval =2
-        self.total_epochs = 6
-        self.val_batch_size = 10
-        self.max_decrease = 0.35
-
-        #hyperparameter
-        self.batch_size = 15
-        self.class_weights = torch.tensor([0.2, 1.0, 1.0], device="cuda")
-        self.lr = 0.01
-        self.weight_decay = 0.01
-        self.lr_policy = "step"
-        self.loss_type = 'cross_entropy'
-        self.freeze_backbone = False
-        self.output_stride = 8
-
-        #seed
-        self.random_seed = random.randint(0,1000000)
-
-        #continue traning
-        self.save_param = False
-        self.ckpt= None 
-        self.continue_training = False
-
-    def to_dict(self):
-
-        return{"batchsize": self.batch_size,
-                "output_stride":self.output_stride,
-                "background_weighting": round(float(self.class_weights[0]), 6),
-                "learning_rate": round(self.lr, 6), 
-                "weight_decay": round(self.weight_decay, 6), 
-                "loss_type": self.loss_type,
-                "lr_policy": self.lr_policy,
-                "freeze_backbone": self.freeze_backbone}
-    
-    def from_dict(self, params):
-
-        self.batch_size = params["batchsize"]
-        self.output_stride = params["output_stride"]
-        self.class_weights[0] = params["background_weighting"]
-        self.lr = params["learning_rate"]
-        self.weight_decay = params["weight_decay"]
-        self.loss_type = params["loss_type"] 
-        self.lr_policy =params["lr_policy"]
-        self.freeze_backbone = params["freeze_backbone"]
-
-
-def contiguous_chunk_bounds(n, k):
-    """Return k contiguous chunks that cover range(n) as evenly as possible."""
-    base, rem = divmod(n, k)
-    bounds = []
-    start = 0
-    for j in range(k):
-        size = base + (1 if j < rem else 0)
-        end = start + size
-        bounds.append((start, end))
-        start = end
-    return bounds  # list of (start, end), len == k
-
-def trim_for_no_overlap(frames_slice, chunk_pos, k):
-    """Trim edges of the validation slice to avoid temporal overlap with train."""
-    m = len(frames_slice)
-    if m == 0:
-        return frames_slice
-    if chunk_pos == 0:
-        end = m - int(0.2 * m)
-        return frames_slice[:max(end, 0)]
-    elif chunk_pos == k - 1:
-        start = int(0.2 * m)
-        return frames_slice[start:]
-    else:
-        start = int(0.1 * m)
-        end = m - int(0.1 * m)
-        if end <= start:
-            return []
-        return frames_slice[start:end]
-
-def make_path(opts):
-    params = [
-        f"bt={opts.batch_size}", 
-        f"str={opts.output_stride}",
-        f"cw={round(float(opts.class_weights[0]), 4)}", 
-        f"wd={round(opts.weight_decay, 6)}", 
-        f"lr={round(opts.lr, 6)}",
-        f"l={opts.loss_type}", 
-        f"lp={opts.lr_policy}",
-        f"fb={opts.freeze_backbone}"
-    ]
-
-    return "_".join(params)
 class Training:
 
+    """
+    End-to-end workflow for cross-validation and hyperparameter optimization.
+
+    Steps
+    -----
+    1. create_folds(k, option): make train/val splits, write train.txt/eval.txt.
+    2. cross_validation(): loop over folds, run hyperparameter search.
+    3. hyperparameter_optimization(path): Optuna study per fold.
+    4. objective(trial, path): define search space, run one config.
+    5. run_config(opts, path): save config, call train(), load metrics.
+    """
+
     def __init__(self, dataset_root):
-        
+        """
+        Initialize the workflow object with a dataset root.
+
+        Parameters
+        ----------
+        dataset_root :
+            Path to the root directory of the dataset. This directory is expected
+            to contain a `runs/` subdirectory
+
+        Preconditions
+        -------------
+        - Downstream methods (`create_folds`) assume the
+        following structure under `dataset_root`:
+            dataset_root/
+                runs/
+                    <run1>/images/*.png 
+                    ...
+        """
+
         self.root = Path(dataset_root)
+
+        if not self.root.exists():
+            raise FileNotFoundError(f"Dataset root does not exist: {self.root}")
+        if not self.root.is_dir():
+            raise NotADirectoryError(f"Dataset root is not a directory: {self.root}")
+
+        # check runs/
+        runs_path = self.root / "runs"
+        if not runs_path.exists():
+            raise FileNotFoundError(f"Missing required subdirectory: {runs_path}")
+        if not runs_path.is_dir():
+            raise NotADirectoryError(f"`runs` is not a directory: {runs_path}")
+
+        runs = list(runs_path.iterdir())
+        if not runs:
+            raise FileNotFoundError(f"No runs found under {runs_path}")
+
+        bad_runs = []
+        for run in runs:
+            if not (run / "images").exists():
+                bad_runs.append(run)
 
     @staticmethod
     def clear_directory(path):
+        """
+        Remove all files and subdirectories from a directory.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path to the directory to clear.
+        """
+        
         for entry in os.listdir(path):
             full_path = os.path.join(path, entry)
             if os.path.isfile(full_path) or os.path.islink(full_path):
@@ -131,13 +86,70 @@ class Training:
             elif os.path.isdir(full_path):
                 shutil.rmtree(full_path)
 
-    #creates k folds with val train split
-    def create_folds(self, k_folds, option = "folds_in_run"):
+
+    def create_folds(self, k_folds: int, option: str = "folds_in_run"):
+        """
+        Create cross-validation folds for temporally ordered image runs.
+
+        Two splitting strategies are supported:
+
+        1. option = "folds_in_run"
+        Each run is internally split into `k_folds` contiguous chunks of frames.
+        For each fold:
+            - One chunk is held out for validation (chosen consistently per run with a seed).
+            - The remaining chunks are used for training.
+        Small overlaps near chunk boundaries are trimmed to reduce
+        temporal leakage between train/val.
+
+        Output: dataset/folds/{i}/train.txt and eval.txt listing absolute paths
+        to training and validation images for fold i.
+
+        2. option = "run_as_fold"
+        Each entire run is used as the validation set for one fold, while all
+        other runs are used for training (leave-one-run-out CV).
+        Currently only stubbed in; training paths need to be written out.
+
+        Parameters
+        ----------
+        k_folds : int
+            Number of folds to generate.
+        option : {"folds_in_run", "run_as_fold"}, default="folds_in_run"
+            Strategy to generate folds.
+        """
+
+        def contiguous_chunk_bounds(n, k):
+            base, rem = divmod(n, k)
+            bounds = []
+            start = 0
+            for j in range(k):
+                size = base + (1 if j < rem else 0)
+                end = start + size
+                bounds.append((start, end))
+                start = end
+            return bounds  
+
+        def trim_for_no_overlap(frames_slice, chunk_pos, k):
+
+            m = len(frames_slice)
+            if m == 0:
+                return frames_slice
+            if chunk_pos == 0:
+                end = m - int(0.2 * m)
+                return frames_slice[:max(end, 0)]
+            elif chunk_pos == k - 1:
+                start = int(0.2 * m)
+                return frames_slice[start:]
+            else:
+                start = int(0.1 * m)
+                end = m - int(0.1 * m)
+                if end <= start:
+                    return []
+                return frames_slice[start:end]
 
         run_path = self.root /"runs"
 
         folds_path = Path(f"dataset/folds")
-        #data needs to be temporaly ordered
+
         if option == "folds_in_run":
             
             folds_path.mkdir(exist_ok=True)
@@ -165,20 +177,17 @@ class Training:
                     bounds = contiguous_chunk_bounds(n, k_folds)
                     perm = run_permutation.get(run)
                     if perm is None:
-                        # fallback in case run was added later
                         r = random.Random(f"{SEED}-{run.name}")
                         perm = list(range(k_folds))
                         r.shuffle(perm)
                         run_permutation[run] = perm
 
-                    # choose which chunk is eval for THIS fold for THIS run
                     chosen_chunk = perm[i]
                     s, e = bounds[chosen_chunk]
 
                     val_frames = frames[s:e]
                     val_frames = trim_for_no_overlap(val_frames, chosen_chunk, k_folds)
 
-                    # everything outside chosen [s:e] is train
                     train_frames = frames[:s] + frames[e:]
 
                     train_paths.extend([frame_path / f for f in train_frames])
@@ -194,34 +203,18 @@ class Training:
 
         #safest version for no temporal overlap
         elif option == 'run_as_fold':
-
-            runs = os.listdir(run_path)
-            folds_path.mkdir(exist_ok=True)
-            self.clear_directory(folds_path)
-
-            for i in range(len(runs)):
-                train_runs = []
-                eval_runs = []
-
-                train_paths = []
-                eval_path = []
-
-                fold_path = folds_path / f"{i}"
-
-                for j in range(len(runs)):
-
-                    if j==i:
-                        eval_runs.append(runs[j])
-                    else:
-                        train_runs.append(runs[j])
-
-                for run in train_runs:
-                    print("todo")
+            raise RuntimeError("not implemented yet")
             
         else:
             raise RuntimeError("not a valid Option")
             
     def cross_validation(self):
+        """
+        Run cross-validation by iterating over prepared folds.
+
+        This method expects that dataset folds have already been created
+        (via `create_folds`) 
+        """
 
         folds_path = self.root / "folds"
         
@@ -229,25 +222,26 @@ class Training:
             
             self.hyperparameter_optimization(path)
 
-    
-    def objective(self, trial, destination_folder):
-        opts = Options()
+    def hyperparameter_optimization(self, path: Path):
+        """
+        Run hyperparameter optimization for a given fold using Optuna.
 
-        opts.output_stride = trial.suggest_int('output_stride', 8, 16, step = 8)
-        opts.batch_size = trial.suggest_int("batch_size", 3, 15, step = 1)
-        opts.lr = trial.suggest_float('learning_rate', 1e-5, 1e-2, log= True)
-        opts.class_weights[0] = trial.suggest_float("bg_weight", 0.1, 1)
-        opts.loss_type = trial.suggest_categorical("loss",  ["focal_loss", "cross_entropy"])
-        opts.weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-2, log=True)
-        opts.lr_policy =  trial.suggest_categorical("lr_policy",  ["none"])
-        opts.freeze_backbone =trial.suggest_categorical('freeze_backbone', [True, False])
+        This method sets up an Optuna study with a TPE sampler and a median
+        pruner, stores the study in a SQLite database inside the given fold
+        directory, and optimizes the objective function.
 
-        metrics = self.run_config(opts, destination_folder,trial= trial)
-        metrics =  max(metrics["validation"], key=lambda d: d["Mean IoU"])
-        return 1 - metrics["Mean IoU"]
+        Parameters
+        ----------
+        path : pathlib.Path
+            Path to the fold directory. Must contain `train.txt` and `eval.txt`
+            files generated by `create_folds`.
 
-    def hyperparameter_optimization(self, path):
-        
+        Preconditions
+        -------------
+        -This method expects that dataset folds have already been created
+        (via `create_folds`) 
+
+        """
 
         sampler = optuna.samplers.TPESampler(
             n_startup_trials=25,  
@@ -258,7 +252,7 @@ class Training:
 
         pruner = optuna.pruners.MedianPruner(
             n_startup_trials=25,    
-            n_warmup_steps=20      
+            n_warmup_steps=30      
         )
 
         study = optuna.create_study(study_name=f"fold_optimization",
@@ -270,11 +264,88 @@ class Training:
         
         study.optimize(partial(self.objective, destination_folder=path), n_trials=200)
 
+    def objective(self, trial, destination_folder: Path):
+        
+        """
+        Optuna objective function for semantic segmentation hyperparameter search.
+
+        This function defines the hyperparameter search space and starts the Traning for an config
+
+        Parameters
+        ----------
+        trial : optuna.trial.Trial
+            The Optuna trial object used to sample hyperparameters.
+        destination_folder : pathlib.Path
+            Path to the fold directory where tranings and validation metrics get saved too
+
+        Returns
+        -------
+        float
+            Objective value for Optuna to minimize (`1 - best_mIoU`).
+        """
+
+        opts = Options()
+
+        opts.output_stride = trial.suggest_int('output_stride', 16, 16, step = 8)
+        opts.batch_size = trial.suggest_int("batch_size", 3, 15, step = 1)
+        opts.lr = trial.suggest_float('learning_rate', 1e-5, 1e-2, log= True)
+        opts.weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-2, log=True)
+
+        opts.loss_type = trial.suggest_categorical("loss",  ["focal_loss", "cross_entropy"])
+        if opts.loss_type == "cross_entropy": 
+            opts.class_weights[0] = trial.suggest_float("bg_weight", 0.1, 1)
+
+        opts.freeze_backbone =trial.suggest_categorical('freeze_backbone', [True, False])
+
+        opts.lr_policy =  trial.suggest_categorical("lr_policy",  ["step", "poly", "none"])
+        
+        if opts.lr_policy == "step":
+            opts.step_size = trial.suggest_int("step_size", 2, 30)
+            opts.gamma = trial.suggest_float("gamma", 0.1, 0.95)
+        elif opts.lr_policy == "poly":
+            opts.poly_power = trial.suggest_float("power", 0.5, 3.0)
+        
+        
+        metrics = self.run_config(opts, destination_folder,trial= trial)
+        metrics =  max(metrics["validation"], key=lambda d: d["Mean IoU"])
+
+        return 1 - metrics["Mean IoU"]
+
     @staticmethod
     def run_config(opts, destination_folder, trial =None):
+        """
+        Run a training configuration and return its evaluation metrics.
+
+        This method is responsible for:
+        1. Creating a unique directory for the given config.
+        2. Recording the config in an `index.json`
+        3. Saving the config as `config.yaml`.
+        4. Calling the `train` function to perform training and evaluation.
+
+        Parameters
+        ----------
+        opts : Options
+            The configuration object containing hyperparameters and settings.
+        destination_folder : str or pathlib.Path
+            The base directory where this trial's results should be stored.
+            Each config will be placed in a subfolder 
+        trial : optuna.Trial, optional
+            The Optuna trial object, if this run is part of hyperparameter search.
+            Passed through to `train` for pruning integration.
+
+        Returns
+        -------
+        dict
+            Dictionary of metrics loaded from `metrics.json`. Expected to contain
+            a `"validation"` key with a list of per-epoch metrics.
+
+        Preconditions
+        -------------
+        - destination_folder need to have eval.txt and train.txt files in the parant folder 
+        """
 
         path = Path(destination_folder)
-        config_path = path / make_path(opts)
+        config_path = path / opts.create_dir_name()
 
         if (path/"index.json").is_file():
 
@@ -300,7 +371,6 @@ class Training:
             metrics = json.load(f)
 
         return metrics
-
 
 def test_config():
 
