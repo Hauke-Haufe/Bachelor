@@ -133,7 +133,7 @@ class Test:
 
         latex = self.build_tab_m_rad(scenes, lines)
 
-        Path(f"data/testResults/{self.name}_{metric}_var.tex").write_text(latex, encoding="utf-8")
+        Path(f"data/odometry/testResults/{self.name}_{metric}_var.tex").write_text(latex, encoding="utf-8")
 
     def metrics_to_latex(self, scenes, err_function, metric):
 
@@ -158,7 +158,7 @@ class Test:
 
         latex = self.build_tab_m_rad(scenes, lines)
 
-        Path(f"data/testResults/{self.name}_{metric}.tex").write_text(latex, encoding="utf-8")
+        Path(f"data/odometry/testResults/{self.name}_{metric}.tex").write_text(latex, encoding="utf-8")
 
     def plot_metric_per_scene(self, scenes, err_functions, metric):
 
@@ -230,7 +230,7 @@ class Test:
         )
 
         fig.savefig(
-            f"data/testResults/{self.name}_{metric}_com.png",
+            f"data/odometry/testResults/{self.name}_{metric}_com.png",
             dpi=300,
             bbox_inches='tight',
             bbox_extra_artists=(leg,)
@@ -304,7 +304,7 @@ class Test:
         )
 
         fig.savefig(
-            f"data/testResults/{self.name}_time_avg.png",
+            f"data/odometry/testResults/{self.name}_time_avg.png",
             dpi=300,
             bbox_inches='tight',
             bbox_extra_artists=(leg,)
@@ -328,10 +328,10 @@ class OdometryTest(Test):
             "NoMask": "default"
         }
 
-        if not Path("data/testResults/odom_results.csv").is_file():
+        if not Path("data/odometry/testResults/odom_results.csv").is_file():
             self.compute_metrics()
     
-        self.df = pd.read_csv("data/testResults/odom_results.csv")
+        self.df = pd.read_csv("data/odometry/testResults/odom_results.csv")
 
     def compute_metrics(self):
         
@@ -365,7 +365,7 @@ class OdometryTest(Test):
             results.append(run_data)
 
             df = pd.DataFrame(results)
-            df.to_csv("data/testResults/odom_results.csv", index=False)
+            df.to_csv("data/odometry/testResults/odom_results.csv", index=False)
 
     def rel_improvment_mask_to_latex(self, scenes, methods, metric):
 
@@ -402,7 +402,7 @@ class OdometryTest(Test):
 
         latex = self.build_tab_pcm_prad(scenes, lines)
 
-        Path(f"data/testResults/odometry_rel_{metric}.tex").write_text(latex, encoding="utf-8")
+        Path(f"data/odometry/testResults/odometry_rel_{metric}.tex").write_text(latex, encoding="utf-8")
 
     def plot_rel_improvment(self, scenes, methods, metric):
 
@@ -474,7 +474,7 @@ class OdometryTest(Test):
         )
 
         fig.savefig(
-            "data/testResults/odom_rel_imp.png",
+            "data/odometry/testResults/odom_rel_imp.png",
             dpi=300,
             bbox_inches='tight',
             bbox_extra_artists=(leg,)
@@ -496,10 +496,10 @@ class SlamTest(Test):
             "Maskout": "maskiert"
         }
 
-        if not Path("data/testResults/slam_results.csv").is_file():
+        if not Path("data/odometry/testResults/slam_results.csv").is_file():
             self.compute_metrics()
         
-        self.df = pd.read_csv("data/testResults/slam_results.csv")
+        self.df = pd.read_csv("data/odometry/testResults/slam_results.csv")
 
     def compute_metrics(self):
         
@@ -544,7 +544,7 @@ class SlamTest(Test):
             results.append(run_data)
 
             df = pd.DataFrame(results)
-            df.to_csv("data/testResults/slam_results.csv", index=False)
+            df.to_csv("data/odometry/testResults/slam_results.csv", index=False)
 
     def rel_improvment_to_latex(self, scenes, err_function, metric):
 
@@ -581,7 +581,7 @@ class SlamTest(Test):
 
         latex = self.build_tab_pcm_prad(scenes, lines)
 
-        Path(f"data/testResults/tsdf_rel_{metric}.tex").write_text(latex, encoding="utf-8")
+        Path(f"data/odometry/testResults/tsdf_rel_{metric}.tex").write_text(latex, encoding="utf-8")
 
     def plot_rel_improvment(self, scenes, err_function, metric):
 
@@ -653,7 +653,7 @@ class SlamTest(Test):
         )
 
         fig.savefig(
-            "data/testResults/tsdf_rel_imp.png",
+            "data/odometry/testResults/tsdf_rel_imp.png",
             dpi=300,
             bbox_inches='tight',
             bbox_extra_artists=(leg,)
@@ -753,7 +753,7 @@ class SlamTest(Test):
 
         # Save without cropping legends
         fig.savefig(
-            f"data/testResults/{self.name}_time_avg_split.png",
+            f"data/odometry/testResults/{self.name}_time_avg_split.png",
             dpi=300, bbox_inches='tight'
         )
         plt.show()
@@ -857,7 +857,7 @@ def plot_drift_comparision(scenes, err_functions, metric):
     )
 
     fig.savefig(
-        f"data/testResults/compose_{metric}_com.png",
+        f"data/odometry/testResults/compose_{metric}_com.png",
         dpi=300,
         bbox_inches='tight',
         bbox_extra_artists=(leg,)
@@ -961,7 +961,7 @@ def plot_com_method(scenes, err_functions, metric, method):
     )
 
     fig.savefig(
-        f"data/testResults/compose_{metric}_com.png",
+        f"data/odometry/testResults/compose_{metric}_com.png",
         dpi=300,
         bbox_inches='tight',
         bbox_extra_artists=(leg,)
@@ -1058,7 +1058,7 @@ def plot_rel_com(scenes, err_functions, metric):
     )
 
     fig.savefig(
-        f"data/testResults/compose_{metric}_com.png",
+        f"data/odometry/testResults/compose_{metric}_com.png",
         dpi=300,
         bbox_inches='tight',
         bbox_extra_artists=(leg,)

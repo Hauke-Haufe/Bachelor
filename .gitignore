@@ -10,6 +10,7 @@ sam2/
 build/
 presentation_data/
 executables/
+labeln/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -9,7 +9,6 @@ import datetime
 from label_studio_sdk import Client
 import label_studio_converter.brush as brush
 
-import cv2
 import numpy as np
 
 from PIL import Image
@@ -20,6 +19,7 @@ from LabelwithSam import LabelwithSam, LWSContext
 
 #sync up mit Labelstudio images
 #wichitg filepath darf nicht mit der labaelstudio root anfangen sonder erst dannach
+#self.root muss subdir von LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT= <ROOT> sein
 
 #class for labeling and managing working with Labelstudio
 class label_project:
@@ -27,46 +27,22 @@ class label_project:
     def __init__(self, root_path = "data/data_set"):
         
         """
-        Initialize the LabelStudioRunManager instance.
+        Manage a Label Studio labeling project and local dataset sync.
 
-        This constructor loads project progress, configuration, and environment
-        variables necessary to work with Label Studio for labeling camera runs
-        with polygon and brush projects. If no prior progress file is found,
-        the user is prompted to input configuration interactively.
+        This class handles:
+        - Connecting to a Label Studio server (API key + host).
+        - Managing project progress and configurations (stored in progress.json).
+        - Ensuring Label Studio is correctly set up for local file serving.
+        - Tracking runs, backup data, and semantic class definitions.
 
-        Args:
-            root_path (Union[str, Path]):
-                The filesystem path to the root directory containing
-                progress files (e.g., 'progress.json') and where backup
-                data will be stored.
-
-        Attributes:
-            root (Path):
-                The resolved path to the project root directory.
-            runs (dict):
-                A dictionary containing metadata about individual camera runs.
-            key (str):
-                The Label Studio API key.
-            host (str):
-                The URL of the Label Studio server.
-            configs (dict):
-                A dictionary containing configuration data for 'brush' and 'polygon' labeling projects.
-            label_studio_root (Path):
-                Path derived from the LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT environment variable.
-            backup_path (Path):
-                Directory path where backup files will be stored.
-            classes (dict):
-                Mapping of semantic classes to their labels and priority values.
-
-        Notes:
-            - If the 'progress.json' file exists in the root directory,
-              it will be loaded automatically.
-            - If 'progress.json' does not exist, the user will be prompted
-              to enter the API key and server URL interactively.
-            - The method `save_config()` is called to persist any loaded or
-              newly created configuration.
-            - This constructor ensures that the environment is properly set up
-              for local file serving in Label Studio."""
+        Requirements
+        ------------
+        - Environment variables must be set:
+            * LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=<ROOT>
+            * LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+        - The project root must be a subdirectory of <ROOT>.
+        - If no `progress.json` is found, API key and host are requested interactively.
+        """
 
         self.root = Path(root_path)
         if (self.root / "progress.json").is_file():
