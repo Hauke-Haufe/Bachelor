@@ -1,5 +1,5 @@
 import lib.Deeplab.network as network
-from options import Options
+from image_segmentation.utils.options import Options
 
 import argparse
 from pathlib import Path

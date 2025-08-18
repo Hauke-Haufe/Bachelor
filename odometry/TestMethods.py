@@ -13,7 +13,6 @@ from matplotlib.patches import Patch
 def fmt(x, r=4):
     return "\\textbf{--}" if x is None or pd.isna(x) else f"{x:.{r}f}"
 
-#latex tablle builder and plot class for Tests
 class Test:
 
     def __init__(self):
@@ -340,7 +339,7 @@ class OdometryTest(Test):
 
             values = {m: [] for m in self.metrics}
             for i in range(5):
-                with open("data/testConfigs/odometry_config.json", "w") as f:
+                with open("data/odometry/testConfigs/odometry_config.json", "w") as f:
                     json.dump({"device": "CUDA", 
                             "method": err,
                             "maskingmethod":mask, 
@@ -511,7 +510,7 @@ class SlamTest(Test):
 
             for i in range(num_iterations):
 
-                with open("data/testConfigs/slam_config.json", "w") as f:
+                with open("data/odometry/testConfigs/slam_config.json", "w") as f:
                     json.dump({"device": "CUDA", 
                             "method": err,
                             "slam_method":mask, 
@@ -1066,17 +1065,8 @@ def plot_rel_com(scenes, err_functions, metric):
     plt.show()
 
 if __name__ == "__main__":
-
-    #plot_drift_comparision(["static_xyz", "static_rpy"], [ "P2P"], "RPE")
-    #plot_com_method(["static_xyz", "static_rpy"], [ "Intensity","Hybrid", "P2P"], "RPE", "NoMask")
-    #plot_rel_com(["static_xyz", "static_rpy", "walking_static", "walking_xyz"], [ "P2P"], "RPE")
+    
     test = OdometryTest()
-   #test.mertics_to_latex_var(["static_xyz", "static_rpy", "walking_static", "walking_xyz", "walking_rpy"],  ["Intensity", "Hybrid", "P2P"], "ATE")
     test.plot_avg_time(["static_xyz", "walking_xyz"], ["Intensity", "Hybrid", "P2P"])
-    """test.metrics_to_latex(["static_xyz", "static_rpy", "walking_static", "walking_xyz", "walking_rpy"],
-                              ["Intensity", "Hybrid", "P2P"], "ATE")"""
-    #test.plot_rel_improvment([ "walking_static", "walking_xyz"],
-                 #["Intensity", "Hybrid", "P2P"], "RPE")
-    #test.plot_metric_per_scene(["static_xyz", "static_rpy", "walking_static", "walking_xyz", "walking_rpy"],
-                #["Intensity", "Hybrid", "P2P"], "RPE")
+
     

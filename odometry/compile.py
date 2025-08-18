@@ -25,7 +25,6 @@ def compile_project(open3d_dir: Path, build_type="Release"):
 
     BUILD_DIR.mkdir(exist_ok=True)
 
-    # Step 1: Configure with CMake
     run([
         "cmake",
         f"-DCMAKE_BUILD_TYPE={build_type}",
@@ -34,7 +33,6 @@ def compile_project(open3d_dir: Path, build_type="Release"):
         ".."
     ], cwd=BUILD_DIR)
 
-    # Step 2: Build
     run([
         "cmake",
         "--build", ".",

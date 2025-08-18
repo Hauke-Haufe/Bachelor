@@ -1,4 +1,4 @@
-from cross_validation import Training
+from image_segmentation.utils.cross_validation import Training
 import argparse
 
 if __name__ == "__main__":

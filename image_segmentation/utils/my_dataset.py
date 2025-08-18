@@ -30,7 +30,6 @@ class Mydataset(data.Dataset):
 
     def __init__(self, frames_path, preload = True):
         
-
         self.images = frames_path
         self.masks = []
         self.preload = preload
