@@ -1,26 +1,43 @@
 import os
 from tqdm import tqdm
-import lib.Deeplab.utils as utils
-import os
 import random
-import numpy as np
-import lib.Deeplab.network as network
-
-from torch.utils import data
-from lib.Deeplab.metrics import StreamSegMetrics
-
-import torch
-import torch.nn as nn
-from my_dataset import Mydataset
-import matplotlib.pyplot as plt
-import matplotlib
 from pathlib import Path
 import json
 
+import lib.Deeplab.network as network
+from lib.Deeplab.metrics import StreamSegMetrics
+import lib.Deeplab.utils as utils
+
+from torch.utils import data
+import torch
+import torch.nn as nn
+
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
 from optuna import TrialPruned
+
+from my_dataset import Mydataset
  
 def get_dataset(path):
-    
+    """
+    Load training and validation datasets from a fold directory.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to a sample inside a fold directory. The function expects
+        the fold parent directory and expects `train.txt` and `eval.txt`
+        files there.
+
+    Returns
+    -------
+    train_dst : Mydataset
+        Dataset object for training frames.
+    val_dst : Mydataset
+        Dataset object for validation frames.
+    """
+
     *parent_paths, _ = path.parts
     parent_paths = Path(*parent_paths)
 
@@ -36,9 +53,11 @@ def get_dataset(path):
     return train_dst, val_dst
 
 def validate(opts, model, loader, device, metrics, path):
+    """
+    Run validation for one epoch. Usage for Training Loop
+    """
 
     metrics.reset()
-    ret_samples = []
     if opts.save_val_results:
         result_path = path / "results"
         result_path.mkdir(parents=True, exist_ok=True)
@@ -67,14 +86,10 @@ def validate(opts, model, loader, device, metrics, path):
                     target = loader.dataset.decode_target(target).astype(np.uint8)
                     pred = loader.dataset.decode_target(pred).astype(np.uint8)
 
-                    #Image.fromarray(image,  mode='RGB').save(result_path /f"{img_id}_image.png")
-                    #Image.fromarray(np.squeeze(target)).save(result_path /f"{img_id}_target.png")
-                    #Image.fromarray(pred).save(result_path /f"{img_id}_pred.png")
-
                     fig = plt.figure()
                     plt.imshow(image)
                     plt.axis('off')
-                    plt.imshow(pred, alpha=0.7)
+                    plt.imshow(pred, alpha=0.4)
                     ax = plt.gca()
                     ax.xaxis.set_major_locator(matplotlib.ticker.NullLocator())
                     ax.yaxis.set_major_locator(matplotlib.ticker.NullLocator())
@@ -85,9 +100,24 @@ def validate(opts, model, loader, device, metrics, path):
         score = metrics.get_results()
         model.train()
         
-    return score, ret_samples
+    return score
 
 def train(opts, fold_path, trial = None):
+
+    """
+    Train and validate a segmentation model for one cross-validation fold.
+
+    Parameters
+    ----------
+    opts : Options
+        Training configuration.
+    fold_path : str or Path
+        Metrics and checkpoints will be written here.
+        Parent directory need eval.txt and train.txt
+    trial : optuna.Trial, optional
+        Trial object for hyperparameter optimization. Enables reporting
+        and pruning during training.
+    """
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device: %s" % device)
@@ -101,7 +131,7 @@ def train(opts, fold_path, trial = None):
     train_dst, val_dst = get_dataset(fold_path)
     train_loader = data.DataLoader(
         train_dst, batch_size=opts.batch_size, shuffle=False,
-        drop_last=True, pin_memory=True)  # drop_last=True to ignore single-image batches.
+        drop_last=True, pin_memory=True)  
     val_loader = data.DataLoader(
         val_dst, batch_size=opts.val_batch_size, shuffle=False, pin_memory=True)
 
@@ -134,9 +164,9 @@ def train(opts, fold_path, trial = None):
 
     # Set up Learning rate scheduler
     if opts.lr_policy == 'poly':
-        scheduler = utils.PolyLR(optimizer, len(train_loader) * opts.total_epochs, power=0.9)
+        scheduler = utils.PolyLR(optimizer, len(train_loader) * opts.total_epochs, power=opts.poly_power)
     elif opts.lr_policy == 'step':
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size= 5, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size= opts.step_size, gamma=opts.gamma)
     elif opts.lr_policy == 'none':
         scheduler = None
 
@@ -154,7 +184,6 @@ def train(opts, fold_path, trial = None):
             "cur_itrs": cur_itrs,
             "model_state": model.module.state_dict(),
             "optimizer_state": optimizer.state_dict(),
-            "scheduler_state": scheduler.state_dict(),
             "best_score": best_score,
         }, path)
         print("Model saved as %s" % path)
@@ -214,7 +243,7 @@ def train(opts, fold_path, trial = None):
 
             interval_loss += loss.item()
 
-            if (cur_itrs) % 10 == 0:
+            if (cur_itrs) % 20 == 0:
 
                 interval_loss = interval_loss / 10
                 print("Epoch %d, Itrs %d/%d, Loss=%f" %
@@ -235,7 +264,7 @@ def train(opts, fold_path, trial = None):
             print("validation...")
             model.eval()
             
-            val_score, _ = validate(opts=opts, model=model, loader=val_loader, 
+            val_score = validate(opts=opts, model=model, loader=val_loader, 
                 device=device, metrics=metrics, path=fold_path)
             print(metrics.to_str(val_score))
 

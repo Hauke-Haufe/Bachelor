@@ -2,8 +2,22 @@ from cross_validation import Training
 import argparse
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run hyperparameter optimization.")
-    parser.add_argument("path", help="Destination folder to save best parameters.")
+    """
+    Command-line entry point for hyperparameter optimization on a sepcific Fold.
+
+    Usage
+    -----
+    CUDA_VISIBLE_DEVICES=<device_id> python run_optimization.py <path>
+
+    Parameters
+    ----------
+    path : str
+        Destination folder (fold directory) where the Optuna study,
+        configs, and results will be stored.
+    """
+
+    parser = argparse.ArgumentParser(description="Runs hyperparameter optimization.")
+    parser.add_argument("path", help="Fold Path where eval.txt and train.txt live.")
     args = parser.parse_args()
 
     optimizer =Training("dataset")
