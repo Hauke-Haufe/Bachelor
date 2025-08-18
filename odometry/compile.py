@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 import sys
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 CPP_DIR = ROOT / "odometry" / "cpp"   
 BUILD_DIR = CPP_DIR / "build"
 EXEC_DIR = ROOT / "executables"
@@ -24,7 +24,6 @@ def compile_project(open3d_dir: Path, build_type="Release"):
     """
 
     BUILD_DIR.mkdir(exist_ok=True)
-
     run([
         "cmake",
         f"-DCMAKE_BUILD_TYPE={build_type}",
@@ -39,7 +38,7 @@ def compile_project(open3d_dir: Path, build_type="Release"):
         "--parallel"
     ], cwd=BUILD_DIR)
 
-    print(f"\n✅ Build finished ({build_type}). Executables are in {EXEC_DIR}")
+    print(f"\n Build finished ({build_type}). Executables are in {EXEC_DIR}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build OdometryTests with Open3D")

@@ -1,11 +1,30 @@
 # Project
 
-Das Repository besteht aus zwei Teilen, dem Imagesegmentation und dem Odometrz Teil
+Dieses Repository besteht aus zwei Hauptteilen:
+1. **Image Segmentation**
+2. **Odometry**
 
-# Imagesgmentation
+Für die Einrichtung des Grund-Repositories sowie Installation aller Abhängigkeiten:
+```bash
+python setup.py
+```
 
-Fuer das Setup des traning müssen yuerst die Python Umgebung aufgeset werden. Die Dependencies koeennen mit pip install requirments.txt Installiertwerden
-das traningsbassiert auf dem repositorz https://github.com/VainF/DeepLabV3Plus-Pytorch.git. Es sollte in image?segmentaiton/lib gecloned werden und zu deeplab umgebannt werden. 
-Fuer das Traning ist der erstellte Datensatz benotig (dataset directory)
+# Dataset vorbereiten
+Ersetze den dataset-Ordner durch den Datensatz. 
+
+# Traning
+Bevor ein Modelle traniert werden koennen müssen zuert die Folds erzeugt werden mit Train-Vaslidationsplits erstellt werden. 
+```bash
+python image_segmentation/scripts/create_folds.py <path/to/dataset> --k_folds <num_folds>
+```
+Um einen Hyperparamter Optierungstrial auf einen Fold laufen zu lassen kann folgender Command genutzt werden
+```bash
+CUDA_VISIBLE_DEVICES=<device_id> python image_segmentation/scripts/run_optimization.py <path/to/specific/fold> --num_iterations <num_iteration_optimizer>
+```
+Nach einem Optimerungsdurchlauf können das beste Modell per Fold Trainiert werden
+```bash
+CUDA_VISIBLE_DEVICES=<device_id> python image_segmentation/scripts/train_best.py <path/to/folds>
+```
+
 
 

@@ -15,7 +15,6 @@ def create_dirs():
     print("[1/5] Creating base directories...")
     (ROOT / "data").mkdir(exist_ok=True)
     (ROOT / "image_segmentation" / "lib").mkdir(parents=True, exist_ok=True)
-    (ROOT / "odometry" / "build").mkdir(parents=True, exist_ok=True)
 
 def setup_venv():
     print("[2/5] Setting up Python virtual environment...")
@@ -63,7 +62,7 @@ def create_data_placeholders():
     if not odometry_dir.exists():
         odometry_dir.mkdir(parents=True)
         (odometry_dir / "testResults").mkdir(parents=True) 
-        (odometry_dir / "testConigs").mkdir(parents=True)
+        (odometry_dir / "testConfigs").mkdir(parents=True)
         (odometry_dir/ "TUMDataset").mkdir(parents=True)
 
 def main():

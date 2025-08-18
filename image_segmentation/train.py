@@ -17,7 +17,7 @@ import matplotlib
 import numpy as np
 from optuna import TrialPruned
 
-from my_dataset import Mydataset
+from util.my_dataset import Mydataset
  
 def get_dataset(path):
     """
@@ -307,6 +307,3 @@ def train(opts, fold_path, trial = None):
             if cur_epochs >= opts.total_epochs:
                 return
             
-
-if __name__ == "__main__":
-    pass
