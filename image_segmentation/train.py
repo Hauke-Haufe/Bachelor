@@ -294,7 +294,7 @@ def train(opts, fold_path, trial = None):
                 return
 
             if trial is not None:
-                trial.report(1 - val_score['Mean IoU'], step = cur_epochs)
+                trial.report(1 - val_score["Class IoU"][1], step = cur_epochs)
 
                 if trial.should_prune():
                     raise TrialPruned()

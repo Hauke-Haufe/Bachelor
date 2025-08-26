@@ -31,10 +31,18 @@ def load_model(ckpt_path: Path, device: torch.device):
     return model
 
 
-def run_inference(img_folder: Path, ckpt_path: Path):
+def run_inference(img_folder: Path, ckpt_path: Path, save_masks: bool, save_overlays: bool):
     """
     Run inference on a folder of imagees with a trained model.
     """
+    if save_masks:
+        mask_folder = Path(img_folder) / "masks"
+        mask_folder.mkdir(exist_ok=True)
+
+    if save_overlays:
+        overlay_folder = Path(img_folder)/ "overlays"
+        overlay_folder.mkdir(exist_ok=True) 
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model(ckpt_path, device)
     model.eval()
@@ -52,15 +60,42 @@ def run_inference(img_folder: Path, ckpt_path: Path):
         output = model(input_t)
         preds = output.detach().max(dim=1)[1].cpu().numpy().astype(np.uint8)[0]
 
-        plt.imshow(img_t)
-        plt.imshow(preds, alpha=0.5)
-        plt.show()
+        if save_masks:
+            mask_path = mask_folder/ (img_path.stem + ".npy")   
+            np.save(mask_path, preds)
+
+        colors = {
+            1: (1, 0, 0, 0.4),  
+            2: (0, 1, 0, 0.4), 
+        }
+
+        # Create RGBA overlay initialized as transparent
+        overlay = np.zeros((*preds.shape, 4))
+
+        for cls, color in colors.items():
+            overlay[preds == cls] = color
+
+        fig, ax = plt.subplots()
+
+        ax.imshow(img_t)
+        ax.imshow(overlay)
+        ax.axis("off")  
+
+        if save_overlays:
+            overlay_path = overlay_folder / (img_path.stem + ".png") 
+            plt.savefig(overlay_path,dpi=300, bbox_inches="tight", pad_inches=0, transparent=True)
+        
+        plt.close()
+        
+        #plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run inference with a trained model.")
     parser.add_argument("ckpt", type=Path, help="Path to model checkpoint (.pth).")
     parser.add_argument("image_folder", type=Path, help="Path to image folder.")
+    parser.add_argument("--save_mask",type=bool, default=False, help="saves the mask to folder.")
+    parser.add_argument("--save_overlays", type= bool, default=False, help="saves mask overlays to folder")
 
     args = parser.parse_args()
 
-    run_inference(args.image_folder, args.ckpt)
+    run_inference(args.image_folder, args.ckpt, args.save_mask,args.save_overlays)

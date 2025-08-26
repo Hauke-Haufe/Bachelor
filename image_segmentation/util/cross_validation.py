@@ -247,7 +247,7 @@ class Training:
         """
 
         sampler = optuna.samplers.TPESampler(
-            n_startup_trials=25,  
+            n_startup_trials=1,  
             multivariate=True,
             group=True,
             seed=42,
@@ -310,9 +310,9 @@ class Training:
         
         
         metrics = self.run_config(opts, destination_folder,trial= trial)
-        metrics =  max(metrics["validation"], key=lambda d: d["Mean IoU"])
+        metrics =  max(metrics["validation"], key=lambda d: d["Class IoU"]["1"])
 
-        return 1 - metrics["Mean IoU"]
+        return 1 - metrics["Class IoU"]["1"]
 
     @staticmethod
     def run_config(opts, destination_folder, trial =None):
@@ -333,7 +333,8 @@ class Training:
             The base directory where this trial's results should be stored.
             Each config will be placed in a subfolder 
         trial : optuna.Trial, optional
-            The Optuna trial object, if this run is part of hyperparameter search.
+            The Optuna trial object, if th
+            is run is part of hyperparameter search.
             Passed through to `train` for pruning integration.
 
         Returns

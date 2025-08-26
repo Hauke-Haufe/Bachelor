@@ -56,7 +56,6 @@ class Evaluation:
         opts.save_param = True
         opts.continue_training = False
         opts.total_epochs = 100
-        opts.class_weights[0]=0.7
         opts.save_val_results = True
         config_path = self.root / f"{fold}"/ "best"
         config_path.mkdir(exist_ok=True)
@@ -66,9 +65,33 @@ class Evaluation:
 
         train(opts, config_path)
 
+    def get_beat_val(self):
+        
+        paramters = {}
+        for fold, studies in self.studies.items():
+
+            with open(self.root / f"{fold}"/ "index.json", 'r') as f:
+                index = json.load(f)
+
+            trials = self.studies[fold]
+            sorted_trials = trials.sort_values(by='value')
+            best = sorted_trials.iloc[0]
+
+            path = Path(index[best['number']])
+
+            with open(self.root/ Path(*path.parts[2:])/ "metrics.json", "r") as f:
+                params = json.load(f)
+
+            best_value = max(params["validation"], key=lambda d: d["Mean IoU"])
+
+            paramters[fold] = best_value
+        
+        with open(self.root /"best_val.json", "w") as f:
+            json.dump(paramters, f, indent = 4)
+
     def print_best_configs(self):
         
-        for fold in range(self.num_folds):
+        for fold, _ in self.studies.items():
 
             with open(self.root / f"{fold}"/ "index.json", 'r') as f:
                 index = json.load(f)
@@ -113,7 +136,7 @@ class Evaluation:
                 test_loader = data.DataLoader(test_dst, batch_size=20, shuffle=False,
                 drop_last=True, pin_memory=True) 
 
-                val_score, _ = validate(opts, model, test_loader, device, metrics, Path((self.root /f"{fold}/best"))) 
+                val_score = validate(opts, model, test_loader, device, metrics, Path((self.root /f"{fold}/best"))) 
                 scores[fold] = val_score
         
         with open(self.root / "test_score.json", "w") as f:
@@ -346,7 +369,7 @@ class Evaluation:
         records = []
         for fold, _ in self.studies.items():
             study = optuna.load_study(study_name=f"fold_optimization",
-                                    storage=f"sqlite:///dataset/folds/{fold}/optuna_study.db")
+                                    storage=f"sqlite:///{self.root}/{fold}/optuna_study.db")
             imp = optuna.importance.get_param_importances(study)
             fig = optuna.visualization.plot_param_importances(study)
             # In HTML schreiben
@@ -385,10 +408,12 @@ class Evaluation:
 if __name__ == "__main__":
 
     eval = Evaluation("dataset/folds")
-    eval.plot_parameter_importance()
-    #eval.test_best_models()
-    #eval.plot_test_metrics()
 
+    eval.test_best_models()
+    #eval.train_best_config_fold(0)
+
+
+         
 
 
 
