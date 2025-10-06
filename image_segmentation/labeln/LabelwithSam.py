@@ -165,7 +165,7 @@ class LabelwithSam:
         self.root =  tk.Tk() 
         self.ctx = ctx
 
-        self.root.state('zoomed')
+        #self.root.state('zoomed')
 
 
         #--------------------------------------
@@ -501,5 +501,13 @@ class LabelwithSam:
 
 
 
+if __name__ == "__main__":
+
+    ctx = LWSContext()
+    image = Image.open("/home/hauke/code/Beachlor/data/images/color/image00000.png")
+    ctx.set_image(image)
+    label = LabelwithSam(ctx)
+    ctx = label.get_context()
+    mask = ctx.get_masks()
 
 

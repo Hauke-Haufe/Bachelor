@@ -3,8 +3,6 @@ from pathlib import Path
 import os
 from tqdm import tqdm
 import shutil
-import datetime
-
 
 from label_studio_sdk import Client
 import label_studio_converter.brush as brush
@@ -14,14 +12,6 @@ import numpy as np
 from PIL import Image
 from LabelwithSam import LabelwithSam, LWSContext
 
-#starte label studio mit LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT= <ROOT> LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true label-studio
-#create a dataset mit dem Namen dataset1 sub dir von <root> und füge als storage hinzu
-
-#sync up mit Labelstudio images
-#wichitg filepath darf nicht mit der labaelstudio root anfangen sonder erst dannach
-#self.root muss subdir von LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT= <ROOT> sein
-
-#class for labeling and managing working with Labelstudio
 class label_project:
 
     def __init__(self, root_path = "data/data_set"):
@@ -41,7 +31,7 @@ class label_project:
             * LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=<ROOT>
             * LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
         - The project root must be a subdirectory of <ROOT>.
-        - If no `progress.json` is found, API key and host are requested interactively.
+        - read LabelStudio local File Serving and api doc
         """
 
         self.root = Path(root_path)
