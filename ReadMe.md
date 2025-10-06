@@ -9,11 +9,11 @@ Für die Einrichtung des Grund-Repositories sowie Installation aller Abhängigke
 python setup.py
 ```
 # Inference
-Um Inference auf Bildern laufen zu lassen kann ein bereitgestelltes Script benutzt werden.
+Um Inference auf einem Ordner von Bildern laufen zu lassen kann ein bereitgestelltes Script benutzt werden.
 ```bash
 python image_segmentation/scripts/predict.py <path/to/modelcheckpoint> <path/to/image/folder> --save_overlays=true
 ```
-Es wird ein Ordner in dem Zielordner erstellt.
+Es wird ein Ordner in dem Zielordner erstellt, der Visualisierungen der Preictions enthält.
 
 # Traning
 
