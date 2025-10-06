@@ -21,7 +21,7 @@ Es wird ein Ordner in dem Zielordner erstellt, der Visualisierungen der Predicti
 Ersetze den dataset-Ordner durch den Datensatz. 
 
 ## Fold Erstellung
-Bevor ein Modelle traniert werden koennen müssen zuert die Folds erzeugt werden mit Train-Vaslidationsplits erstellt werden. 
+Bevor ein Modelle traniert werden können müssen zuert die Folds erzeugt werden. 
 ```bash
 python image_segmentation/scripts/create_folds.py <path/to/dataset> --k_folds <num_folds>
 ```
