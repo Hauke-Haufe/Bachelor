@@ -13,7 +13,7 @@ Um Inference auf einem Ordner von Bildern laufen zu lassen kann ein bereitgestel
 ```bash
 python image_segmentation/scripts/predict.py <path/to/modelcheckpoint> <path/to/image/folder> --save_overlays=true
 ```
-Es wird ein Ordner in dem Zielordner erstellt, der Visualisierungen der Preictions enthält.
+Es wird ein Ordner in dem Zielordner erstellt, der Visualisierungen der Predictions enthält.
 
 # Traning
 
